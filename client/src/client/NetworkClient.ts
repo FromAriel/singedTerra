@@ -473,7 +473,8 @@ export class NetworkClient implements GameClient {
   sendAction(action: PlayerAction): void {
     const engineTankId = this.playerIndexMap.get(this.playerId);
     if (!engineTankId) {
-      // Log only a short prefix — playerId is the de-facto identity token.
+      // Log only a short prefix — playerId is a public seat identifier, not the
+      // secret seat-token credential.
       console.error('NetworkClient.sendAction: no engine tank ID for playerId', this.playerId?.slice(0, 8));
       return;
     }

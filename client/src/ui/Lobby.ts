@@ -1,4 +1,3 @@
-import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 import type { AiDifficulty } from '@shared/types/GameState';
 import { clamp } from '@shared/engine/math';
 import { armsLabel, roundsLabel, botLabel } from './browseLabels';
@@ -10,6 +9,11 @@ import {
   type RoomVisibility,
   type FetchedRoom,
 } from '../client/LobbyTransport';
+import {
+  LobbySession,
+  type LobbySessionEvent,
+  type LobbyWaitingState,
+} from '../client/LobbySession';
 import { writeSession, clearSession, readSession, isLiveSession, type SessionDescriptor } from '../lib/sessionDescriptor';
 import {
   type LobbySettings,
@@ -167,6 +171,7 @@ export class Lobby {
 
   /** Owns the seven Edge-Function calls (create/join/list/heartbeat/ready/leave/update). */
   private readonly transport = new LobbyTransport();
+  private readonly session: LobbySession;
 
   /** Working state for the player rows (defaults Player 1..N + palette order). */
   private players: PlayerRowState[] = [];
@@ -211,45 +216,11 @@ export class Lobby {
 
   // Browse (public rooms) sub-view state.
   private browseRooms: BrowseRoom[] = [];
-  private browsePollId: ReturnType<typeof setInterval> | null = null;
-
-  // Waiting room state (populated after create/join succeeds)
-  private waitingRoomId = '';
-  private waitingRoomCode = '';
-  private waitingPlayerId = '';
-  /** Secret per-seat credential for this room, captured from create_room/join_room. */
-  private waitingToken = '';
-  private waitingPlayers: NetworkPlayer[] = [];
-  private waitingSeed = 0;
-  private waitingOptions: RoomOptions = {
-    maxPlayers: 2,
-    maxWind: 10,
-    gravity: 0.15,
-  };
-  private waitingThisPlayerReady = false;
-  private waitingChannel: RealtimeChannel | null = null;
-  /**
-   * Lazily-loaded Supabase client. The hot-seat path (the common case) never
-   * needs it, so we keep `@supabase/supabase-js` out of the initial bundle and
-   * dynamic-import it only when the waiting room first subscribes (see
-   * `getSupabase`). Mirrors the `await import('./lib/supabase')` seam in main.ts.
-   */
-  private supabaseClient: SupabaseClient | null = null;
-
-  /** Heartbeat interval keeping THIS player's lastSeen fresh; lifetime == waiting channel. */
-  private waitingHeartbeatId: ReturnType<typeof setInterval> | null = null;
-
-  /**
-   * "Meaningful signature" of the last-rendered waiting-room players + status,
-   * EXCLUDING lastSeen. Used to suppress the 10s heartbeat-driven Realtime
-   * UPDATE re-renders (de-flicker) while keeping ready/name/color/join/leave
-   * changes instant.
-   */
-  private lastWaitingSig = '';
 
   // Shared online status message
   private onlineError = '';
   private onlineBusy = false;
+  private leavingRoom = false;
 
   /**
    * T-09 (rejoin-after-refresh, AC-05) — the validated rejoin candidate, set
@@ -264,6 +235,85 @@ export class Lobby {
     this.root = root;
     this.onReady = onReady;
     this.players = [defaultRow(0), defaultRow(1)];
+    this.session = new LobbySession(this.transport, (event) => this.handleSessionEvent(event));
+  }
+
+  private handleSessionEvent(event: LobbySessionEvent): void {
+    if (event.type === 'changed') {
+      this.render();
+    } else if (event.type === 'ready') {
+      if (event.source === 'direct') this.onlineBusy = false;
+      this.emitNetworkReady(event.room);
+    } else {
+      this.onlineSubView = 'create';
+      this.onlineBusy = false;
+      this.onlineError = event.message;
+      this.render();
+    }
+  }
+
+  private get waitingRoomId(): string {
+    return this.session.waiting.roomId;
+  }
+
+  private set waitingRoomId(roomId: LobbyWaitingState['roomId']) {
+    this.session.replaceWaiting({ ...this.session.waiting, roomId });
+  }
+
+  private get waitingRoomCode(): string {
+    return this.session.waiting.roomCode;
+  }
+
+  private set waitingRoomCode(roomCode: LobbyWaitingState['roomCode']) {
+    this.session.replaceWaiting({ ...this.session.waiting, roomCode });
+  }
+
+  private get waitingPlayerId(): string {
+    return this.session.waiting.playerId;
+  }
+
+  private set waitingPlayerId(playerId: LobbyWaitingState['playerId']) {
+    this.session.replaceWaiting({ ...this.session.waiting, playerId });
+  }
+
+  private get waitingToken(): string {
+    return this.session.waiting.token;
+  }
+
+  private set waitingToken(token: LobbyWaitingState['token']) {
+    this.session.replaceWaiting({ ...this.session.waiting, token });
+  }
+
+  private get waitingPlayers(): NetworkPlayer[] {
+    return this.session.waiting.players;
+  }
+
+  private set waitingPlayers(players: LobbyWaitingState['players']) {
+    this.session.replaceWaiting({ ...this.session.waiting, players });
+  }
+
+  private get waitingSeed(): number {
+    return this.session.waiting.seed;
+  }
+
+  private set waitingSeed(seed: LobbyWaitingState['seed']) {
+    this.session.replaceWaiting({ ...this.session.waiting, seed });
+  }
+
+  private get waitingOptions(): RoomOptions {
+    return this.session.waiting.options;
+  }
+
+  private set waitingOptions(options: LobbyWaitingState['options']) {
+    this.session.replaceWaiting({ ...this.session.waiting, options });
+  }
+
+  private get waitingThisPlayerReady(): boolean {
+    return this.session.waiting.thisPlayerReady;
+  }
+
+  private set waitingThisPlayerReady(thisPlayerReady: LobbyWaitingState['thisPlayerReady']) {
+    this.session.replaceWaiting({ ...this.session.waiting, thisPlayerReady });
   }
 
   /**
@@ -1446,16 +1496,12 @@ export class Lobby {
 
   /** Begin (or restart) the 3s list_rooms poll. */
   private startBrowsePoll(): void {
-    this.stopBrowsePoll();
-    this.browsePollId = setInterval(() => { void this.fetchRooms(); }, 3000);
+    this.session.startBrowsePoll(() => { void this.fetchRooms(); });
   }
 
   /** Stop the list_rooms poll if running. */
   private stopBrowsePoll(): void {
-    if (this.browsePollId !== null) {
-      clearInterval(this.browsePollId);
-      this.browsePollId = null;
-    }
+    this.session.stopBrowsePoll();
   }
 
   /** Leave the browse view back to a given sub-view, stopping the poll. */
@@ -1729,131 +1775,16 @@ export class Lobby {
     return frag;
   }
 
-  /**
-   * Dynamic-import + memoize the Supabase client. Keeps `@supabase/supabase-js`
-   * out of the hot-seat initial bundle; the chunk is fetched only on the first
-   * networked waiting-room subscription.
-   */
-  private async getSupabase(): Promise<SupabaseClient> {
-    if (!this.supabaseClient) {
-      const mod = await import('../lib/supabase');
-      this.supabaseClient = mod.supabase;
-    }
-    return this.supabaseClient;
-  }
-
   private async subscribeWaitingRoom(): Promise<void> {
-    this.cleanupWaitingChannel();
-    const roomId = this.waitingRoomId;
-    const supabase = await this.getSupabase();
-
-    this.waitingChannel = supabase
-      .channel(`rooms:${roomId}`)
-      .on(
-        'postgres_changes' as Parameters<ReturnType<typeof supabase.channel>['on']>[0],
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'rooms',
-          filter: `id=eq.${roomId}`,
-        },
-        (payload: { new: { players?: NetworkPlayer[]; status?: string; seed?: number; options?: RoomOptions } }) => {
-          const row = payload.new;
-          if (Array.isArray(row.players)) {
-            this.waitingPlayers = row.players;
-          }
-          if (row.seed !== undefined) {
-            this.waitingSeed = row.seed;
-          }
-          if (row.options !== undefined) {
-            this.waitingOptions = row.options;
-          }
-
-          if (row.status === 'active') {
-            this.cleanupWaitingChannel();
-            this.emitNetworkReady(row as { players: NetworkPlayer[]; seed: number; options: RoomOptions });
-            return;
-          }
-
-          // Dead-room: if I'm no longer in the roster (reaped as a stale ghost, or
-          // otherwise removed), the room is effectively gone for me — bail to the
-          // create view instead of waiting forever on a row I'm not part of (P1-6b).
-          if (
-            Array.isArray(row.players) &&
-            !row.players.some((p) => p.id === this.waitingPlayerId)
-          ) {
-            this.handleRoomGone('You are no longer in this room.');
-            return;
-          }
-
-          // De-flicker: heartbeats rewrite the row every 10s/player (bumping each
-          // player's lastSeen), which would otherwise trigger a re-render on a
-          // ~10s cadence. Compute a signature of the meaningful state EXCLUDING
-          // lastSeen and only re-render when it actually changed. State above is
-          // always updated from the row regardless.
-          const sig = this.waitingSignature(this.waitingPlayers, row.status);
-          if (sig !== this.lastWaitingSig) {
-            this.lastWaitingSig = sig;
-            this.render();
-          }
-        },
-      )
-      .on(
-        // Dead-room: the whole row was deleted (last player left, or the lazy-GC
-        // reaper culled a fully-stale room) — return to the create view instead of
-        // freezing on a room that no longer exists (P1-6b).
-        'postgres_changes' as Parameters<ReturnType<typeof supabase.channel>['on']>[0],
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'rooms',
-          filter: `id=eq.${roomId}`,
-        },
-        () => {
-          this.handleRoomGone('This room is no longer available.');
-        },
-      )
-      .subscribe();
-
-    // Tie the heartbeat lifetime to the waiting channel. subscribeWaitingRoom is
-    // called from BOTH the create and join paths, so this covers both.
-    this.startHeartbeat();
+    return this.session.subscribeWaitingRoom();
   }
 
-  /**
-   * "Meaningful signature" of the waiting-room state — id/name/color/ready per
-   * player plus the room status — deliberately EXCLUDING lastSeen so heartbeat
-   * writes don't change it.
-   */
-  private waitingSignature(players: NetworkPlayer[], status?: string): string {
-    return (
-      players.map((p) => `${p.id}|${p.name}|${p.color}|${p.ready}`).join(',') +
-      '|' +
-      (status ?? '')
-    );
-  }
-
-  /**
-   * Start the heartbeat loop: best-effort POST heartbeat every 10s so the server
-   * keeps THIS player's lastSeen fresh and the lazy-GC reaper doesn't treat them
-   * as a closed-tab ghost. Errors are ignored. Clears any prior interval first.
-   */
   private startHeartbeat(): void {
-    this.stopHeartbeat();
-    this.waitingHeartbeatId = setInterval(() => {
-      void this.transport.heartbeat({ roomId: this.waitingRoomId, playerId: this.waitingPlayerId, token: this.waitingToken }).catch(() => {
-        // Best-effort: a missed heartbeat just means one stale window; the next
-        // tick recovers it. Never surface heartbeat errors to the UI.
-      });
-    }, 10000);
+    this.session.startHeartbeat();
   }
 
-  /** Stop the heartbeat loop if running. */
   private stopHeartbeat(): void {
-    if (this.waitingHeartbeatId !== null) {
-      clearInterval(this.waitingHeartbeatId);
-      this.waitingHeartbeatId = null;
-    }
+    this.session.stopHeartbeat();
   }
 
   private emitNetworkReady(room: { players: NetworkPlayer[]; seed: number; options: RoomOptions }): void {
@@ -1897,7 +1828,9 @@ export class Lobby {
     this.render();
 
     try {
-      const { ok, data } = await this.transport.readyUp({ roomId: this.waitingRoomId, playerId: this.waitingPlayerId, token: this.waitingToken });
+      const result = await this.session.readyUp();
+      if ('stale' in result) return;
+      const { ok, data } = result;
 
       if (!ok || data?.error) {
         this.onlineError = data?.error ?? 'Failed to ready up.';
@@ -1906,22 +1839,10 @@ export class Lobby {
         return;
       }
 
-      if (Array.isArray(data?.players)) {
-        this.waitingPlayers = data.players;
-      }
-      this.waitingThisPlayerReady = true;
       this.onlineBusy = false;
 
       if (data?.started) {
-        // Game started immediately (e.g. last player readied up).
-        // The Realtime UPDATE may arrive momentarily; if it hasn't yet, trigger
-        // the transition directly from the ready_up response.
-        this.cleanupWaitingChannel();
-        this.emitNetworkReady({
-          players: this.waitingPlayers,
-          seed: this.waitingSeed,
-          options: this.waitingOptions,
-        });
+        // LobbySession emits the synchronized ready event for this direct start.
         return;
       }
 
@@ -2063,12 +1984,9 @@ export class Lobby {
     this.render();
 
     try {
-      const { ok, data } = await this.transport.updatePlayer({
-        roomId: this.waitingRoomId,
-        playerId: this.waitingPlayerId,
-        token: this.waitingToken,
-        fields,
-      });
+      const result = await this.session.updatePlayer(fields);
+      if ('stale' in result) return;
+      const { ok, data } = result;
 
       if (!ok || data?.error) {
         this.onlineError = data?.error ?? 'Failed to update.';
@@ -2077,9 +1995,6 @@ export class Lobby {
         return;
       }
 
-      if (Array.isArray(data?.players)) {
-        this.waitingPlayers = data.players;
-      }
       this.onlineBusy = false;
       this.render();
     } catch (err) {
@@ -2096,52 +2011,26 @@ export class Lobby {
    * view.
    */
   private async handleLeaveRoom(): Promise<void> {
-    const roomId = this.waitingRoomId;
-    const playerId = this.waitingPlayerId;
-    const token = this.waitingToken;
+    if (this.leavingRoom) return;
+    this.leavingRoom = true;
+    this.onlineBusy = true;
+    this.render();
     try {
-      await this.transport.leaveRoom({ roomId, playerId, token });
+      await this.session.leaveRoom();
     } catch (err) {
       console.debug('Lobby.leaveRoom: best-effort leave failed —', err);
       // Best-effort — leave the room locally regardless.
     }
+    this.leavingRoom = false;
     clearSession(); // explicit leave forgets the rejoin session (AC-04) regardless of POST outcome
-    this.cleanupWaitingChannel();
     this.onlineSubView = 'create';
+    this.onlineBusy = false;
     this.onlineError = '';
     this.render();
   }
 
-  /**
-   * Handle a waiting room that has vanished out from under this client — either
-   * deleted (DELETE event) or with this player no longer in its roster (P1-6b).
-   * Tears the channel/heartbeat down, resets waiting state so nothing stale leaks
-   * into a later create/join, and returns to the create view with an explanation.
-   * Idempotent: a no-op once we've already left a waiting room.
-   */
-  private handleRoomGone(message: string): void {
-    if (!this.waitingRoomId) return; // already left / handled
-    this.cleanupWaitingChannel();
-    this.waitingRoomId = '';
-    this.waitingRoomCode = '';
-    this.waitingPlayerId = '';
-    this.waitingToken = '';
-    this.waitingPlayers = [];
-    this.waitingThisPlayerReady = false;
-    this.onlineSubView = 'create';
-    this.onlineError = message;
-    this.render();
-  }
-
   private cleanupWaitingChannel(): void {
-    // Heartbeat lifetime == waiting-channel lifetime: this runs on leave, hide,
-    // and game start, so the loop is torn down in every exit path.
-    this.stopHeartbeat();
-    this.lastWaitingSig = '';
-    if (this.waitingChannel) {
-      void this.supabaseClient?.removeChannel(this.waitingChannel);
-      this.waitingChannel = null;
-    }
+    this.session.cleanupWaitingChannel();
   }
 
   // ---- Shared online helpers ----
@@ -2484,4 +2373,3 @@ function defaultRow(i: number): PlayerRowState {
     color: PALETTE[i % PALETTE.length].value,
   };
 }
-
