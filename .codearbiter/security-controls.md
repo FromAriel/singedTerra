@@ -6,15 +6,21 @@ Extracted from code 2026-06-20.
 
 ## Auth / identity
 
-- **No end-user auth** — no login, no sessions, no Supabase Auth (GoTrue), no JWT verification. Identity is a server-minted `crypto.randomUUID()` `playerId` issued at `create_room`/`join_room`, passed in the request body.
+- **No account or JWT auth** — no login, no Supabase Auth (GoTrue), user sessions, or JWT verification. Each human seat instead has two server-minted values: a public `playerId`, which is safe to put in room rows and action logs, and a secret 128-bit CSPRNG UUID seat token, which is the bearer credential for that seat. `create_room` and `join_room` mint and return the token once with the new seat.
+- The client persists that secret only in its existing best-effort `localStorage` entry keyed by the public `playerId`, so it can follow the same seat through a rematch. The token is never a Realtime value, URL value, log value, or identity/display field.
 - `verify_jwt = false` on **all 10 Edge Functions** (`supabase/config.toml`). They are public POST endpoints. This is acceptable **only because** writes are locked at the database layer (below) and gated in-function.
 
 ## Database access — the real control (RLS)
 
-All three tables (`rooms`, `room_actions`, `match_scores`) have **RLS enabled** with a uniform posture:
+The public game tables (`rooms`, `room_actions`, `match_scores`) have **RLS enabled** with a uniform posture:
 
 - **`anon` role: public SELECT (`USING (true)`), zero writes** (`INSERT/UPDATE/DELETE` all `false`). The shipped anon/publishable key can only read.
-- **All mutations go through the Edge Functions**, which use a `service_role` client (`getServiceClient()`, `_shared/mod.ts`) that bypasses RLS. The service key never leaves the Deno runtime.
+- **All mutations go through the Edge Functions**, which use a `service_role` client (`getServiceClient()`, `_shared/mod.ts`) that bypasses RLS. The service key remains Deno-runtime-only and must never enter client code, logs, or the bundle.
+
+The credential and limiter tables are deliberately stricter:
+
+- `room_seats` stores the secret token and has RLS with no anon policies plus revoked anon table grants: default-deny, service-role-only access.
+- `rate_limits` likewise has RLS with no anon policies: default-deny, service-role-only access through the `bump_rate_limit` RPC, whose `PUBLIC` execution grant is revoked.
 
 This is the load-bearing control: even with JWT off and CORS open, no client can write a row except via a referee function. Do not weaken these RLS policies, and do not add a client-side path that uses the service-role key.
 
@@ -22,9 +28,10 @@ This is the load-bearing control: even with JWT off and CORS open, no client can
 
 Authorization is enforced in-function (it does NOT run physics):
 
-1. **Membership** — submitter's `playerId` must be in `room.players` (else 403).
-2. **Turn ownership** — for turn-ending actions, acting seat must equal `room.active_player_index`. A client may proxy a seat only if that seat is a **bot**; it cannot impersonate another human.
-3. **Exactly-once** — `UNIQUE(room_id, seq)`; a duplicate insert returns 409 `seq_conflict`.
+1. **Seat credential** — mutations for an existing human seat first verify that the presented token matches that room and public `playerId` in `room_seats` (else 403). Creating or joining a seat is the minting exception.
+2. **Membership** — submitter's `playerId` must be in `room.players` (else 403).
+3. **Turn ownership** — for turn-ending actions, acting seat must equal `room.active_player_index`. A client may proxy a seat only if that seat is a **bot**; it cannot impersonate another human.
+4. **Exactly-once** — `UNIQUE(room_id, seq)`; a duplicate insert returns 409 `seq_conflict`.
 
 Known trust observation (accepted under the replayed-log design): the next-turn seat (`nextActiveIndex`) is computed client-side and trusted by the referee (bounds-checked only). The canonical state is the replayed action log, so a wrong index self-corrects; do not turn this into an authorization decision.
 
@@ -38,7 +45,7 @@ Known trust observation (accepted under the replayed-log design): the next-turn 
 ## Crypto
 
 - **No application crypto** — no signing/hashing/encryption libraries, no Vault/KMS. Banned by default: do not home-roll crypto or introduce a crypto dependency without an ADR.
-- Platform CSPRNG is used for **non-security** values only: `crypto.randomUUID()` / `crypto.getRandomValues()` for player IDs, game seeds, and the 4-char room code; Postgres `pgcrypto` only for `gen_random_uuid()`.
+- Platform CSPRNG supplies the security-sensitive seat tokens via `crypto.randomUUID()`, as well as public player IDs, game seeds, and the 4-char room code; Postgres `pgcrypto` is used only for `gen_random_uuid()`.
 
 ## CORS
 

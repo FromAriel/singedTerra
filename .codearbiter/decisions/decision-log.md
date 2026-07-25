@@ -280,3 +280,80 @@ Correctness/security (the documented anti-impersonation control did not hold) an
 
 ### Implementation implication
 New migration (`room_seats` + RLS), shared `verifySeatToken()`, token threaded through the 6 mutating Edge Functions + create/join minting, client transport + localStorage. Recorded as ADR-0009 (proposed). GH #83.
+---
+
+## DECISION-0011 — ADR-0010 — Move waiting-room seat-token lifecycle into LobbySession
+
+**Date:** 2026-07-25
+**Status:** accepted
+**Supersedes:** none
+**Decided by:** SUaDtL <SUaDtL@users.noreply.github.com> (explicitly approved issue #128 spec and plan on 2026-07-22)
+**Decision category:** architecture / security / client lifecycle
+**Artifact-section-hash:** n/a
+
+### Variance summary
+- **Artifact position:** ADR-0009 defined the seat-token boundary but its governed client paths did not include the new lifecycle owner.
+- **Scaffold position:** The approved issue #128 spec moves in-memory credential and asynchronous resource ownership from `Lobby` to `LobbySession`.
+- **Status type:** artifact-silent
+
+### Decision
+`LobbySession` owns the in-memory waiting snapshot, seat token, waiting-room resources, and exact credential-bearing action delegation. `Lobby` retains UI policy and existing persistence; `LobbyTransport` retains the wire contract. The token model, storage key, request bodies, and exposure rules remain unchanged.
+
+### SMARTS rationale
++ Maintainable and Testable dominate: one DOM-free owner isolates credential/resource lifetime and supports deterministic race tests.
++ Reliable improves through generation-bound operations and callbacks; Securable preserves ADR-0009 with no new secret channel.
++ Scalable and Available are indifferent at the current single-client-session scope.
++
++Recommendation strength: strong.
+
+### Implementation implication
+ADR-0010 governs `LobbySession.ts`, `LobbyTransport.ts`, and `Lobby.ts`; reviews must enforce token non-exposure, lazy loading, exact request bodies, and stale-operation isolation.
+
+---
+
+## DECISION-0012 — ADR-0010 — Canonical LobbySession seat-token lifecycle record
+
+**Date:** 2026-07-25
+**Status:** accepted
+**Supersedes:** DECISION-0011
+**Decided by:** SUaDtL <SUaDtL@users.noreply.github.com> (explicitly approved issue #128 spec and plan on 2026-07-22)
+**Decision category:** architecture / security / client lifecycle
+**Artifact-section-hash:** n/a
+
+### Variance summary
+- **Artifact position:** ADR-0009 defined the seat-token boundary but its governed client paths did not include the new lifecycle owner.
+- **Scaffold position:** The approved issue #128 spec moves in-memory credential and asynchronous resource ownership from `Lobby` to `LobbySession`.
+- **Status type:** artifact-silent
+
+### Decision
+`LobbySession` owns the in-memory waiting snapshot, seat token, waiting-room resources, and exact credential-bearing action delegation. `Lobby` retains UI policy and existing persistence; `LobbyTransport` retains the wire contract. The token model, storage key, request bodies, and exposure rules remain unchanged.
+
+### SMARTS rationale
+Maintainable and Testable dominate because one DOM-free owner isolates credential and resource lifetime and supports deterministic race tests. Reliable improves through generation-bound operations and callbacks. Securable preserves ADR-0009 with no new secret channel. Scalable and Available are indifferent at the current single-client-session scope. Recommendation strength: strong.
+
+### Implementation implication
+ADR-0010 governs `LobbySession.ts`, `LobbyTransport.ts`, and `Lobby.ts`; reviews must enforce token non-exposure, lazy loading, exact request bodies, and stale-operation isolation.
+---
+
+## DECISION-0013 — ADR-0010 — Correct the persisted seat-token key to public playerId
+
+**Date:** 2026-07-25
+**Status:** accepted
+**Supersedes:** DECISION-0012
+**Decided by:** SUaDtL <SUaDtL@users.noreply.github.com> (explicitly approved issue #128 spec and plan on 2026-07-22)
+**Decision category:** architecture / security / client lifecycle
+**Artifact-section-hash:** n/a
+
+### Variance summary
+- **Artifact position:** ADR-0009's prose says the seat token is persisted under a room-id key.
+- **Scaffold position:** The accepted implementation and approved issue #128 spec persist the token under a public-playerId key so rematches retain the credential.
+- **Status type:** same-level-conflict-resolution
+
+### Decision
+`LobbySession` owns the in-memory waiting snapshot and seat-token lifecycle while `Lobby` retains the existing persistence boundary. The persisted token key is the public `playerId`, not the room id; this corrects ADR-0009's documentation without changing runtime behavior. Request bodies, authorization, and secret-exposure rules remain unchanged.
+
+### SMARTS rationale
+Reliable and Securable require the governing record to match the implemented credential lifetime across rematches. Maintainable and Testable favor one explicit correction in the new forward-only ADR rather than editing ADR-0009 or leaving contradictory authority. The choice was already explicit in the user-approved issue #128 spec, so no new security policy is inferred. Recommendation strength: strong.
+
+### Implementation implication
+ADR-0010 explicitly corrects ADR-0009's storage-key sentence and governs the new `LobbySession` owner. Reviews enforce `playerId`-keyed localStorage, exact seat credentials, generation-bound async work, and no token exposure through Realtime, URLs, or logs.

@@ -6,10 +6,10 @@
  * and returns the raw `EdgeResult` so the Lobby applies it to its own view/
  * session state.
  *
- * PURE TRANSPORT: no DOM, no `render`, no Lobby state. The Lobby keeps every
- * `waiting*`/`online*` field, all validation, busy/error handling, and render
- * calls; only the network call itself lives here. This is a transport seam, not
- * a session move — the session state stays in the Lobby (a later step).
+ * PURE TRANSPORT: no DOM, no `render`, and no Lobby state. `LobbySession` owns
+ * established waiting-room state and its Realtime/heartbeat/browse resources;
+ * Lobby keeps form validation, visible busy/error policy, persistence, and render
+ * calls. This class owns request/response translation only.
  *
  * Body construction is moved verbatim from the Lobby's inline call sites: the
  * conditional spreads for maxWind/gravity/rounds/bots/economy, the
@@ -244,12 +244,13 @@ export class LobbyTransport {
    * "read failed", which is fine here since both mean "don't offer rejoin".
    */
   async fetchRoom(roomId: string): Promise<FetchedRoom | null> {
-    // Lazy-import the Supabase singleton so it is NEVER constructed on the eager
+    // The established waiting-room subscription is lazily loaded by LobbySession.
+    // This separate read keeps its own lazy import so it is NEVER constructed on the eager
     // boot path. `../lib/supabase` calls createClient() at module eval using
     // import.meta.env.VITE_SUPABASE_URL; a static import here would drag that
     // through main.ts → Lobby → LobbyTransport and crash hot-seat boot (and the
     // e2e HUD guardrails) whenever no Supabase config is present. Mirrors the
-    // `await import('../lib/supabase')` seam already used in main.ts and Lobby.ts.
+    // `await import('../lib/supabase')` seam already used in main.ts and LobbySession.
     const { supabase } = await import('../lib/supabase');
     const res = await supabase
       .from('rooms')
