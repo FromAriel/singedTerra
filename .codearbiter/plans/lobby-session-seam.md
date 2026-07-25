@@ -459,7 +459,7 @@ security, parity, and coverage reviews report no remaining finding.
 Zero Critical/Important review findings and zero Critical/High/Medium coverage gaps may remain.
 Confirm issue #128 acceptance while excluding issue #129 view decomposition.
 
-- [ ] **Step 2: Run the fresh full matrix**
+- [x] **Step 2: Run the fresh full matrix**
 
 ```powershell
 npm run check
