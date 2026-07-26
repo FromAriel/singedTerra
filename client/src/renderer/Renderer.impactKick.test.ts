@@ -1,0 +1,266 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { ExplosionEvent, GameState } from '@shared/types/GameState';
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/engine/Terrain';
+import { Renderer } from './Renderer';
+
+interface RendererImpactSeam {
+  bursts: unknown[];
+  scorches: unknown[];
+  lastSeenExplosionId: number;
+  lastImpact: { x: number; y: number } | null;
+  shake: number;
+  kickX: number;
+  kickY: number;
+  effectsBusy: number;
+  reduceMotion: boolean;
+  events: null;
+  wasFiring: boolean;
+  prevFireLen: number;
+  prevBounces: Map<number, number>;
+  hadProjectileLastFrame: boolean;
+  prevHealth: Map<string, number>;
+  smokeThrottle: Map<string, number>;
+  showAimGuide: boolean;
+  aimGuideEnabled: boolean;
+  effects: {
+    spawnExplosion: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    draw: ReturnType<typeof vi.fn>;
+    clear: ReturnType<typeof vi.fn>;
+  };
+  projectile: {
+    draw: ReturnType<typeof vi.fn>;
+    clear: ReturnType<typeof vi.fn>;
+  };
+  terrain: {
+    draw: ReturnType<typeof vi.fn>;
+    markDirty: ReturnType<typeof vi.fn>;
+  };
+  tanks: { drawAll: ReturnType<typeof vi.fn> };
+  hud: { draw: ReturnType<typeof vi.fn> };
+  ctx: {
+    save: ReturnType<typeof vi.fn>;
+    translate: ReturnType<typeof vi.fn>;
+    restore: ReturnType<typeof vi.fn>;
+    fillRect: ReturnType<typeof vi.fn>;
+    fillStyle: unknown;
+  };
+  skyGradient: CanvasGradient | null;
+  drawSky(): void;
+  drawCloudBanks: ReturnType<typeof vi.fn>;
+  drawStars: ReturnType<typeof vi.fn>;
+  drawSun: ReturnType<typeof vi.fn>;
+  drawHorizonHaze: ReturnType<typeof vi.fn>;
+  drawDistantRidges: ReturnType<typeof vi.fn>;
+  consumeExplosion(state: Pick<GameState, 'explosions' | 'lastExplosion'>): void;
+  isAnimating(state: GameState): boolean;
+  render(state: GameState): void;
+  reset(): void;
+}
+
+function explosion(
+  id: number,
+  cx: number,
+  cy: number,
+  radius: number,
+): ExplosionEvent {
+  return {
+    id,
+    cx,
+    cy,
+    radius,
+    style: 'blast',
+    color: '#ff7a1f',
+    durationFrames: 30,
+  };
+}
+
+function rendererSeam(reduceMotion = false): RendererImpactSeam {
+  const renderer = Object.create(Renderer.prototype) as RendererImpactSeam;
+  Object.assign(renderer, {
+    bursts: [],
+    scorches: [],
+    lastSeenExplosionId: 0,
+    lastImpact: null,
+    shake: 0,
+    kickX: 0,
+    kickY: 0,
+    effectsBusy: 0,
+    reduceMotion,
+    events: null,
+    wasFiring: false,
+    prevFireLen: 0,
+    prevBounces: new Map(),
+    hadProjectileLastFrame: false,
+    prevHealth: new Map(),
+    smokeThrottle: new Map(),
+    showAimGuide: false,
+    aimGuideEnabled: true,
+    effects: {
+      spawnExplosion: vi.fn(),
+      update: vi.fn(),
+      draw: vi.fn(),
+      clear: vi.fn(),
+    },
+    projectile: { draw: vi.fn(), clear: vi.fn() },
+    terrain: { draw: vi.fn(), markDirty: vi.fn() },
+    tanks: { drawAll: vi.fn() },
+    hud: { draw: vi.fn() },
+    ctx: {
+      save: vi.fn(),
+      translate: vi.fn(),
+      restore: vi.fn(),
+      fillRect: vi.fn(),
+      fillStyle: '',
+    },
+    skyGradient: {} as CanvasGradient,
+    drawSky: vi.fn(),
+    drawCloudBanks: vi.fn(),
+    drawStars: vi.fn(),
+    drawSun: vi.fn(),
+    drawHorizonHaze: vi.fn(),
+    drawDistantRidges: vi.fn(),
+  });
+  return renderer;
+}
+
+function idleState(): GameState {
+  return {
+    phase: 'PLAYER_TURN',
+    explosions: [],
+    lastExplosion: null,
+    projectiles: [],
+    projectile: null,
+    fire: [],
+    tanks: [],
+    terrain: new Uint8Array(0),
+    terrainVersion: 0,
+    activePlayerId: '',
+  } as unknown as GameState;
+}
+
+describe('Renderer directional impact kick', () => {
+  it('uses real explosion position/radius and retains the strongest simultaneous impulse', () => {
+    const batches = [
+      [
+        explosion(1, 0, CANVAS_HEIGHT / 2, 54),
+        explosion(2, CANVAS_WIDTH, CANVAS_HEIGHT / 2, 34),
+      ],
+      [
+        explosion(1, CANVAS_WIDTH, CANVAS_HEIGHT / 2, 34),
+        explosion(2, 0, CANVAS_HEIGHT / 2, 54),
+      ],
+    ];
+    for (const explosions of batches) {
+      const renderer = rendererSeam();
+      renderer.consumeExplosion({ explosions, lastExplosion: null });
+      expect(renderer.kickX).toBeCloseTo(4.8, 8);
+      expect(renderer.kickY).toBeCloseTo(0, 8);
+    }
+  });
+
+  it('lets a later weaker heavy blast replace recoil left over from an older frame', () => {
+    const renderer = rendererSeam();
+    renderer.consumeExplosion({
+      explosions: [explosion(1, 0, CANVAS_HEIGHT / 2, 54)],
+      lastExplosion: null,
+    });
+    renderer.consumeExplosion({
+      explosions: [explosion(2, CANVAS_WIDTH, CANVAS_HEIGHT / 2, 34)],
+      lastExplosion: null,
+    });
+
+    expect(renderer.kickX).toBeCloseTo(-1.6, 8);
+    expect(renderer.kickY).toBeCloseTo(0, 8);
+  });
+
+  it('suppresses recoil for reduced-motion users', () => {
+    const renderer = rendererSeam(true);
+    renderer.consumeExplosion({
+      explosions: [explosion(1, 0, CANVAS_HEIGHT / 2, 80)],
+      lastExplosion: null,
+    });
+
+    expect(renderer.kickX).toBe(0);
+    expect(renderer.kickY).toBe(0);
+  });
+
+  it('composes recoil into the world transform, decays it, and keeps redraw alive', () => {
+    const renderer = rendererSeam();
+    const state = idleState();
+    renderer.kickX = 4;
+    renderer.kickY = -3;
+
+    expect(renderer.isAnimating(state)).toBe(true);
+    renderer.render(state);
+
+    expect(renderer.ctx.translate).toHaveBeenCalledWith(4, -3);
+    expect(Math.hypot(renderer.kickX, renderer.kickY)).toBeLessThan(5);
+    expect(Math.hypot(renderer.kickX, renderer.kickY)).toBeGreaterThan(0);
+  });
+
+  it('adds random shake to recoil instead of replacing it', () => {
+    const renderer = rendererSeam();
+    const random = vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(1)
+      .mockReturnValueOnce(0);
+    renderer.kickX = 4;
+    renderer.kickY = -3;
+    renderer.shake = 6;
+
+    renderer.render(idleState());
+
+    expect(renderer.ctx.translate).toHaveBeenCalledWith(10, -9);
+    expect(renderer.kickX).toBeCloseTo(2.88, 8);
+    expect(renderer.kickY).toBeCloseTo(-2.16, 8);
+    expect(renderer.shake).toBeCloseTo(5.1, 8);
+    random.mockRestore();
+  });
+
+  it('keeps either recoil axis alive and terminates once both settle', () => {
+    const renderer = rendererSeam();
+    const state = idleState();
+
+    renderer.kickX = 1;
+    expect(renderer.isAnimating(state)).toBe(true);
+    renderer.kickX = 0;
+    renderer.kickY = 1;
+    expect(renderer.isAnimating(state)).toBe(true);
+    renderer.kickY = 0;
+    expect(renderer.isAnimating(state)).toBe(false);
+
+    renderer.kickX = 0.13;
+    renderer.kickY = -0.13;
+    for (let frame = 0; frame < 20 && renderer.isAnimating(state); frame++) {
+      renderer.render(state);
+    }
+    expect(renderer.kickX).toBe(0);
+    expect(renderer.kickY).toBe(0);
+    expect(renderer.isAnimating(state)).toBe(false);
+  });
+
+  it('overscans the sky beyond maximum composed shake and recoil', () => {
+    const renderer = rendererSeam();
+    delete (renderer as unknown as Record<string, unknown>)['drawSky'];
+
+    renderer.drawSky();
+
+    expect(renderer.ctx.fillRect).toHaveBeenCalledWith(
+      -18,
+      -18,
+      CANVAS_WIDTH + 36,
+      CANVAS_HEIGHT + 36,
+    );
+  });
+
+  it('clears directional recoil on reset', () => {
+    const renderer = rendererSeam();
+    renderer.kickX = 4;
+    renderer.kickY = -3;
+
+    renderer.reset();
+
+    expect(renderer.kickX).toBe(0);
+    expect(renderer.kickY).toBe(0);
+  });
+});
