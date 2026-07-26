@@ -355,7 +355,7 @@ export class Renderer {
     // Floating damage numbers + K.O. flourish from per-tank health deltas (juice),
     // then advance all transient particles one frame.
     this.trackDamage(state);
-    this.effects.update();
+    this.effects.update(state.terrain);
 
     // Tick down the transient-effects busy window. trackDamage / consumeExplosion /
     // spawnMuzzleFlash (re)set it whenever they spawn particles; once it hits 0 and
