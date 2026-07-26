@@ -45,6 +45,7 @@ function detonateWithTarget(weaponType, distance) {
 }
 
 for (const [weaponType, expectedAtBase, expectedPeak] of [
+  ['baby_missile', 15.1111111111, 34],
   ['missile', 26.6666666667, 60],
   ['mirv', 14.2857142857, 50],
 ]) {
@@ -53,7 +54,21 @@ for (const [weaponType, expectedAtBase, expectedPeak] of [
   close(100 - atBase.health, expectedAtBase, `${weaponType} damages at its base-radius edge`);
 
   const atVisibleEdge = detonateWithTarget(weaponType, blastReachRadius(radius, style)).target;
-  close(100 - atVisibleEdge.health, 0, `${weaponType} does not damage at its visible edge`);
+  check(atVisibleEdge.health === 100, `${weaponType} health is exactly unchanged at its visible edge`);
+
+  const beyondVisibleEdge =
+    detonateWithTarget(weaponType, blastReachRadius(radius, style) + 0.001).target;
+  check(
+    beyondVisibleEdge.health === 100,
+    `${weaponType} health is exactly unchanged beyond its visible edge`,
+  );
+
+  const justInsideVisibleEdge =
+    detonateWithTarget(weaponType, blastReachRadius(radius, style) - 1e-8).target;
+  check(
+    justInsideVisibleEdge.health < 100,
+    `${weaponType} still damages immediately inside its visible edge`,
+  );
 
   const atCenter = detonateWithTarget(weaponType, 0).target;
   close(100 - atCenter.health, expectedPeak, `${weaponType} keeps its original center peak`);

@@ -278,7 +278,11 @@ export function explosionResult(
  * to [0, MAX_DAMAGE]. Returns 0 at/beyond the blast edge.
  */
 export function damage(dist: number, radius: number): number {
-  if (radius <= 0) return 0;
+  // Coordinate arithmetic can place an intended edge point a few ulps inside the
+  // radius (for example 600 + 32.4 - 600). Snap that negligible residue to the
+  // documented zero-damage boundary instead of mutating health by ~1e-14.
+  const edgeEpsilon = 1e-9;
+  if (radius <= 0 || dist >= radius - edgeEpsilon) return 0;
   const d = MAX_DAMAGE * (1 - dist / radius);
   return d < 0 ? 0 : d > MAX_DAMAGE ? MAX_DAMAGE : d;
 }
