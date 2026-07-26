@@ -1,11 +1,14 @@
 import { TERRAIN, BOOM, ACCENT } from '../ui/theme';
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/engine/Terrain';
+import { advanceDebris, type DebrisMotion } from './debrisMotion';
 
 /**
  * EffectsRenderer — transient client-only "juice": terrain debris + dust on
  * blasts, muzzle sparks on launch, and floating damage / K.O. text. PURE
  * PRESENTATION: it is fed by the Renderer from authoritative state (ExplosionEvent
- * radius/position, per-tank health deltas) and never touches `shared/` — so it
- * cannot affect deterministic hot-seat/networked lockstep. `Math.random()` is fine
+ * radius/position, per-tank health deltas, read-only terrain bitmap). It never
+ * mutates shared state, so it cannot affect deterministic hot-seat/networked
+ * lockstep. `Math.random()` is fine
  * here (only the LOOK jitters; the engine's state is the deterministic source).
  *
  * Reduced-motion: particle effects are suppressed, but damage/K.O. TEXT still
@@ -15,7 +18,7 @@ import { TERRAIN, BOOM, ACCENT } from '../ui/theme';
 const DEBRIS_GRAVITY = 0.32; // px/frame², visual only
 const SPARK_GRAVITY = 0.12;
 
-interface Debris { x: number; y: number; vx: number; vy: number; size: number; color: string; rot: number; vr: number; age: number; life: number; }
+interface Debris extends DebrisMotion { color: string; age: number; life: number; }
 interface Smoke { x: number; y: number; vy: number; r: number; grow: number; alpha: number; age: number; life: number; }
 interface Spark { x: number; y: number; vx: number; vy: number; color: string; age: number; life: number; }
 interface FloatText { x: number; y: number; vy: number; text: string; color: string; size: number; age: number; life: number; }
@@ -60,6 +63,7 @@ export class EffectsRenderer {
         size: this.rand(1.5, 3.5),
         color: palette[i % palette.length],
         rot: this.rand(0, Math.PI), vr: this.rand(-0.3, 0.3),
+        landed: false,
         age: 0, life: this.rand(28, 56),
       });
     }
@@ -145,6 +149,7 @@ export class EffectsRenderer {
         size: this.rand(2.5, 5),
         color: i % 3 === 0 ? tankColor : i % 3 === 1 ? TERRAIN.deep : '#3a2a18',
         rot: this.rand(0, Math.PI), vr: this.rand(-0.5, 0.5),
+        landed: false,
         age: 0, life: this.rand(40, 70),
       });
     }
@@ -187,8 +192,12 @@ export class EffectsRenderer {
   }
 
   /** Advance every particle one frame; cull the dead. Call once per frame. */
-  update(): void {
-    for (const d of this.debris) { d.vy += DEBRIS_GRAVITY; d.x += d.vx; d.y += d.vy; d.rot += d.vr; d.age++; }
+  update(terrain: Uint8Array): void {
+    const field = { bitmap: terrain, width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
+    for (const d of this.debris) {
+      Object.assign(d, advanceDebris(d, field, DEBRIS_GRAVITY));
+      d.age++;
+    }
     for (const s of this.sparks) { s.vy += SPARK_GRAVITY; s.x += s.vx; s.y += s.vy; s.age++; }
     for (const m of this.smoke) { m.y += m.vy; m.r += m.grow; m.age++; }
     for (const t of this.texts) { t.y += t.vy; t.age++; }

@@ -63,7 +63,9 @@ terrain strata coloring; client-side projectile smoke trail (ring buffer); tank 
 `ExplosionEvent` (hit surface), out of that sprint's "render-only" safe cut. See below.
 
 - Audio: distinct terrain-thud vs tank-clang impacts (deferred from PR #21) — surface `hit.type==='ground'|'tank'` on `ExplosionEvent` and split the impact sound. Small additive engine field, guarded by the determinism harnesses. `shared/src/engine/GameEngine.ts`, `shared/src/types/GameState.ts`, `client/src/audio/AudioEngine.ts`. [M/S]
-- Falling debris that settles on the terrain surface (pairs with animated collapse) instead of flying through hills. `client/src/renderer/EffectsRenderer.ts`. [M/M]
+✅ **Completed in PR #180:** falling debris now uses swept render-only collision against the live
+terrain bitmap, rests and fades on the surface, and resumes falling when support is deformed away.
+`client/src/renderer/EffectsRenderer.ts`, `debrisMotion.ts`.
 - Heavier juice on big detonations: brief hit-stop + directional screen-kick (already reduced-motion gated). `client/src/renderer/Renderer.ts`. [L/S]
 - Anti-alias destruction edges in the render only (keep collision on the crisp bitmap): soften boundary-pixel alpha in `rebuild`. `client/src/renderer/TerrainRenderer.ts`. [L/M]
 - (Larger) Water/lava terrain hazard: a second bitmap value for indestructible+lethal pools; touches collision, collapse, and serialization. `shared/src/engine/Terrain.ts`, `Physics.ts`, `GameState` serialization. [M/L]

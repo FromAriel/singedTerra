@@ -195,6 +195,8 @@ describe('Renderer directional impact kick', () => {
     renderer.render(state);
 
     expect(renderer.ctx.translate).toHaveBeenCalledWith(4, -3);
+    expect(renderer.effects.update).toHaveBeenCalledWith(state.terrain);
+    expect(renderer.effects.update.mock.calls[0]?.[0]).toBe(state.terrain);
     expect(Math.hypot(renderer.kickX, renderer.kickY)).toBeLessThan(5);
     expect(Math.hypot(renderer.kickX, renderer.kickY)).toBeGreaterThan(0);
   });
