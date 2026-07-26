@@ -132,6 +132,7 @@ for (const type of ['mirv', 'deaths_head']) {
     fail('hot_napalm produced no ignition-flash ExplosionEvent');
   } else {
     log(`[hot_napalm flash] radius=${flash.radius} color=${flash.color} dur=${flash.durationFrames} (own def: ${hotDet.radius}/${hotDet.color}/${hotDet.durationFrames}, napalm def: ${napDet.radius}/${napDet.color}/${napDet.durationFrames})`);
+    if (flash.weaponType !== 'hot_napalm') fail(`hot_napalm flash weaponType ${flash.weaponType}, expected hot_napalm`);
     if (flash.radius !== hotDet.radius) fail(`hot_napalm flash radius ${flash.radius} != own detonation radius ${hotDet.radius} (got ${flash.radius === napDet.radius ? "napalm's" : 'an unexpected'} value)`);
     if (flash.color !== hotDet.color) fail(`hot_napalm flash color ${flash.color} != own detonation color ${hotDet.color} (got ${flash.color === napDet.color ? "napalm's" : 'an unexpected'} value)`);
     if (flash.durationFrames !== hotDet.durationFrames) fail(`hot_napalm flash durationFrames ${flash.durationFrames} != own detonation ${hotDet.durationFrames} (got ${flash.durationFrames === napDet.durationFrames ? "napalm's" : 'an unexpected'} value)`);

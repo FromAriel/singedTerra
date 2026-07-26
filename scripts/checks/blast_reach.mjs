@@ -132,10 +132,13 @@ for (const weaponType of ['napalm', 'hot_napalm']) {
 
 const engineSource = fs.readFileSync(new URL('../../shared/src/engine/GameEngine.ts', import.meta.url), 'utf8');
 const rendererSource = fs.readFileSync(new URL('../../client/src/renderer/Renderer.ts', import.meta.url), 'utf8');
+const explosionVisualsSource = fs.readFileSync(new URL('../../client/src/renderer/explosionVisuals.ts', import.meta.url), 'utf8');
 check(/import\s*\{\s*blastReachRadius\s*\}/.test(engineSource), 'GameEngine imports blastReachRadius');
 check(/explosionDamage\(cx, cy, damageRadius, tank\)/.test(engineSource), 'GameEngine calls blastReachRadius-derived damage radius');
-check(/import\s*\{\s*blastReachRadius\s*\}/.test(rendererSource), 'Renderer imports blastReachRadius');
-check(/blastReachRadius\(b\.radius, b\.style\) \* grow/.test(rendererSource), 'Renderer calls shared blast reach radius');
+check(/import\s*\{\s*blastReachRadius\s*\}/.test(explosionVisualsSource), 'explosionVisuals imports blastReachRadius');
+check(/blastReachRadius\(event\.radius, event\.style\)/.test(explosionVisualsSource), 'explosionVisuals calls shared blast reach radius');
+check(/getExplosionVisualProfile\(ex\)/.test(rendererSource), 'Renderer caches the bounded event profile');
+check(/b\.visual\.reachRadius\s*\*\s*grow/.test(rendererSource), 'Renderer draws from the shared-reach profile');
 check(!/(b\.radius\s*\*\s*(?:1\.8|1\.4)|\?\s*1\.4\s*:\s*1\.8)/.test(rendererSource), 'Renderer no longer owns blast reach literals');
 
 if (failed) {
