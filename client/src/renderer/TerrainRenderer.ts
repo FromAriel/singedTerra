@@ -1,6 +1,7 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@shared/engine/Terrain';
 import { TERRAIN, hexToRgb } from '../ui/theme';
 import { bandFloatForY } from './strata';
+import { terrainEdgeAlpha } from './terrainEdges';
 
 /**
  * Scorched depth ramp (banner palette): a LIT RIM on the top 2px of every solid
@@ -38,8 +39,9 @@ const BAND_COLORS: [[number, number, number], [number, number, number], [number,
  *
  * Approach — OFFSCREEN COMPOSITE: an offscreen HTMLCanvasElement (CANVAS_WIDTH×CANVAS_HEIGHT,
  * i.e. 1200×600) holds
- * the rendered terrain as an ImageData where solid pixels are the opaque brown
- * fill and air pixels are fully TRANSPARENT (alpha 0). The expensive
+ * the rendered terrain as an ImageData where interior solid pixels are opaque,
+ * exposed solid edges use coverage alpha, and air pixels are fully transparent.
+ * The expensive
  * per-pixel ImageData rebuild + putImageData runs ONLY when the bitmap content
  * changes (detected by an FNV hash over the Uint8Array) or a redraw is forced.
  * EVERY draw() call then composites that offscreen onto the main ctx with
@@ -130,7 +132,7 @@ export class TerrainRenderer {
   }
 
   /**
-   * Rebuild the offscreen ImageData from the bitmap: solid pixels => opaque
+   * Rebuild the offscreen ImageData from the bitmap: solid pixels => coverage-edged
    * SCORCHED-RAMP fill (lit rim on top, darkening with depth), air pixels =>
    * alpha 0 (transparent). Iterated PER COLUMN so each solid run's depth-from-its-
    * own-surface drives the shade — so overhangs/cave lips also get a lit rim.
@@ -197,7 +199,7 @@ export class TerrainRenderer {
           data[o] = r;
           data[o + 1] = g;
           data[o + 2] = b;
-          data[o + 3] = 255; // opaque solid ground
+          data[o + 3] = terrainEdgeAlpha(terrain, W, H, x, y);
         } else {
           depth = -1;
           data[o + 3] = 0; // transparent air — sky shows through on composite

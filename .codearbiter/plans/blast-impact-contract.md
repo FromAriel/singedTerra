@@ -227,7 +227,7 @@ git diff --check
 Promote any low-confidence decision or `[NEEDS-TRIAGE]` finding, append final SMARTS/mutation/review
 receipts, run the secret scan, stage only approved files, and commit through `$ca-commit`.
 
-- [ ] **Step 5: Open, watch, merge, and deploy**
+- [x] **Step 5: Open, watch, merge, and deploy**
 
 Open a ready PR that references issue #45 without closing it. Watch hosted CI and CodeQL. Under the
 user’s standing authority, merge only when the PR is clean and every required hosted check is green.
