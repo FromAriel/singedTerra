@@ -23,6 +23,7 @@ import {
   getExplosionVisualProfile,
   type ExplosionVisualProfile,
 } from './explosionVisuals';
+import { getBlastLightProfile } from './blastLighting';
 
 /** Shared barrel geometry keeps muzzle FX at the visual tip. */
 /**
@@ -40,6 +41,8 @@ const IMPACT_KICK_EPSILON = 0.12;
 const SCREEN_SHAKE_MAX = 9;
 /** Covers the maximum composed kick + random shake, with one spare pixel. */
 const WORLD_TRANSLATION_MARGIN = SCREEN_SHAKE_MAX + IMPACT_KICK_MAX + 1;
+/** Bound additive work and overdraw for multi-warhead detonations. */
+const MAX_LOCAL_BLAST_LIGHTS = 3;
 
 /**
  * Optional sink the renderer emits gameplay-feel events to (audio, etc.). Kept as
@@ -957,7 +960,7 @@ export class Renderer {
   }
 
   /**
-   * Full-canvas additive light-flash keyed to the freshest/strongest live burst.
+   * Weapon-colored local illumination plus a full-canvas headline exposure flash.
    *
    * Uses `globalCompositeOperation = 'lighter'` so it brightens whatever is already
    * on the canvas without washing it to white (additive mode clamps at white
@@ -965,30 +968,76 @@ export class Renderer {
    * (age 0 of the strongest burst) and decays quickly so it complements the
    * existing DOM bloom in main.ts rather than doubling it.
    *
-   * Gated by !reduceMotion.  No-op when there are no live bursts.
+   * Gated by !reduceMotion. No-op when there are no live bursts.
    */
   private drawFlash(): void {
     if (this.reduceMotion || this.bursts.length === 0) return;
 
-    // Find the burst with the largest radius among live bursts (the "headline" blast).
+    // Rank on a fresh candidate array: the authoritative burst order remains untouched.
+    const localLights = this.bursts
+      .map((burst) => ({
+        burst,
+        light: getBlastLightProfile({
+          family: burst.visual.family,
+          reachRadius: burst.visual.reachRadius,
+          age: burst.age,
+          lifeFrames: burst.lifeFrames,
+        }),
+      }))
+      .filter(({ light }) => light.radius > 0 && light.alpha > 0)
+      .sort((a, b) => (
+        b.light.radius * b.light.alpha - a.light.radius * a.light.alpha
+      ))
+      .slice(0, MAX_LOCAL_BLAST_LIGHTS);
+
+    // Find the burst with the largest radius among live bursts (the headline blast).
     let strongest: Burst | null = null;
     for (const b of this.bursts) {
       if (strongest === null || b.radius > strongest.radius) strongest = b;
     }
     if (!strongest) return;
 
-    const alpha = flashIntensity(strongest.age, strongest.lifeFrames, strongest.radius);
-    if (alpha <= 0) return;
+    const headlineAlpha = flashIntensity(
+      strongest.age,
+      strongest.lifeFrames,
+      strongest.radius,
+    );
+    if (localLights.length === 0 && headlineAlpha <= 0) return;
 
     const ctx = this.ctx;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = alpha;
-    // A warm near-white for the flash colour (suncore palette tone).
-    ctx.fillStyle = ACCENT.sunCore;
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
+
+    for (const { burst, light } of localLights) {
+      const [r, g, b] = burst.rgb;
+      const gradient = ctx.createRadialGradient(
+        burst.cx,
+        burst.cy,
+        0,
+        burst.cx,
+        burst.cy,
+        light.radius,
+      );
+      gradient.addColorStop(0, `rgba(${r | 0}, ${g | 0}, ${b | 0}, 1)`);
+      gradient.addColorStop(0.38, `rgba(${r | 0}, ${g | 0}, ${b | 0}, 0.52)`);
+      gradient.addColorStop(1, `rgba(${r | 0}, ${g | 0}, ${b | 0}, 0)`);
+      ctx.globalAlpha = light.alpha;
+      ctx.fillStyle = gradient;
+      ctx.fillRect(
+        burst.cx - light.radius,
+        burst.cy - light.radius,
+        light.radius * 2,
+        light.radius * 2,
+      );
+    }
+
+    if (headlineAlpha > 0) {
+      ctx.globalAlpha = headlineAlpha;
+      // Preserve the original warm near-white whole-field exposure cue.
+      ctx.fillStyle = ACCENT.sunCore;
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    }
+
     ctx.restore();
   }
 
