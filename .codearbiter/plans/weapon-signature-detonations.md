@@ -31,5 +31,5 @@ blast reach.
 - [x] Resolve all Critical, High, Important, or coverage findings.
 - [x] Run focused tests, `npm run check`, client suite and coverage, Edge suite, build, E2E, diff
   hygiene, and secret scan.
-- [ ] Commit through the governed gate; open a ready PR.
+- [x] Commit through the governed gate; open a ready PR.
 - [ ] Merge only after clean hosted CI/CodeQL, then verify exact-SHA Pages provenance and live smoke.
