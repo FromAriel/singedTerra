@@ -59,10 +59,41 @@ for (const [weaponType, expectedAtBase, expectedPeak] of [
   close(100 - atCenter.health, expectedPeak, `${weaponType} keeps its original center peak`);
 }
 
-for (const weaponType of ['dirt_bomb', 'riot_bomb', 'napalm', 'shield']) {
+for (const weaponType of ['dirt_bomb', 'riot_bomb', 'shield']) {
   const { radius, style } = getWeapon(weaponType).detonation;
-  const target = detonateWithTarget(weaponType, blastReachRadius(radius, style) + 1).target;
-  close(100 - target.health, 0, `${weaponType} has no new direct damage outside its path`);
+  const target = detonateWithTarget(weaponType, 0).target;
+  close(100 - target.health, 0, `${weaponType} has no direct impact damage at center`);
+}
+
+function igniteNapalmAtTarget(weaponType) {
+  const engine = new GameEngine({ seed: 17 });
+  const state = engine.getState();
+  const target = state.tanks[1];
+  const cx = 600;
+  const cy = 300;
+  target.x = cx;
+  target.y = cy + TANK_HEIGHT / 2;
+  target.health = 100;
+  target.shieldHp = 0;
+  state.tanks = [target];
+  state.projectiles = [{
+    x: cx,
+    y: cy,
+    vx: 0,
+    vy: 0,
+    weaponType,
+    age: 0,
+    hasSplit: false,
+    bounces: 0,
+  }];
+  engine.advanceProjectiles();
+  return { state, target };
+}
+
+for (const weaponType of ['napalm', 'hot_napalm']) {
+  const { state, target } = igniteNapalmAtTarget(weaponType);
+  close(100 - target.health, 0, `${weaponType} actual impact path causes zero immediate damage`);
+  check(state.fire.length > 0, `${weaponType} actual impact path ignites a fire field`);
 }
 
 {
