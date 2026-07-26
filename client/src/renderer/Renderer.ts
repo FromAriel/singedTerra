@@ -19,6 +19,7 @@ import { EffectsRenderer } from './EffectsRenderer';
 import { skyGradient, ACCENT, TERRAIN } from '../ui/theme';
 import { flashIntensity, scorchAlpha } from './explosionFx';
 import { damageTier } from './tankFx';
+import { IMPACT_KICK_MAX, impactKick } from './impactKick';
 
 /** Shared barrel geometry keeps muzzle FX at the visual tip. */
 /**
@@ -27,6 +28,15 @@ import { damageTier } from './tankFx';
  * lifetime spawned by EffectsRenderer (≈70 frames) so the idle-skip gate never
  * stops redrawing while a particle is still alive. Conservative on purpose. */
 const EFFECTS_BUSY_FRAMES = 80;
+
+/** Fraction of directional recoil retained after each rendered frame. */
+const IMPACT_KICK_DECAY = 0.72;
+/** Stop sub-pixel recoil once its vector is visually negligible. */
+const IMPACT_KICK_EPSILON = 0.12;
+/** Existing random screen-shake cap in logical canvas pixels per axis. */
+const SCREEN_SHAKE_MAX = 9;
+/** Covers the maximum composed kick + random shake, with one spare pixel. */
+const WORLD_TRANSLATION_MARGIN = SCREEN_SHAKE_MAX + IMPACT_KICK_MAX + 1;
 
 /**
  * Optional sink the renderer emits gameplay-feel events to (audio, etc.). Kept as
@@ -181,6 +191,9 @@ export class Renderer {
 
   /** Current screen-shake magnitude (px), decays each frame. Client-only juice. */
   private shake = 0;
+  /** Blast-origin-aware world translation, decayed independently from random shake. */
+  private kickX = 0;
+  private kickY = 0;
 
   /**
    * Frame count remaining during which transient EffectsRenderer particles
@@ -300,6 +313,8 @@ export class Renderer {
     this.prevHealth.clear();
     this.smokeThrottle.clear();
     this.shake = 0;
+    this.kickX = 0;
+    this.kickY = 0;
     this.effectsBusy = 0;
     this.wasFiring = false;
     this.effects.clear();
@@ -351,11 +366,18 @@ export class Renderer {
 
     // Screen-shake (juice): a decaying random offset applied to the WHOLE world
     // (not the DOM HUD, which stays readable). Triggered by detonations.
-    let sx = 0;
-    let sy = 0;
+    let sx = this.kickX;
+    let sy = this.kickY;
+    if (Math.hypot(this.kickX, this.kickY) > IMPACT_KICK_EPSILON) {
+      this.kickX *= IMPACT_KICK_DECAY;
+      this.kickY *= IMPACT_KICK_DECAY;
+    } else {
+      this.kickX = 0;
+      this.kickY = 0;
+    }
     if (this.shake > 0.2) {
-      sx = (Math.random() * 2 - 1) * this.shake;
-      sy = (Math.random() * 2 - 1) * this.shake;
+      sx += (Math.random() * 2 - 1) * this.shake;
+      sy += (Math.random() * 2 - 1) * this.shake;
       this.shake *= 0.85;
     } else {
       this.shake = 0;
@@ -457,6 +479,7 @@ export class Renderer {
     if (state.fire.length > 0) return true;
     if (state.projectiles.length > 0) return true;
     if (this.shake > 0) return true;
+    if (this.kickX !== 0 || this.kickY !== 0) return true;
     if (this.effectsBusy > 0) return true;
     // Continuous damage smoke keeps emitting while any tank sits in the damaged tier,
     // so that is a live animation that must keep redrawing (and keep trackDamage's
@@ -533,6 +556,7 @@ export class Renderer {
     // simultaneous booms. Screen-shake still takes the max per-event as before.
     let maxNewRadius = 0;
     let anyNew = false;
+    let strongestNewKick = { x: 0, y: 0 };
     for (const ex of events) {
       if (ex.id > this.lastSeenExplosionId) {
         this.lastSeenExplosionId = ex.id;
@@ -552,7 +576,23 @@ export class Renderer {
         });
         // Juice: bigger blast => bigger kick (capped). Reduced-motion = none.
         if (!this.reduceMotion) {
-          this.shake = Math.min(9, Math.max(this.shake, ex.radius * 0.14));
+          this.shake = Math.min(
+            SCREEN_SHAKE_MAX,
+            Math.max(this.shake, ex.radius * 0.14),
+          );
+          const kick = impactKick(
+            ex.cx,
+            ex.cy,
+            ex.radius,
+            CANVAS_WIDTH,
+            CANVAS_HEIGHT,
+          );
+          if (
+            Math.hypot(kick.x, kick.y)
+            > Math.hypot(strongestNewKick.x, strongestNewKick.y)
+          ) {
+            strongestNewKick = kick;
+          }
         }
         // Ejecta: terrain debris + dust + sparks at the blast (reduced-motion = none).
         this.effects.spawnExplosion(ex.cx, ex.cy, ex.radius, ex.color);
@@ -574,6 +614,13 @@ export class Renderer {
       }
     }
     if (anyNew) {
+      if (Math.hypot(strongestNewKick.x, strongestNewKick.y) > 0) {
+        // Arbitration is local to THIS event batch. A later, weaker heavy blast
+        // still gets its own directional response instead of being masked by a
+        // stronger kick left over from an earlier frame.
+        this.kickX = strongestNewKick.x;
+        this.kickY = strongestNewKick.y;
+      }
       this.events?.onExplosion(maxNewRadius);
       // Ejecta particles (debris/smoke/sparks) outlive the burst itself, so keep the
       // idle-skip gate redrawing until they can no longer be on-screen.
@@ -971,8 +1018,8 @@ export class Renderer {
       this.skyGradient = skyGradient(ctx, 0, CANVAS_HEIGHT);
     }
     ctx.fillStyle = this.skyGradient;
-    // Oversized by SHAKE_MARGIN so the shake offset never reveals the backdrop.
-    const m = 12;
+    // Oversized by the composed shake + kick bound so no backdrop strip is exposed.
+    const m = WORLD_TRANSLATION_MARGIN;
     ctx.fillRect(-m, -m, CANVAS_WIDTH + 2 * m, CANVAS_HEIGHT + 2 * m);
     this.drawCloudBanks();
     this.drawStars();
