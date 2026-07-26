@@ -162,6 +162,7 @@ function fireShot(engine, { angle, power, weapon }) {
     }
     // Every burst sources its visuals from the weapon's detonation group.
     for (const e of ex) {
+      if (e.weaponType !== 'cluster_bomb') fail(`bomblet weaponType=${e.weaponType}, expected cluster_bomb`);
       if (e.style !== DET.style) fail(`bomblet style=${e.style}, expected ${DET.style}`);
       if (e.color !== DET.color) fail(`bomblet color=${e.color}, expected ${DET.color}`);
       if (e.durationFrames !== DET.durationFrames) fail(`bomblet dur=${e.durationFrames}, expected ${DET.durationFrames}`);
@@ -216,6 +217,7 @@ function fireShot(engine, { angle, power, weapon }) {
   if (r.everSplit || r.anySplitFlag) fail('missile spawned submunitions (it must never airburst)');
   if (r.maxInFlight !== 1) fail(`missile maxInFlight=${r.maxInFlight}, expected 1 (single shell)`);
   if (r.st.explosions.length !== 1) fail(`missile produced ${r.st.explosions.length} blasts, expected 1`);
+  else if (r.st.explosions[0].weaponType !== 'missile') fail(`missile explosion weaponType=${r.st.explosions[0].weaponType}, expected missile`);
   else if (r.st.lastExplosion !== r.st.explosions[0]) fail('lastExplosion is not explosions[0] for the missile hit');
   if (!failed) log('PASS: missile stays a single ballistic shell => exactly 1 blast, no submunitions.');
 }

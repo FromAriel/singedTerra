@@ -130,6 +130,8 @@ export type ExplosionStyle = 'blast' | 'cluster';
 export interface ExplosionEvent {
   /** Monotonically increasing id; the client dedupes bursts by this. */
   id: number;
+  /** Weapon whose replayed action produced this event; client cosmetic provenance. */
+  weaponType: WeaponType;
   /** Blast center x (canvas px). */
   cx: number;
   /** Blast center y (canvas px). */

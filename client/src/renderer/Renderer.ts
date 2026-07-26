@@ -3,7 +3,6 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, surfaceAt } from '@shared/engine/Terrain';
 import { TANK_WIDTH, TANK_HEIGHT, BARREL_LENGTH, barrelTip } from '@shared/engine/Tank';
 import { getWeapon } from '@shared/engine/WeaponSystem';
 import { launchVelocity, GRAVITY, WIND_FACTOR } from '@shared/engine/Physics';
-import { blastReachRadius } from '@shared/engine/BlastGeometry';
 import { fireActiveEdge, bettyHopCount, isOobFizzle } from './audioEdges';
 
 /** Aim guide length in ticks. DELIBERATELY SHORT: it shows launch direction +
@@ -20,6 +19,10 @@ import { skyGradient, ACCENT, TERRAIN } from '../ui/theme';
 import { flashIntensity, scorchAlpha } from './explosionFx';
 import { damageTier } from './tankFx';
 import { IMPACT_KICK_MAX, impactKick } from './impactKick';
+import {
+  getExplosionVisualProfile,
+  type ExplosionVisualProfile,
+} from './explosionVisuals';
 
 /** Shared barrel geometry keeps muzzle FX at the visual tip. */
 /**
@@ -87,7 +90,7 @@ const STARS: ReadonlyArray<readonly [number, number]> = [
  * DRAWING is centralized in {@link Renderer.drawExplosions}, and per-weapon look
  * is governed entirely by the event attributes — so a future weapon needs only
  * new attribute values (a new color/radius/durationFrames/style in its
- * WeaponDefinition), never new draw code here.
+ * WeaponDefinition) plus one exhaustive client profile entry.
  */
 interface Burst {
   cx: number;
@@ -107,6 +110,8 @@ interface Burst {
   lifeFrames: number;
   /** Visual flavor: 'blast' (expanding rings) vs 'cluster' (punchier flash). */
   style: ExplosionStyle;
+  /** Weapon-specific, bounded presentation data derived once at event consumption. */
+  visual: ExplosionVisualProfile;
   /** Frames elapsed since spawn. */
   age: number;
 }
@@ -572,6 +577,7 @@ export class Renderer {
           core: lighten(rgb, 0.75), // white-hot center, derived once
           lifeFrames: ex.durationFrames,
           style: ex.style,
+          visual: getExplosionVisualProfile(ex),
           age: 0,
         });
         // Juice: bigger blast => bigger kick (capped). Reduced-motion = none.
@@ -749,7 +755,7 @@ export class Renderer {
    *   - color       -> fireball color (white-hot core derived by lightening it)
    *   - lifeFrames  -> per-burst lifetime (how long the blast lingers)
    *   - style       -> 'blast' fills wider; 'cluster' a touch smaller per bomblet
-   * Future weapons therefore need only new attribute values, never new code.
+   * Future weapons add one exhaustive profile entry while this pipeline stays centralized.
    *
    * Pacing: a two-phase fireball — pop to full size over the first ~18% of life,
    * then HOLD at full size and fade out across the remainder. This makes the
@@ -766,7 +772,7 @@ export class Renderer {
     for (const b of this.bursts) {
       const t = b.age / b.lifeFrames; // 0..1 progress over this burst's life
       const grow = t < GROW ? t / GROW : 1;
-      const r = blastReachRadius(b.radius, b.style) * grow;
+      const r = b.visual.reachRadius * grow;
       if (r > 0) {
         // Full opacity while growing, then ease the fade across the long tail.
         const fade = t < GROW ? 1 : 1 - (t - GROW) / (1 - GROW);
@@ -774,24 +780,30 @@ export class Renderer {
         const core = b.core;  // white-hot center, derived once at spawn
         const grad = ctx.createRadialGradient(b.cx, b.cy, 0, b.cx, b.cy, r);
         grad.addColorStop(0, `rgba(${core[0] | 0}, ${core[1] | 0}, ${core[2] | 0}, ${fade})`);
-        grad.addColorStop(0.55, `rgba(${base[0] | 0}, ${base[1] | 0}, ${base[2] | 0}, ${fade * 0.92})`);
+        const coreStop = b.visual.reachRadius > 0
+          ? b.visual.coreRadius / b.visual.reachRadius
+          : 0;
+        grad.addColorStop(coreStop, `rgba(${core[0] | 0}, ${core[1] | 0}, ${core[2] | 0}, ${fade * 0.96})`);
+        grad.addColorStop(0.68, `rgba(${base[0] | 0}, ${base[1] | 0}, ${base[2] | 0}, ${fade * 0.92})`);
         grad.addColorStop(1, `rgba(${base[0] | 0}, ${base[1] | 0}, ${base[2] | 0}, 0)`);
         ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.arc(b.cx, b.cy, r, 0, Math.PI * 2);
+        if (b.visual.family === 'earth' || b.visual.family === 'incendiary') {
+          ctx.ellipse(
+            b.cx,
+            b.cy,
+            r,
+            r * b.visual.verticalScale,
+            0,
+            0,
+            Math.PI * 2,
+          );
+        } else {
+          ctx.arc(b.cx, b.cy, r, 0, Math.PI * 2);
+        }
         ctx.fill();
 
-        // 16-bit shrapnel: pixel squares radiating out (the banner's boom spokes),
-        // fading with the burst. Deterministic per-spoke length for a jagged look.
-        const spokes = b.style === 'cluster' ? 6 : 9;
-        ctx.fillStyle = `rgba(${core[0] | 0}, ${core[1] | 0}, ${core[2] | 0}, ${fade})`;
-        for (let i = 0; i < spokes; i++) {
-          const a = (i / spokes) * Math.PI * 2 + (b.style === 'cluster' ? 0.4 : 0);
-          const d = r * (0.62 + 0.38 * (((i * 7) % spokes) / spokes));
-          const px = b.cx + Math.cos(a) * d;
-          const py = b.cy + Math.sin(a) * d;
-          ctx.fillRect((px - 1.5) | 0, (py - 1.5) | 0, 3, 3);
-        }
+        this.drawExplosionSignature(b, r, grow, fade);
       }
       b.age++;
     }
@@ -799,6 +811,149 @@ export class Renderer {
 
     // Drop bursts that have outlived their own (per-event) lifetime.
     this.bursts = this.bursts.filter((b) => b.age < b.lifeFrames);
+  }
+
+  /** Draw weapon-family detail strictly inside the shared style-aware reach. */
+  private drawExplosionSignature(
+    b: Burst,
+    reach: number,
+    grow: number,
+    fade: number,
+  ): void {
+    const ctx = this.ctx;
+    const { visual, rgb: base, core } = b;
+    const detailRadius = visual.detailRadius * grow;
+    const hot = `rgba(${core[0] | 0}, ${core[1] | 0}, ${core[2] | 0}, ${fade})`;
+    const accent = `rgba(${base[0] | 0}, ${base[1] | 0}, ${base[2] | 0}, ${fade * 0.9})`;
+
+    if (visual.family === 'conventional') {
+      // Pixel shrapnel retains the original readable Scorched-Earth baseline.
+      ctx.fillStyle = hot;
+      const pad = Math.SQRT2 * 1.5;
+      const d = Math.max(0, Math.min(detailRadius, reach - pad));
+      for (let i = 0; i < visual.detailCount; i++) {
+        const a = (i / visual.detailCount) * Math.PI * 2;
+        const jagged = 0.72 + 0.28 * (((i * 7) % visual.detailCount) / visual.detailCount);
+        const px = b.cx + Math.cos(a) * d * jagged;
+        const py = b.cy + Math.sin(a) * d * jagged;
+        ctx.fillRect(px - 1.5, py - 1.5, 3, 3);
+      }
+      return;
+    }
+
+    if (visual.family === 'nuclear') {
+      // Contained thermal rings around the white-hot core.
+      const incomingAlpha = ctx.globalAlpha;
+      ctx.strokeStyle = hot;
+      ctx.lineWidth = Math.max(1.5, Math.min(3, reach * 0.035));
+      for (let i = 1; i <= visual.detailCount; i++) {
+        ctx.globalAlpha = incomingAlpha * fade * (1 - (i - 1) * 0.18);
+        ctx.beginPath();
+        ctx.arc(b.cx, b.cy, detailRadius * (i / visual.detailCount), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = incomingAlpha;
+      return;
+    }
+
+    if (visual.family === 'earth') {
+      // Uneven dust lobes: their centers plus radius stay inside reach.
+      const lobeRadius = reach * 0.12;
+      const centerRadius = Math.min(detailRadius, reach - lobeRadius);
+      ctx.fillStyle = accent;
+      for (let i = 0; i < visual.detailCount; i++) {
+        const a = Math.PI + (i / Math.max(1, visual.detailCount - 1)) * Math.PI;
+        const stagger = 0.72 + (i % 3) * 0.12;
+        ctx.beginPath();
+        ctx.arc(
+          b.cx + Math.cos(a) * centerRadius * stagger,
+          b.cy + Math.sin(a) * centerRadius * visual.verticalScale * stagger,
+          lobeRadius,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
+      return;
+    }
+
+    if (visual.family === 'incendiary') {
+      // A low ignition pool with contained flame tongues that hand off to drawFire().
+      ctx.fillStyle = hot;
+      const baseY = b.cy + reach * visual.verticalScale * 0.28;
+      const count = visual.detailCount;
+      for (let i = 0; i < count; i++) {
+        const f = count === 1 ? 0.5 : i / (count - 1);
+        const x = b.cx + (f * 2 - 1) * reach * 0.62;
+        const maxHeight = Math.sqrt(Math.max(0, reach * reach - (x - b.cx) ** 2));
+        const tipY = b.cy - maxHeight * (0.58 + (i % 2) * 0.18);
+        const half = reach * 0.055;
+        ctx.beginPath();
+        ctx.moveTo(x - half, baseY);
+        ctx.lineTo(x, tipY);
+        ctx.lineTo(x + half, baseY);
+        ctx.closePath();
+        ctx.fill();
+      }
+      return;
+    }
+
+    if (visual.family === 'scatter') {
+      // One crisp pressure ring plus compact pixel fragments.
+      ctx.strokeStyle = hot;
+      ctx.lineWidth = Math.max(1, Math.min(2, reach * 0.04));
+      ctx.beginPath();
+      ctx.arc(b.cx, b.cy, detailRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = hot;
+      const pad = Math.SQRT2;
+      const d = Math.max(0, Math.min(detailRadius * 0.88, reach - pad));
+      for (let i = 0; i < visual.detailCount; i++) {
+        const a = (i / visual.detailCount) * Math.PI * 2 + 0.4;
+        const px = b.cx + Math.cos(a) * d;
+        const py = b.cy + Math.sin(a) * d;
+        ctx.fillRect(px - 1, py - 1, 2, 2);
+      }
+      return;
+    }
+
+    if (visual.family === 'funky') {
+      // Alternating full-reach and core vertices form a contained angular star.
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      for (let i = 0; i < visual.detailCount * 2; i++) {
+        const a = -Math.PI / 2 + (i / (visual.detailCount * 2)) * Math.PI * 2;
+        const d = i % 2 === 0 ? reach : visual.coreRadius * grow;
+        const x = b.cx + Math.cos(a) * d;
+        const y = b.cy + Math.sin(a) * d;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      return;
+    }
+
+    // Bouncing Betty: two hard mine rings and four contained cardinal fragments.
+    ctx.strokeStyle = hot;
+    ctx.lineWidth = Math.max(1, Math.min(2, reach * 0.04));
+    for (const scale of [0.62, 1]) {
+      ctx.beginPath();
+      ctx.arc(b.cx, b.cy, detailRadius * scale, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = hot;
+    const size = Math.min(3, reach * 0.1);
+    const d = Math.min(detailRadius * 0.78, Math.max(0, reach - Math.SQRT2 * size));
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2;
+      ctx.fillRect(
+        b.cx + Math.cos(a) * d - size / 2,
+        b.cy + Math.sin(a) * d - size / 2,
+        size,
+        size,
+      );
+    }
   }
 
   /**

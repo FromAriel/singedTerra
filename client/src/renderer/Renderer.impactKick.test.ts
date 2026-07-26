@@ -66,6 +66,7 @@ function explosion(
 ): ExplosionEvent {
   return {
     id,
+    weaponType: 'missile',
     cx,
     cy,
     radius,

@@ -1376,6 +1376,7 @@ export class GameEngine {
     // increasing across every blast (including each bomblet of a cluster).
     const event: ExplosionEvent = {
       id: ++this.explosionSeq,
+      weaponType,
       cx,
       cy: clamp(cy, 0, CANVAS_HEIGHT),
       radius,
@@ -1417,6 +1418,7 @@ export class GameEngine {
     const det = (getWeapon(weaponType) ?? getWeapon('napalm')).detonation;
     const event: ExplosionEvent = {
       id: ++this.explosionSeq,
+      weaponType,
       cx,
       cy: clamp(cy, 0, CANVAS_HEIGHT),
       radius: det.radius,
