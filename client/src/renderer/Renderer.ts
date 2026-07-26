@@ -3,6 +3,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, surfaceAt } from '@shared/engine/Terrain';
 import { TANK_WIDTH, TANK_HEIGHT, BARREL_LENGTH, barrelTip } from '@shared/engine/Tank';
 import { getWeapon } from '@shared/engine/WeaponSystem';
 import { launchVelocity, GRAVITY, WIND_FACTOR } from '@shared/engine/Physics';
+import { blastReachRadius } from '@shared/engine/BlastGeometry';
 import { fireActiveEdge, bettyHopCount, isOobFizzle } from './audioEdges';
 
 /** Aim guide length in ticks. DELIBERATELY SHORT: it shows launch direction +
@@ -717,9 +718,8 @@ export class Renderer {
     ctx.save();
     for (const b of this.bursts) {
       const t = b.age / b.lifeFrames; // 0..1 progress over this burst's life
-      const reach = b.style === 'cluster' ? 1.4 : 1.8;
       const grow = t < GROW ? t / GROW : 1;
-      const r = b.radius * reach * grow;
+      const r = blastReachRadius(b.radius, b.style) * grow;
       if (r > 0) {
         // Full opacity while growing, then ease the fade across the long tail.
         const fade = t < GROW ? 1 : 1 - (t - GROW) / (1 - GROW);

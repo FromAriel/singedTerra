@@ -53,6 +53,7 @@ import {
   BATTERY_ARMS_LEVEL,
 } from './WeaponSystem';
 import { createRng } from './Random';
+import { blastReachRadius } from './BlastGeometry';
 
 /**
  * Burial safety valve (#15): the maximum number of turns a tank may stay trapped under
@@ -1359,9 +1360,10 @@ export class GameEngine {
     // NOTE: tank resolution (drop/burial) is intentionally DEFERRED to after
     // terrain settles (flushSettleInstant or settleStepAnimated) — damage is
     // computed against the crater shape, not the settled shape.
+    const damageRadius = blastReachRadius(radius, style);
     for (const tank of this.state.tanks) {
       if (!tank.alive) continue;
-      const baseDamage = explosionDamage(cx, cy, radius, tank);
+      const baseDamage = explosionDamage(cx, cy, damageRadius, tank);
       // explosionDamage() peaks at the global MAX_DAMAGE; rescale to this
       // weapon's maxDamage so the falloff shape is preserved.
       const scaled = (baseDamage / MAX_DAMAGE) * maxDamage;
