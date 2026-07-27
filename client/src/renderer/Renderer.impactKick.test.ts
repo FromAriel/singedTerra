@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ExplosionEvent, GameState } from '@shared/types/GameState';
+import type { ExplosionEvent, GameState, ProjectileState } from '@shared/types/GameState';
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/engine/Terrain';
 import { Renderer } from './Renderer';
 
@@ -24,6 +24,7 @@ interface RendererImpactSeam {
   aimGuideEnabled: boolean;
   effects: {
     spawnExplosion: ReturnType<typeof vi.fn>;
+    spawnMuzzle: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     draw: ReturnType<typeof vi.fn>;
     clear: ReturnType<typeof vi.fn>;
@@ -100,6 +101,7 @@ function rendererSeam(reduceMotion = false): RendererImpactSeam {
     aimGuideEnabled: true,
     effects: {
       spawnExplosion: vi.fn(),
+      spawnMuzzle: vi.fn(),
       update: vi.fn(),
       draw: vi.fn(),
       clear: vi.fn(),
@@ -142,6 +144,53 @@ function idleState(): GameState {
 }
 
 describe('Renderer directional impact kick', () => {
+  it('emits one muzzle flash on the real FIRING edge and does not retrigger mid-flight', () => {
+    const renderer = rendererSeam();
+    const frame = idleState();
+    const shooter = {
+      id: 'p1',
+      x: 240,
+      y: 410,
+      angle: 42,
+      color: '#00ffcc',
+      alive: true,
+      buried: false,
+      health: 100,
+      shieldHp: 0,
+    };
+    const shell: ProjectileState = {
+      x: 250,
+      y: 390,
+      vx: 4,
+      vy: -2,
+      weaponType: 'funky_bomb',
+      age: 0,
+      hasSplit: false,
+      bounces: 0,
+    };
+    Object.assign(frame, {
+      phase: 'FIRING',
+      activePlayerId: 'p1',
+      tanks: [shooter],
+      projectiles: [shell],
+      projectile: shell,
+    });
+
+    renderer.render(frame);
+    renderer.render(frame);
+    expect(renderer.effects.spawnMuzzle).toHaveBeenCalledTimes(1);
+
+    frame.phase = 'PLAYER_TURN';
+    frame.projectiles = [];
+    frame.projectile = null;
+    renderer.render(frame);
+    frame.phase = 'FIRING';
+    frame.projectiles = [shell];
+    frame.projectile = shell;
+    renderer.render(frame);
+    expect(renderer.effects.spawnMuzzle).toHaveBeenCalledTimes(2);
+  });
+
   it('uses real explosion position/radius and retains the strongest simultaneous impulse', () => {
     const batches = [
       [

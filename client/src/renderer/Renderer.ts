@@ -24,6 +24,7 @@ import {
   type ExplosionVisualProfile,
 } from './explosionVisuals';
 import { getBlastLightProfile } from './blastLighting';
+import { getMuzzleVisualProfile } from './muzzleVisuals';
 
 /** Shared barrel geometry keeps muzzle FX at the visual tip. */
 /**
@@ -650,7 +651,8 @@ export class Renderer {
     const shooter = state.tanks.find((t) => t.id === state.activePlayerId);
     if (!shooter) return;
     const { x: px, y: py } = barrelTip(shooter, BARREL_LENGTH);
-    this.effects.spawnMuzzle(px, py, shooter.angle, shooter.color);
+    const profile = getMuzzleVisualProfile(state.projectiles[0]?.weaponType);
+    this.effects.spawnMuzzle(px, py, shooter.angle, profile);
     this.effectsBusy = EFFECTS_BUSY_FRAMES; // muzzle sparks live a few frames
   }
 
