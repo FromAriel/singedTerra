@@ -413,6 +413,7 @@ interface ProjectileState {
   6. HUD overlay (drawn on top, every frame)
 - **Terrain dirty flag**: Only re-render terrain polygon when terrain array has changed. Saves meaningful CPU on a t3.micro.
 - **Tank art**: Simple geometric: a rectangle body, a trapezoid tread, a rotatable barrel line. No sprite sheets. Colored per-player.
+- **Persistent wrecks**: Retained dead tanks render as low procedural charred hulls with a muted owner-color plate, never as intact turret/barrel silhouettes. The branch derives only from `TankState.alive`; death particles remain transient client effects and no wreck state crosses Supabase.
 - **Explosion**: ~20 circles expanding outward from impact point, fading opacity over the event's `durationFrames`. Drawing is **event-driven** — each `ExplosionEvent` supplies radius, `color`, `durationFrames`, and `style` (`'blast'` = wide rings, `'cluster'` = punchier flash), so per-weapon look needs no new draw code. A `cluster` weapon emits N events (one per bomblet) animated together. Pure canvas, no external particle library.
 
 - **Weapon-signature detonation profiles**: `ExplosionEvent.weaponType` is locally derived from the replayed action and selects conventional, nuclear, earth, incendiary, scatter, funky, or mine Canvas details. All profile primitives stay inside the existing shared `blastReachRadius`; no new field crosses Supabase.
