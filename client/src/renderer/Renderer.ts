@@ -243,6 +243,10 @@ export class Renderer {
   private readonly effects: EffectsRenderer;
   /** Per-tank health last frame, to detect damage for floating numbers. */
   private readonly prevHealth = new Map<string, number>();
+  /** Per-tank shield pool last frame, to detect fully absorbed damage. */
+  private readonly prevShieldHp = new Map<string, number>();
+  /** Round whose shield pool samples populate prevShieldHp. */
+  private shieldBaselineRound: number | null = null;
   /**
    * Per-tank smoke-emit countdown. When this hits 0 for a low-HP alive tank,
    * one wispy puff is emitted and the counter resets. Prevents continuous
@@ -320,6 +324,8 @@ export class Renderer {
     this.lastSeenExplosionId = 0;
     this.lastImpact = null;
     this.prevHealth.clear();
+    this.prevShieldHp.clear();
+    this.shieldBaselineRound = null;
     this.smokeThrottle.clear();
     this.shake = 0;
     this.kickX = 0;
@@ -674,6 +680,13 @@ export class Renderer {
     /** Frames between damage-smoke puffs per tank (≈ 10 puffs/second at 60fps). */
     const SMOKE_INTERVAL = 6;
 
+    // New rounds rebuild tanks with shieldHp=0 without invoking the per-game reset.
+    // Re-baseline so prior-round charge cannot masquerade as an absorbed hit.
+    if (this.shieldBaselineRound !== state.round) {
+      this.prevShieldHp.clear();
+      this.shieldBaselineRound = state.round;
+    }
+
     for (const tank of state.tanks) {
       const prev = this.prevHealth.get(tank.id);
       if (prev !== undefined && tank.health < prev - 0.01) {
@@ -688,6 +701,21 @@ export class Renderer {
         this.effectsBusy = EFFECTS_BUSY_FRAMES;
       }
       this.prevHealth.set(tank.id, tank.health);
+
+      const prevShield = this.prevShieldHp.get(tank.id);
+      if (
+        prevShield !== undefined
+        && prevShield > 0
+        && tank.shieldHp < prevShield - 0.01
+      ) {
+        this.effects.spawnShieldImpact(
+          tank.x,
+          tank.y - TANK_HEIGHT / 2,
+          prevShield - tank.shieldHp,
+        );
+        this.effectsBusy = EFFECTS_BUSY_FRAMES;
+      }
+      this.prevShieldHp.set(tank.id, tank.shieldHp);
 
       // Continuous damage smoke for low-HP alive tanks (throttled per-tank).
       if (tank.alive && !tank.buried && damageTier(tank.health) === 'damaged') {

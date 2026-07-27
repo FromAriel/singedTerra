@@ -19,6 +19,7 @@ interface RendererShadowSeam {
   prevBounces: Map<number, number>;
   hadProjectileLastFrame: boolean;
   prevHealth: Map<string, number>;
+  prevShieldHp: Map<string, number>;
   smokeThrottle: Map<string, number>;
   showAimGuide: boolean;
   aimGuideEnabled: boolean;
@@ -95,6 +96,7 @@ function rendererSeam(): RendererShadowSeam {
     prevBounces: new Map(),
     hadProjectileLastFrame: true,
     prevHealth: new Map(),
+    prevShieldHp: new Map(),
     smokeThrottle: new Map(),
     showAimGuide: false,
     aimGuideEnabled: true,
