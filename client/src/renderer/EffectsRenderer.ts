@@ -1,6 +1,7 @@
 import { TERRAIN, BOOM, ACCENT } from '../ui/theme';
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/engine/Terrain';
 import { advanceDebris, type DebrisMotion } from './debrisMotion';
+import type { MuzzleVisualProfile } from './muzzleVisuals';
 
 /**
  * EffectsRenderer — transient client-only "juice": terrain debris + dust on
@@ -22,12 +23,21 @@ interface Debris extends DebrisMotion { color: string; age: number; life: number
 interface Smoke { x: number; y: number; vy: number; r: number; grow: number; alpha: number; age: number; life: number; }
 interface Spark { x: number; y: number; vx: number; vy: number; color: string; age: number; life: number; }
 interface FloatText { x: number; y: number; vy: number; text: string; color: string; size: number; age: number; life: number; }
+interface MuzzleFlash {
+  x: number;
+  y: number;
+  angle: number;
+  profile: MuzzleVisualProfile;
+  age: number;
+  life: number;
+}
 
 export class EffectsRenderer {
   private debris: Debris[] = [];
   private smoke: Smoke[] = [];
   private sparks: Spark[] = [];
   private texts: FloatText[] = [];
+  private muzzleFlashes: MuzzleFlash[] = [];
   private readonly reduce: boolean;
 
   constructor(reduceMotion: boolean) {
@@ -42,6 +52,7 @@ export class EffectsRenderer {
     this.smoke.length = 0;
     this.sparks.length = 0;
     this.texts.length = 0;
+    this.muzzleFlashes.length = 0;
   }
 
   private rand(a: number, b: number): number {
@@ -90,20 +101,46 @@ export class EffectsRenderer {
   }
 
   /** A short cone of sparks + a wisp of smoke at the barrel tip on firing. */
-  spawnMuzzle(x: number, y: number, angleDeg: number, _color: string): void {
+  spawnMuzzle(
+    x: number,
+    y: number,
+    angleDeg: number,
+    profile: Readonly<MuzzleVisualProfile>,
+  ): void {
     if (this.reduce) return;
-    const base = Math.atan2(-Math.sin((angleDeg * Math.PI) / 180), Math.cos((angleDeg * Math.PI) / 180));
-    for (let i = 0; i < 8; i++) {
-      const a = base + this.rand(-0.4, 0.4);
-      const speed = this.rand(2.5, 5.5);
+    const base = Math.atan2(
+      -Math.sin((angleDeg * Math.PI) / 180),
+      Math.cos((angleDeg * Math.PI) / 180),
+    );
+    const flashProfile = { ...profile };
+    this.muzzleFlashes.push({
+      x,
+      y,
+      angle: base,
+      profile: flashProfile,
+      age: 0,
+      life: flashProfile.life,
+    });
+    for (let i = 0; i < profile.sparkCount; i++) {
+      const a = base + this.rand(-profile.spread, profile.spread);
+      const speed = this.rand(profile.speedMin, profile.speedMax);
       this.sparks.push({
         x, y,
         vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
-        color: i % 2 ? BOOM.core : ACCENT.ember,
+        color: i % 2 ? BOOM.core : profile.accent,
         age: 0, life: this.rand(6, 12),
       });
     }
-    this.smoke.push({ x, y, vy: -0.25, r: 4, grow: 0.5, alpha: 0.22, age: 0, life: 26 });
+    this.smoke.push({
+      x,
+      y,
+      vy: -0.25,
+      r: 3.5 * profile.scale,
+      grow: 0.42,
+      alpha: 0.18,
+      age: 0,
+      life: 22 + profile.life,
+    });
   }
 
   /** A rising "-NN" above a struck tank (always shown; rise suppressed on reduce). */
@@ -201,15 +238,25 @@ export class EffectsRenderer {
     for (const s of this.sparks) { s.vy += SPARK_GRAVITY; s.x += s.vx; s.y += s.vy; s.age++; }
     for (const m of this.smoke) { m.y += m.vy; m.r += m.grow; m.age++; }
     for (const t of this.texts) { t.y += t.vy; t.age++; }
+    for (const f of this.muzzleFlashes) f.age++;
     if (this.debris.length) this.debris = this.debris.filter((d) => d.age < d.life);
     if (this.sparks.length) this.sparks = this.sparks.filter((s) => s.age < s.life);
     if (this.smoke.length) this.smoke = this.smoke.filter((m) => m.age < m.life);
     if (this.texts.length) this.texts = this.texts.filter((t) => t.age < t.life);
+    if (this.muzzleFlashes.length) {
+      this.muzzleFlashes = this.muzzleFlashes.filter((f) => f.age < f.life);
+    }
   }
 
   /** Paint all live effects. Draw order: smoke → debris → sparks → text (front). */
   draw(ctx: CanvasRenderingContext2D): void {
-    if (!this.debris.length && !this.smoke.length && !this.sparks.length && !this.texts.length) return;
+    if (
+      !this.debris.length
+      && !this.smoke.length
+      && !this.sparks.length
+      && !this.texts.length
+      && !this.muzzleFlashes.length
+    ) return;
     ctx.save();
 
     for (const m of this.smoke) {
@@ -219,6 +266,9 @@ export class EffectsRenderer {
       ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.globalAlpha = 1;
+
+    for (const flash of this.muzzleFlashes) this.drawMuzzleFlash(ctx, flash);
     ctx.globalAlpha = 1;
 
     for (const d of this.debris) {
@@ -254,6 +304,106 @@ export class EffectsRenderer {
     }
 
     ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  private drawMuzzleFlash(ctx: CanvasRenderingContext2D, flash: MuzzleFlash): void {
+    const { profile } = flash;
+    const fade = 1 - flash.age / flash.life;
+    ctx.save();
+    ctx.translate(flash.x, flash.y);
+    ctx.rotate(flash.angle);
+    ctx.scale(profile.scale, profile.scale);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = fade;
+
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 14);
+    glow.addColorStop(0, 'rgba(255, 246, 196, 0.92)');
+    glow.addColorStop(0.34, profile.accent);
+    glow.addColorStop(1, 'rgba(255, 122, 31, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, 14, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = profile.accent;
+    ctx.strokeStyle = profile.accent;
+    ctx.lineWidth = 1.5;
+    switch (profile.motif) {
+      case 'needle':
+        ctx.beginPath();
+        ctx.moveTo(-2, -2);
+        ctx.lineTo(20, 0);
+        ctx.lineTo(-2, 2);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      case 'heavy':
+        ctx.beginPath();
+        ctx.moveTo(-3, -4);
+        ctx.lineTo(24, 0);
+        ctx.lineTo(-3, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillRect(-1, -1.5, 15, 3);
+        break;
+      case 'nuclear':
+        ctx.beginPath();
+        ctx.moveTo(-3, -4);
+        ctx.lineTo(22, 0);
+        ctx.lineTo(-3, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(5, 0, 7, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+      case 'earth':
+        ctx.fillRect(0, -4, 8, 8);
+        ctx.fillRect(8, -2.5, 7, 5);
+        ctx.fillRect(15, -1.5, 5, 3);
+        break;
+      case 'mine':
+        ctx.beginPath();
+        ctx.moveTo(-5, 0);
+        ctx.lineTo(18, 0);
+        ctx.moveTo(3, -6);
+        ctx.lineTo(3, 6);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(3, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      case 'funky':
+        ctx.beginPath();
+        ctx.moveTo(-4, 0);
+        ctx.lineTo(5, -7);
+        ctx.lineTo(10, -2);
+        ctx.lineTo(22, 0);
+        ctx.lineTo(10, 2);
+        ctx.lineTo(5, 7);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      case 'flame':
+        ctx.beginPath();
+        ctx.moveTo(-3, 0);
+        ctx.bezierCurveTo(5, -7, 15, -5, 23, 0);
+        ctx.bezierCurveTo(15, 5, 5, 7, -3, 0);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      case 'fan':
+        ctx.beginPath();
+        ctx.moveTo(-2, 0);
+        ctx.lineTo(21, -7);
+        ctx.moveTo(-2, 0);
+        ctx.lineTo(24, 0);
+        ctx.moveTo(-2, 0);
+        ctx.lineTo(21, 7);
+        ctx.stroke();
+        break;
+    }
     ctx.restore();
   }
 }
