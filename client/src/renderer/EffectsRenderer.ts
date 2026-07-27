@@ -23,6 +23,7 @@ interface Debris extends DebrisMotion { color: string; age: number; life: number
 interface Smoke { x: number; y: number; vy: number; r: number; grow: number; alpha: number; age: number; life: number; }
 interface Spark { x: number; y: number; vx: number; vy: number; color: string; age: number; life: number; }
 interface FloatText { x: number; y: number; vy: number; text: string; color: string; size: number; age: number; life: number; }
+interface ShieldImpact { x: number; y: number; strength: number; age: number; life: number; }
 interface MuzzleFlash {
   x: number;
   y: number;
@@ -37,6 +38,7 @@ export class EffectsRenderer {
   private smoke: Smoke[] = [];
   private sparks: Spark[] = [];
   private texts: FloatText[] = [];
+  private shieldImpacts: ShieldImpact[] = [];
   private muzzleFlashes: MuzzleFlash[] = [];
   private readonly reduce: boolean;
 
@@ -52,6 +54,7 @@ export class EffectsRenderer {
     this.smoke.length = 0;
     this.sparks.length = 0;
     this.texts.length = 0;
+    this.shieldImpacts.length = 0;
     this.muzzleFlashes.length = 0;
   }
 
@@ -153,6 +156,33 @@ export class EffectsRenderer {
     });
   }
 
+  /**
+   * Make authoritative shield-pool loss visible without creating synchronized FX
+   * state. The numeric readout remains under reduced motion; moving rings/facets do not.
+   */
+  spawnShieldImpact(x: number, y: number, amount: number): void {
+    const blocked = Math.round(amount);
+    if (blocked <= 0) return;
+    this.texts.push({
+      x,
+      y: y - 24,
+      vy: this.reduce ? 0 : -0.45,
+      text: `BLOCK ${blocked}`,
+      color: '#7ad7ff',
+      size: 12 + Math.min(7, blocked * 0.05),
+      age: 0,
+      life: 48,
+    });
+    if (this.reduce) return;
+    this.shieldImpacts.push({
+      x,
+      y,
+      strength: Math.min(1, Math.max(0.25, amount / 120)),
+      age: 0,
+      life: 28,
+    });
+  }
+
   /** A gold "K.O." flourish + spark burst when a tank dies. */
   spawnKill(x: number, y: number): void {
     this.texts.push({ x, y: y - 14, vy: this.reduce ? 0 : -0.4, text: 'K.O.', color: ACCENT.gold, size: 18, age: 0, life: 64 });
@@ -238,11 +268,15 @@ export class EffectsRenderer {
     for (const s of this.sparks) { s.vy += SPARK_GRAVITY; s.x += s.vx; s.y += s.vy; s.age++; }
     for (const m of this.smoke) { m.y += m.vy; m.r += m.grow; m.age++; }
     for (const t of this.texts) { t.y += t.vy; t.age++; }
+    for (const impact of this.shieldImpacts) impact.age++;
     for (const f of this.muzzleFlashes) f.age++;
     if (this.debris.length) this.debris = this.debris.filter((d) => d.age < d.life);
     if (this.sparks.length) this.sparks = this.sparks.filter((s) => s.age < s.life);
     if (this.smoke.length) this.smoke = this.smoke.filter((m) => m.age < m.life);
     if (this.texts.length) this.texts = this.texts.filter((t) => t.age < t.life);
+    if (this.shieldImpacts.length) {
+      this.shieldImpacts = this.shieldImpacts.filter((impact) => impact.age < impact.life);
+    }
     if (this.muzzleFlashes.length) {
       this.muzzleFlashes = this.muzzleFlashes.filter((f) => f.age < f.life);
     }
@@ -255,6 +289,7 @@ export class EffectsRenderer {
       && !this.smoke.length
       && !this.sparks.length
       && !this.texts.length
+      && !this.shieldImpacts.length
       && !this.muzzleFlashes.length
     ) return;
     ctx.save();
@@ -266,6 +301,9 @@ export class EffectsRenderer {
       ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.globalAlpha = 1;
+
+    for (const impact of this.shieldImpacts) this.drawShieldImpact(ctx, impact);
     ctx.globalAlpha = 1;
 
     for (const flash of this.muzzleFlashes) this.drawMuzzleFlash(ctx, flash);
@@ -304,6 +342,46 @@ export class EffectsRenderer {
     }
 
     ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  private drawShieldImpact(ctx: CanvasRenderingContext2D, impact: ShieldImpact): void {
+    const progress = impact.age / impact.life;
+    const fade = 1 - progress;
+    const outerRadius = 24 + progress * 18;
+    const innerRadius = 18 + progress * 10;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = '#7ad7ff';
+    ctx.globalAlpha = fade * (0.42 + impact.strength * 0.5);
+    ctx.lineWidth = 1 + impact.strength * 2;
+
+    ctx.beginPath();
+    ctx.arc(impact.x, impact.y, outerRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.globalAlpha *= 0.58;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(impact.x, impact.y, innerRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.globalAlpha = fade * (0.34 + impact.strength * 0.36);
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2 + progress * 0.32;
+      const start = outerRadius + 2;
+      const end = start + 4 + impact.strength * 4;
+      ctx.moveTo(
+        impact.x + Math.cos(angle) * start,
+        impact.y + Math.sin(angle) * start,
+      );
+      ctx.lineTo(
+        impact.x + Math.cos(angle) * end,
+        impact.y + Math.sin(angle) * end,
+      );
+    }
+    ctx.stroke();
     ctx.restore();
   }
 

@@ -31,6 +31,7 @@ interface RendererExplosionSeam {
   reduceMotion: boolean;
   events: null;
   prevHealth: Map<string, number>;
+  prevShieldHp: Map<string, number>;
   smokeThrottle: Map<string, number>;
   wasFiring: boolean;
   prevFireLen: number;
@@ -169,6 +170,7 @@ function drawEvents(sources: ExplosionEvent[]) {
     reduceMotion: true,
     events: null,
     prevHealth: new Map(),
+    prevShieldHp: new Map(),
     smokeThrottle: new Map(),
     wasFiring: false,
     prevFireLen: 0,
