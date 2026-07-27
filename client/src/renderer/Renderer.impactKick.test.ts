@@ -29,6 +29,7 @@ interface RendererImpactSeam {
     clear: ReturnType<typeof vi.fn>;
   };
   projectile: {
+    drawGroundShadows: ReturnType<typeof vi.fn>;
     draw: ReturnType<typeof vi.fn>;
     clear: ReturnType<typeof vi.fn>;
   };
@@ -103,7 +104,7 @@ function rendererSeam(reduceMotion = false): RendererImpactSeam {
       draw: vi.fn(),
       clear: vi.fn(),
     },
-    projectile: { draw: vi.fn(), clear: vi.fn() },
+    projectile: { drawGroundShadows: vi.fn(), draw: vi.fn(), clear: vi.fn() },
     terrain: { draw: vi.fn(), markDirty: vi.fn() },
     tanks: { drawAll: vi.fn() },
     hud: { draw: vi.fn() },

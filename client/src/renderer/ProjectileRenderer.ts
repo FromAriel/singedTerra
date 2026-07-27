@@ -4,6 +4,7 @@ import {
   getProjectileVisualProfile,
   type ProjectileVisualProfile,
 } from './projectileVisuals';
+import { getProjectileGroundShadow } from './projectileGroundShadow';
 import { RingBuffer } from './ringBuffer';
 
 /**
@@ -61,6 +62,44 @@ export class ProjectileRenderer {
     this.slots.forEach((slot) => slot.history.clear());
     this.slots.clear();
     this.previousProjectileCount = 0;
+  }
+
+  /**
+   * Paint present-position depth cues onto the live terrain.
+   *
+   * Stateless by design: shadows derive only from this frame's projectile position
+   * and terrain column, so they cannot inherit trail identity or affect replay.
+   */
+  drawGroundShadows(
+    ctx: CanvasRenderingContext2D,
+    projectiles: ProjectileState[],
+    terrain: Uint8Array,
+  ): void {
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+
+    for (const projectile of projectiles) {
+      const cue = getProjectileGroundShadow(projectile, terrain);
+      if (cue === null) continue;
+
+      ctx.save();
+      // Sink the ellipse one pixel into the first solid row so it reads on the
+      // terrain face instead of hovering in the air immediately above it.
+      ctx.translate(cue.x, cue.groundY + 1);
+      ctx.scale(cue.radiusX, cue.radiusY);
+      const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      gradient.addColorStop(0, 'rgba(7, 3, 12, 0.86)');
+      gradient.addColorStop(0.55, 'rgba(7, 3, 12, 0.5)');
+      gradient.addColorStop(1, 'rgba(7, 3, 12, 0)');
+      ctx.globalAlpha = cue.alpha;
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(0, 0, 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.restore();
   }
 
   draw(ctx: CanvasRenderingContext2D, projectiles: ProjectileState[]): void {
