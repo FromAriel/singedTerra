@@ -417,6 +417,7 @@ interface ProjectileState {
 
 - **Weapon-signature detonation profiles**: `ExplosionEvent.weaponType` is locally derived from the replayed action and selects conventional, nuclear, earth, incendiary, scatter, funky, or mine Canvas details. All profile primitives stay inside the existing shared `blastReachRadius`; no new field crosses Supabase.
 - **Weapon-signature battlefield lighting**: Up to three strongest live bursts cast bounded additive radial light from the same local profile, event color, reach, age, and lifetime before the existing headline exposure flash. Illumination is presentation-only and may fade beyond the fireball edge; it never changes blast geometry, terrain, replay, or Supabase actions.
+- **Projectile ground shadows**: Every valid live shell casts a bounded neutral radial ellipse at the first solid pixel in its current terrain column. The cue widens and softens with altitude, is drawn between terrain and tanks, and represents present position only — never a predicted landing point or synchronized gameplay field.
 
 ---
 

@@ -410,6 +410,10 @@ export class Renderer {
     // markDirty() is needed here.
     this.terrain.draw(ctx, state.terrain, state.terrainVersion);
 
+    // 2.5 Terrain-projected shell shadows. These present-position depth cues sit
+    // above the destructible terrain but below visible tanks and payload glyphs.
+    this.projectile.drawGroundShadows(ctx, state.projectiles, state.terrain);
+
     // 3. Tanks (active player emphasised). Buried tanks were painted under the terrain
     // above, so draw only the visible (non-buried) ones here.
     const visible = buried.length > 0
