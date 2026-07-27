@@ -402,7 +402,10 @@ export class Renderer {
     // 2.0 Buried tanks (#15): draw BEFORE the terrain so the risen dirt paints over
     // them — they read as submerged rather than sitting on top of the mound that buried
     // them. A surface beacon (below) keeps them findable. (Almost always empty.)
-    const buried = state.tanks.filter((t) => t.alive && t.buried);
+    // Keep every buried silhouette under the terrain, including a tank killed
+    // while trapped. Otherwise its retained dead row would pop a wreck above the
+    // dirt on the death frame. Only living buried tanks receive a surface beacon.
+    const buried = state.tanks.filter((t) => t.buried);
     if (buried.length > 0) this.tanks.drawAll(ctx, buried);
 
     // 2. Terrain. The TerrainRenderer keeps its own offscreen canvas and blits
@@ -418,13 +421,14 @@ export class Renderer {
     // 3. Tanks (active player emphasised). Buried tanks were painted under the terrain
     // above, so draw only the visible (non-buried) ones here.
     const visible = buried.length > 0
-      ? state.tanks.filter((t) => !(t.alive && t.buried))
+      ? state.tanks.filter((t) => !t.buried)
       : state.tanks;
     this.tanks.drawAll(ctx, visible, state.activePlayerId);
 
     // 3.0 Buried beacons: a small surface marker over each trapped tank so the player
     // can see where to dig it out (the body itself is hidden under the dirt).
     for (const t of buried) {
+      if (!t.alive) continue;
       this.tanks.drawBuriedMarker(ctx, t.x, surfaceAt(state.terrain, t.x), t.color);
     }
 

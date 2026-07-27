@@ -26,6 +26,13 @@ export class TankRenderer {
   draw(ctx: CanvasRenderingContext2D, tank: TankState, active = false): void {
     const { x, y, color, angle } = tank;
 
+    // Eliminated seats remain in GameState for scoring/replay. Leave a persistent
+    // wreck instead of painting the retained row as an intact, active-capable tank.
+    if (!tank.alive) {
+      this.drawWreck(ctx, tank);
+      return;
+    }
+
     // Vertical layout (y grows downward; base sits on the surface at y).
     const treadBottom = y;
     const treadTop = treadBottom - TREAD_HEIGHT;
@@ -184,6 +191,84 @@ export class TankRenderer {
       ctx.closePath();
       ctx.fill();
     }
+  }
+
+  /**
+   * Static destroyed-state silhouette. It is derived only from authoritative
+   * `alive` and contains no random/timed state, so every client paints the same
+   * round-long battlefield history without touching deterministic simulation.
+   */
+  private drawWreck(ctx: CanvasRenderingContext2D, tank: TankState): void {
+    const { x, y, color } = tank;
+
+    ctx.save();
+
+    // Deeper contact shadow and crushed tread bed seat the wreck into the terrain.
+    ctx.globalAlpha = 0.46;
+    ctx.fillStyle = '#07030c';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 1, 18, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.beginPath();
+    ctx.moveTo(x - 17, y);
+    ctx.lineTo(x + 15, y);
+    ctx.lineTo(x + 12, y - 5);
+    ctx.lineTo(x - 13, y - 4);
+    ctx.closePath();
+    ctx.fillStyle = '#120b0b';
+    ctx.fill();
+    ctx.strokeStyle = '#070405';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Low asymmetric hull: the missing upper mass makes the turret-pop permanent.
+    ctx.beginPath();
+    ctx.moveTo(x - 13, y - 4);
+    ctx.lineTo(x - 9, y - 11);
+    ctx.lineTo(x - 2, y - 13);
+    ctx.lineTo(x + 5, y - 11);
+    ctx.lineTo(x + 13, y - 6);
+    ctx.lineTo(x + 10, y - 3);
+    ctx.lineTo(x - 10, y - 3);
+    ctx.closePath();
+    ctx.fillStyle = '#1a1110';
+    ctx.fill();
+    ctx.strokeStyle = '#080506';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // One scorched owner-color plate keeps the eliminated seat identifiable.
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y - 9);
+    ctx.lineTo(x - 2, y - 11);
+    ctx.lineTo(x + 5, y - 9);
+    ctx.lineTo(x + 8, y - 6);
+    ctx.lineTo(x - 6, y - 6);
+    ctx.closePath();
+    ctx.fillStyle = darkenHex(color, 0.58);
+    ctx.fill();
+
+    // Bent metal edge and two cold rivets add readable detail at gameplay scale.
+    ctx.beginPath();
+    ctx.moveTo(x - 11, y - 4);
+    ctx.lineTo(x - 3, y - 7);
+    ctx.lineTo(x + 3, y - 5);
+    ctx.lineTo(x + 11, y - 7);
+    ctx.strokeStyle = 'rgba(255, 210, 63, 0.24)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#5f4938';
+    ctx.beginPath();
+    ctx.arc(x - 7, y - 2.5, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + 7, y - 2.5, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
   }
 
   /** Convenience: draw every tank in turn, emphasising the active one. */
