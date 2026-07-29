@@ -23,6 +23,8 @@ Both workspace packages are `private: true`.
 
 - **Vite** `^5.4.0` (client dev server + build).
 - **@supabase/supabase-js** `^2.45.0` (browser client); Edge Functions use `@2` via esm.sh → `2.107.0`.
+- **lucide** `1.27.0` (client-only exact named SVG icon nodes). The package has
+  no runtime transitives; importing its all-icons registry is prohibited.
 - Canvas 2D — pure browser API, no rendering lib.
 - Root tooling: `concurrently`, `typescript`, `@types/node`.
 - **tsx** — used by the `check` script via `npx tsx` to run `.mjs` harnesses against TS engine sources directly (no build step). Not declared as a dep; resolved at runtime via npx.
@@ -63,4 +65,6 @@ Three test layers, by runtime:
 
 ## License
 
-**Intended: MIT (open-source)** — confirmed with maintainer 2026-06-20. Not yet enacted: there is no `LICENSE` file or `license` field, and all packages are `private: true`. See `open-tasks.md` for the follow-up.
+**MIT (open-source).** The repository has a root `LICENSE` and all package
+manifests declare MIT. Third-party notices are retained in
+`THIRD_PARTY_NOTICES.md`.

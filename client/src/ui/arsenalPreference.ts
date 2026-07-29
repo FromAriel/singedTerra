@@ -1,16 +1,9 @@
-/**
- * Collapse the tall arsenal by default whenever the fixed 1464×600 stage is
- * rendered below its 0.8 compact threshold. The coarse-pointer clause retains
- * the roomier landscape-phone behavior where touch controls consume HUD space.
- */
-export const COMPACT_STAGE_QUERY =
-  '(max-width: 1171px), (max-height: 479px), (pointer: coarse) and (max-height: 700px)';
-
 export function resolveInitialArsenalCollapsed(
   storedValue: string | null,
-  compactStage: boolean,
 ): boolean {
   if (storedValue === '1') return true;
   if (storedValue === '0') return false;
-  return compactStage;
+  // A drawer is transient by design. Start every new shell closed so the
+  // battlefield controls remain visible; a deliberate saved preference wins.
+  return true;
 }

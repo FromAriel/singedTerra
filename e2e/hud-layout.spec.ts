@@ -88,26 +88,73 @@ test.describe('HUD layout guardrails', () => {
     expect(geometry.scrollHeight).toBeLessThanOrEqual(geometry.clientHeight + 1);
   });
 
-  test('compact touch expansion exposes arsenal and scroll hint', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'pixel-touch');
+  test('arsenal opens as a fitted drawer without changing rail height', async ({ page }) => {
+    const before = await page.locator('#hud').evaluate((hud) => ({
+      clientHeight: hud.clientHeight,
+      scrollHeight: hud.scrollHeight,
+    }));
     await page.locator('.st-hud__strip-toggle').click();
     await expect(page.locator('.st-hud__strip-grid')).toBeVisible();
-    await expect(page.locator('.st-hud__strip-scroll-hint')).toBeVisible();
+    await expect(page.locator('.st-hud__strip')).toHaveClass(/st-hud__strip--open/);
     await expect(page.locator('.st-hud__strip-toggle')).toHaveAttribute('aria-expanded', 'true');
+    const hudBox = await page.locator('#hud').boundingBox();
+    const drawerBox = await page.locator('.st-hud__strip').boundingBox();
+    expect(hudBox).not.toBeNull();
+    expect(drawerBox).not.toBeNull();
+    expect(drawerBox!.x).toBeGreaterThanOrEqual(hudBox!.x - 1);
+    expect(drawerBox!.x + drawerBox!.width)
+      .toBeLessThanOrEqual(hudBox!.x + hudBox!.width + 1);
+    expect(drawerBox!.y).toBeGreaterThanOrEqual(hudBox!.y - 1);
+    expect(drawerBox!.y + drawerBox!.height)
+      .toBeLessThanOrEqual(hudBox!.y + hudBox!.height + 1);
+    for (const locator of [
+      page.locator('.st-hud__strip-grid'),
+      page.locator('.st-hud__strip-toggle'),
+    ]) {
+      const childBox = await locator.boundingBox();
+      expect(childBox).not.toBeNull();
+      expect(childBox!.x).toBeGreaterThanOrEqual(drawerBox!.x - 1);
+      expect(childBox!.x + childBox!.width)
+        .toBeLessThanOrEqual(drawerBox!.x + drawerBox!.width + 1);
+      expect(childBox!.y).toBeGreaterThanOrEqual(drawerBox!.y - 1);
+      expect(childBox!.y + childBox!.height)
+        .toBeLessThanOrEqual(drawerBox!.y + drawerBox!.height + 1);
+    }
+    const open = await page.locator('#hud').evaluate((hud) => ({
+      clientHeight: hud.clientHeight,
+      scrollHeight: hud.scrollHeight,
+    }));
+    expect(open.scrollHeight).toBeLessThanOrEqual(open.clientHeight + 1);
+    expect(open.scrollHeight).toBe(before.scrollHeight);
 
-    await page.locator('.st-hud__strip-toggle').click();
+    const inertSiblings = await page.locator('#hud').evaluate((hud) =>
+      [...hud.children]
+        .filter((child) => !child.classList.contains('st-hud__strip'))
+        .every((child) => (child as HTMLElement).inert),
+    );
+    expect(inertSiblings).toBe(true);
+    await page.locator('.st-hud__weapon-btn:visible').first().focus();
+    await page.keyboard.press('Escape');
     await expect(page.locator('.st-hud__strip-grid')).toBeHidden();
-    await expect(page.locator('.st-hud__strip-scroll-hint')).toBeHidden();
+    await expect(page.locator('.st-hud__strip')).not.toHaveClass(/st-hud__strip--open/);
     await expect(page.locator('.st-hud__strip-toggle')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('.st-hud__strip-toggle')).toBeFocused();
+    await expect(page.locator('.st-hud__strip-toggle')).toContainText('Expand');
+    const releasedSiblings = await page.locator('#hud').evaluate((hud) =>
+      [...hud.children]
+        .filter((child) => !child.classList.contains('st-hud__strip'))
+        .every((child) => !(child as HTMLElement).inert),
+    );
+    expect(releasedSiblings).toBe(true);
   });
 });
 
 test.describe('HUD arsenal responsive defaults', () => {
-  test('desktop-fine starts with an expanded arsenal', async ({ page }, testInfo) => {
+  test('desktop-fine starts with a closed arsenal drawer', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop-fine');
     await gotoRunningGame(page);
-    await expect(page.locator('.st-hud__strip-grid')).toBeVisible();
-    await expect(page.locator('.st-hud__strip-toggle')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('.st-hud__strip-grid')).toBeHidden();
+    await expect(page.locator('.st-hud__strip-toggle')).toHaveAttribute('aria-expanded', 'false');
   });
 
   test('small fine-pointer windows start collapsed and keep the HUD fitted', async ({
@@ -130,25 +177,10 @@ test.describe('HUD arsenal responsive defaults', () => {
     await gotoRunningGame(page);
     await expect(page.locator('.st-hud__strip')).not.toHaveClass(/st-hud__strip--collapsed/);
     await expect(page.locator('.st-hud__strip-toggle')).toHaveAttribute('aria-expanded', 'true');
-  });
-
-  test('implicit default follows compact-touch changes until manually toggled', async ({
-    page,
-  }, testInfo) => {
-    test.skip(testInfo.project.name !== 'pixel-touch');
-    await page.setViewportSize({ width: 1200, height: 720 });
-    await gotoRunningGame(page);
-    const strip = page.locator('.st-hud__strip');
-    const toggle = page.locator('.st-hud__strip-toggle');
-    await expect(strip).not.toHaveClass(/st-hud__strip--collapsed/);
-
-    await page.setViewportSize({ width: 915, height: 412 });
-    await expect(strip).toHaveClass(/st-hud__strip--collapsed/);
-    await toggle.click();
-    await expect(strip).not.toHaveClass(/st-hud__strip--collapsed/);
-
-    await page.setViewportSize({ width: 1200, height: 720 });
-    await page.setViewportSize({ width: 915, height: 412 });
-    await expect(strip).not.toHaveClass(/st-hud__strip--collapsed/);
+    const geometry = await page.locator('#hud').evaluate((hud) => ({
+      clientHeight: hud.clientHeight,
+      scrollHeight: hud.scrollHeight,
+    }));
+    expect(geometry.scrollHeight).toBeLessThanOrEqual(geometry.clientHeight + 1);
   });
 });
