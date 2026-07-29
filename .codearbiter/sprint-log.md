@@ -1418,3 +1418,9 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 ### 2026-07-28 - Unified fire control behavior commit
 
 - Governed behavior commit: 80fcf8b (feat(hud): add unified fire control). Fresh deterministic checks, 532 client tests, coverage, 159 Edge tests, production build, 37-case browser matrix with 8 expected skips, zero-vulnerability runtime audit, independent re-review, staged diff hygiene, and staged secret scan passed. Confidence high.
+
+### 2026-07-28 - Unified fire control ready PR opened
+
+- Behavior commit 80fcf8b and governance commit 3008229 were pushed as codex/unified-fire-control.
+- Ready stacked PR #198: https://github.com/SUaDtL/singedTerra/pull/198
+- Base is codex/shareable-room-invites (#197), so review isolates only this unified action slice. Exact-head hosted CI and CodeQL remain pending; per the standing goal, the PR will not be merged and nothing will be deployed. Confidence high.
