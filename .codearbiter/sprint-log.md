@@ -1329,3 +1329,8 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 - Governed behavior commit: d0678f84abdcdee81ba7bc5aca74c3f583b26cad (feat(hud): restore the ballistic computer).
 - Exact behavior set: persistent two-tier analog console, corrected global-angle needle transform, matched elevation and power geometry, full-width wind rail, compact-stage arsenal default, adversarial unit oracles, production-browser guardrails, and public specification.
 - Commit gate evidence: fresh 22-test focused proof, full deterministic workspace check, client coverage, 159 Edge tests, production build, 30-case browser matrix with 12 expected skips, clean diff hygiene, and state-free secret scan with no findings. Confidence high.
+### 2026-07-26 - Fire Control Console ready PR receipt
+
+- Behavior commit d0678f84abdcdee81ba7bc5aca74c3f583b26cad and governance commit 37909f4aa08f38e80fb7ff9cf2202036255627ef were pushed as codex/instrument-panel-restoration.
+- Ready PR #195: https://github.com/SUaDtL/singedTerra/pull/195
+- Exact-head CI run 30412820265 and CodeQL run 30412820256 passed on 37909f4aa08f38e80fb7ff9cf2202036255627ef. The PR is clean and mergeable. Per the standing goal, it remains open and no deployment was performed. Confidence high.

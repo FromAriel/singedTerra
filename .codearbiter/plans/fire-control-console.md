@@ -26,5 +26,5 @@ prominent responsive analog fire-control console.
 - [x] Run focused tests, full checks/coverage, Edge, build, E2E, diff hygiene,
   and secret scan.
 - [x] Commit the behavior through the governed gate.
-- [ ] Open a ready PR.
-- [ ] Prove exact-head hosted CI and CodeQL green; do not merge or deploy.
+- [x] Open a ready PR.
+- [x] Prove exact-head hosted CI and CodeQL green; do not merge or deploy.
