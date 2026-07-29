@@ -1387,3 +1387,9 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 ### 2026-07-28 - Shareable room invites behavior commit
 
 - Governed behavior commit: 0a64764 (feat(lobby): add shareable room invites). Fresh full matrix, independent review, staged diff, runtime audit, and state-free secret scan passed. Confidence high.
+
+### 2026-07-28 - Shareable room invites ready PR opened
+
+- Behavior commit 0a64764 and governance commit 53814b6 were pushed as codex/shareable-room-invites.
+- Ready stacked PR #197: https://github.com/SUaDtL/singedTerra/pull/197
+- Base is codex/single-screen-combat-shell (#196), so review isolates only the room-invite slice. Exact-head hosted CI and CodeQL remain pending; per the standing goal, the PR will not be merged and nothing will be deployed. Confidence high.
