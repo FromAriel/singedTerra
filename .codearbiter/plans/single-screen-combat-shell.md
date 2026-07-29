@@ -38,4 +38,4 @@ into one fitted combat rail with a non-scrolling arsenal drawer.
   production build, full E2E, diff hygiene, and secret scan.
 - [x] Commit through the governed gate.
 - [x] Open a ready stacked PR against `codex/instrument-panel-restoration`.
-- [ ] Prove exact-head hosted CI and CodeQL green; do not merge or deploy.
+- [x] Prove exact-head hosted CI and CodeQL green; do not merge or deploy.

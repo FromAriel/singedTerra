@@ -1368,3 +1368,9 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 - Behavior commit d2c5f12 and governance commit ffb456d were pushed as codex/single-screen-combat-shell.
 - Ready stacked PR #196: https://github.com/SUaDtL/singedTerra/pull/196
 - Base is codex/instrument-panel-restoration (#195), so review isolates only this combat-shell slice. Exact-head hosted CI and CodeQL remain pending; per the standing goal, the PR will not be merged and nothing will be deployed. Confidence high.
+### 2026-07-28 - Single-screen combat shell hosted gate receipt
+
+- Ready PR #196 was CLEAN and MERGEABLE on exact head a75b85d86abaafa7caecdc2d1d9707542244f021.
+- Exact-head CI run 30415128717 passed typecheck, every deterministic harness, client tests, production build, 159 Edge tests, and the 31-case browser matrix with 8 expected project skips.
+- Exact-head CodeQL run 30415128722 passed, and the PR CodeQL status check also passed.
+- Supabase Preview was expectedly skipped because this presentation-only slice has no backend change. Per the standing goal, PR #196 remains open and no deployment or merge was performed. Confidence high.
