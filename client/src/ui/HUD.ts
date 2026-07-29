@@ -140,7 +140,7 @@ export class HUD {
   private playersEl!: HTMLElement;
   private weaponValueEl!: HTMLElement;
   private aimEl!: HTMLElement;
-  /** Aim readout sub-node: the "Sending..." text line shown during firing. */
+  /** Aim readout sub-node: pending / flight / resolving progress text. */
   private aimTextEl!: HTMLElement;
   /** "Round N of M" indicator (side panel); hidden in single-round matches. */
   private roundEl!: HTMLElement;
@@ -219,6 +219,9 @@ export class HUD {
   private gaugePowerLabel!: SVGTextElement;
   // Active-player name row (replaces old aimTextEl player portion):
   private activePlayerEl!: HTMLElement;
+  private turnOwnerEl!: HTMLElement;
+  /** Last turn actually presented in the owner row; resets between games. */
+  private lastPresentedTurnKey: string | null = null;
 
   // Touch-aim strip (M2 mobile): weapon button needs per-frame sync.
   private touchStripEl!: HTMLElement;
@@ -275,14 +278,29 @@ export class HUD {
   update(state: GameState, isFiring = false, canControl = true): void {
     if (!this.built) this.build();
 
+    const hasActiveTurn = state.phase === 'PLAYER_TURN' ||
+      state.phase === 'FIRING' ||
+      state.phase === 'RESOLVING';
+    const activeTank = state.tanks.find((tank) => tank.id === state.activePlayerId);
+    const validActiveId = hasActiveTurn && activeTank?.alive
+      ? state.activePlayerId
+      : null;
+    const presentedTurnKey = validActiveId !== null &&
+      state.phase === 'PLAYER_TURN' &&
+      !isFiring
+      ? `${state.round}:${state.turn}:${validActiveId}`
+      : null;
+    const isHandoff = presentedTurnKey !== null &&
+      presentedTurnKey !== this.lastPresentedTurnKey;
     this.syncRound(state);
-    this.syncPlayers(state);
+    this.syncPlayers(state, isHandoff);
     this.syncWind(state.wind);
-    this.syncAim(state, isFiring);
+    this.syncAim(state, isFiring, isHandoff);
     this.syncStrip(state, isFiring, canControl);
     this.syncStore(state);
     this.syncRoundOver(state);
     this.syncOverlay(state);
+    if (presentedTurnKey !== null) this.lastPresentedTurnKey = presentedTurnKey;
   }
 
   /**
@@ -558,17 +576,26 @@ export class HUD {
     return instruments;
   }
 
-  /** Active-player + weapon readout row, plus the firing "Sending..." strip. */
+  /** Active-player + weapon readout row, plus shot-progress status. */
   private buildActiveRow(): void {
     // ── Active player + weapon name row (replaces aim text + old wind/weapon blocks) ──
     // This shows "PlayerName  ·  WeaponName" in one compact row. It persists below the
-    // gauges and is hidden during the firing "Sending..." state (replaced by aimTextEl).
+    // gauges and is hidden while the shot-progress status is shown.
     this.activePlayerEl = document.createElement('div');
     this.activePlayerEl.className =
       'st-hud__active-row st-ui-section st-ui-section--active';
-    // aimEl is the "Sending..." firing strip — shown only during isFiring state.
+    this.activePlayerEl.setAttribute('role', 'status');
+    this.activePlayerEl.setAttribute('aria-live', 'polite');
+    this.activePlayerEl.setAttribute('aria-atomic', 'true');
+    this.activePlayerEl.setAttribute('aria-label', 'No active turn.');
+    // aimEl announces transport, flight, and resolution progress without changing
+    // the compact rail's height.
     this.aimEl = document.createElement('div');
     this.aimEl.className = 'st-hud__aim st-ui-section st-ui-section--active';
+    this.aimEl.setAttribute('role', 'status');
+    this.aimEl.setAttribute('aria-live', 'polite');
+    this.aimEl.setAttribute('aria-atomic', 'true');
+    this.aimEl.setAttribute('aria-label', 'No shot in progress.');
     this.aimTextEl = document.createElement('span');
     this.aimTextEl.className = 'st-hud__aim-text';
     this.aimEl.append(this.aimTextEl);
@@ -576,6 +603,15 @@ export class HUD {
 
     // Active weapon readout — kept as a text row (not a gauge; SPEC says "may be
     // repositioned"). Placed inside activePlayerEl alongside the player name.
+    const owner = document.createElement('div');
+    owner.className = 'st-hud__turn-identity';
+    const ownerKicker = document.createElement('span');
+    ownerKicker.className = 'st-hud__turn-kicker';
+    ownerKicker.textContent = 'Active turn';
+    this.turnOwnerEl = document.createElement('span');
+    this.turnOwnerEl.className = 'st-hud__turn-owner';
+    owner.append(ownerKicker, this.turnOwnerEl);
+
     const weapon = document.createElement('div');
     weapon.className = 'st-hud__weapon';
     const weaponLabel = document.createElement('span');
@@ -586,7 +622,7 @@ export class HUD {
     weapon.append(weaponLabel, this.weaponValueEl);
     // Active player row: player name + weapon readout, shown when not firing.
     // Sits directly below the instrument cluster.
-    this.activePlayerEl.append(weapon);
+    this.activePlayerEl.append(owner, weapon);
   }
 
   /** Controls legend (bottom-right; built once, never updated). */
@@ -1152,7 +1188,7 @@ export class HUD {
   }
 
   /** Reconcile the per-player health bars against `state.tanks`. */
-  private syncPlayers(state: GameState): void {
+  private syncPlayers(state: GameState, isHandoff: boolean): void {
     const seen = new Set<string>();
 
     for (const tank of state.tanks) {
@@ -1163,7 +1199,13 @@ export class HUD {
         this.rows.set(tank.id, row);
         this.playersEl.append(row.el);
       }
-      this.syncRow(row, tank, tank.id === state.activePlayerId, state.totalRounds);
+      this.syncRow(
+        row,
+        tank,
+        tank.id === state.activePlayerId,
+        state.totalRounds,
+        isHandoff,
+      );
     }
 
     // Remove rows for tanks that disappeared (defensive; tanks normally persist).
@@ -1209,7 +1251,13 @@ export class HUD {
   }
 
   /** Mutate a player row's volatile bits (hp text, bar width, alive/active classes). */
-  private syncRow(row: PlayerRow, tank: TankState, active: boolean, totalRounds: number): void {
+  private syncRow(
+    row: PlayerRow,
+    tank: TankState,
+    active: boolean,
+    totalRounds: number,
+    isHandoff: boolean,
+  ): void {
     const health = Math.max(0, Math.round(tank.health));
     const dead = !tank.alive || health <= 0;
 
@@ -1250,6 +1298,13 @@ export class HUD {
     row.fill.style.width = `${Math.max(0, Math.min(100, health))}%`;
     row.el.classList.toggle('st-hud__player--dead', dead);
     row.el.classList.toggle('st-hud__player--active', active && !dead);
+    if (!active) {
+      row.el.classList.remove('st-hud__player--handoff');
+    } else if (isHandoff && !dead) {
+      row.el.classList.remove('st-hud__player--handoff');
+      void row.el.offsetWidth;
+      row.el.classList.add('st-hud__player--handoff');
+    }
   }
 
   /**
@@ -1274,13 +1329,37 @@ export class HUD {
   }
 
   /** Update the active tank's SVG gauges + weapon/player name row. */
-  private syncAim(state: GameState, isFiring = false): void {
-    const tank = state.tanks.find((t) => t.id === state.activePlayerId);
+  private syncAim(state: GameState, isFiring = false, isHandoff = false): void {
+    const hasActiveTurn = state.phase === 'PLAYER_TURN' ||
+      state.phase === 'FIRING' ||
+      state.phase === 'RESOLVING';
+    const activeTank = hasActiveTurn
+      ? state.tanks.find((candidate) => candidate.id === state.activePlayerId)
+      : undefined;
+    // PLAYER_TURN names only a living seat owner. During FIRING/RESOLVING the
+    // same id identifies the shooter, who may have died to their own blast while
+    // the deterministic engine still settles terrain for the surviving seats.
+    const tank = activeTank &&
+      (state.phase !== 'PLAYER_TURN' || activeTank.alive)
+      ? activeTank
+      : undefined;
     if (!tank) {
-      // No active tank: blank gauges, hide active row.
-      this.activePlayerEl.classList.remove('st-hud__active-row--hidden');
-      this.aimEl.classList.add('st-hud__aim--hidden');
-      this.weaponValueEl.textContent = '—';
+      // No active tank: blank gauges and clear identity rather than leaving a
+      // stale player named through a terminal or defensive state.
+      this.activePlayerEl.classList.toggle('st-hud__active-row--hidden', true);
+      this.aimEl.classList.toggle('st-hud__aim--hidden', true);
+      if (this.turnOwnerEl.textContent !== '') this.turnOwnerEl.textContent = '';
+      if (this.weaponValueEl.textContent !== '—') this.weaponValueEl.textContent = '—';
+      if (this.aimTextEl.textContent !== '') this.aimTextEl.textContent = '';
+      if (this.activePlayerEl.getAttribute('aria-label') !== 'No active turn.') {
+        this.activePlayerEl.setAttribute('aria-label', 'No active turn.');
+      }
+      if (this.aimEl.getAttribute('aria-label') !== 'No shot in progress.') {
+        this.aimEl.setAttribute('aria-label', 'No shot in progress.');
+      }
+      if (this.activePlayerEl.style.getPropertyValue('--st-turn-color') !== '') {
+        this.activePlayerEl.style.removeProperty('--st-turn-color');
+      }
       // Zero out gauges
       this.gaugeElevNeedle.setAttribute('transform', '');
       if (this.gaugeElevLabel.textContent !== '0° ▶') this.gaugeElevLabel.textContent = '0° ▶';
@@ -1293,20 +1372,61 @@ export class HUD {
       return;
     }
 
-    if (isFiring) {
-      // Firing: show "Sending…" in the aim strip; hide the normal active-player row.
-      this.aimTextEl.textContent = `${tank.playerName}  ·  Sending...`;
-      this.aimEl.classList.remove('st-hud__aim--hidden');
-      this.activePlayerEl.classList.add('st-hud__active-row--hidden');
-      // Keep gauges frozen at their last values during flight — no update.
+    const ownerLabel = HUD.playerLabel(tank);
+    const progress = state.phase === 'FIRING'
+      ? {
+          text: `${ownerLabel} · Shot in flight...`,
+          label: `${ownerLabel}'s shot is in flight.`,
+        }
+      : state.phase === 'RESOLVING'
+        ? {
+            text: `${ownerLabel} · Terrain settling...`,
+            label: `${ownerLabel}'s shot is resolving.`,
+          }
+        : isFiring
+          ? {
+              text: `${ownerLabel} · Sending shot...`,
+              label: `${ownerLabel} is sending a shot.`,
+            }
+          : null;
+
+    if (progress) {
+      if (this.aimTextEl.textContent !== progress.text) {
+        this.aimTextEl.textContent = progress.text;
+      }
+      if (this.aimEl.getAttribute('aria-label') !== progress.label) {
+        this.aimEl.setAttribute('aria-label', progress.label);
+      }
+      this.aimEl.classList.toggle('st-hud__aim--hidden', false);
+      this.activePlayerEl.classList.toggle('st-hud__active-row--hidden', true);
+      // Keep gauges frozen at their last values while a shot is progressing.
       return;
     }
 
     // Normal PLAYER_TURN state: show active player + weapon row, hide aim strip.
-    this.aimEl.classList.add('st-hud__aim--hidden');
-    this.activePlayerEl.classList.remove('st-hud__active-row--hidden');
+    this.aimEl.classList.toggle('st-hud__aim--hidden', true);
+    this.activePlayerEl.classList.toggle('st-hud__active-row--hidden', false);
     const weaponName = WEAPONS[tank.selectedWeapon]?.name ?? tank.selectedWeapon;
-    this.weaponValueEl.textContent = weaponName;
+    if (this.turnOwnerEl.textContent !== ownerLabel) {
+      this.turnOwnerEl.textContent = ownerLabel;
+    }
+    if (this.weaponValueEl.textContent !== weaponName) {
+      this.weaponValueEl.textContent = weaponName;
+    }
+    if (
+      this.activePlayerEl.style.getPropertyValue('--st-turn-color') !== tank.color
+    ) {
+      this.activePlayerEl.style.setProperty('--st-turn-color', tank.color);
+    }
+    const activeLabel = `${ownerLabel}'s turn. Weapon ${weaponName}.`;
+    if (this.activePlayerEl.getAttribute('aria-label') !== activeLabel) {
+      this.activePlayerEl.setAttribute('aria-label', activeLabel);
+    }
+    if (isHandoff) {
+      this.activePlayerEl.classList.remove('st-hud__active-row--handoff');
+      void this.activePlayerEl.offsetWidth;
+      this.activePlayerEl.classList.add('st-hud__active-row--handoff');
+    }
 
     // ── Elevation gauge ──
     // elevationNeedleDeg(angle) gives [0,180]: 0=right, 90=up, 180=left.
@@ -1439,6 +1559,13 @@ export class HUD {
     this.overlayShown = false;
     this.roundOverEl.classList.add('st-hud__overlay--hidden');
     this.roundOverShown = false;
+    this.lastPresentedTurnKey = null;
+    if (this.built) {
+      this.activePlayerEl.classList.remove('st-hud__active-row--handoff');
+      for (const row of this.rows.values()) {
+        row.el.classList.remove('st-hud__player--handoff');
+      }
+    }
   }
 
   /**
@@ -1597,6 +1724,9 @@ export class HUD {
   padding-left: 6px;
   box-shadow: inset 10px 0 18px rgba(255, 122, 31, 0.06);
 }
+.st-hud__player--handoff {
+  animation: st-hud-roster-handoff 560ms ease-out;
+}
 .st-hud__player--dead {
   opacity: 0.45;
   text-decoration: line-through;
@@ -1642,14 +1772,43 @@ export class HUD {
 }
 .st-hud__weapon {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 7px;
-  padding: 5px 2px;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   font-size: var(--ui-type-title);
+}
+.st-hud__turn-identity {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  gap: 1px;
+}
+.st-hud__turn-kicker {
+  color: var(--ui-muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  line-height: 1;
+  letter-spacing: 1.35px;
+  text-transform: uppercase;
+}
+.st-hud__turn-owner {
+  overflow: hidden;
+  color: var(--ui-copy);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.45px;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--st-turn-color) 62%, transparent);
+  white-space: nowrap;
 }
 .st-hud__menu {
   display: flex;
@@ -1675,13 +1834,20 @@ export class HUD {
   opacity: 0.65;
   text-transform: uppercase;
   letter-spacing: 1px;
-  font-size: 10px;
+  font-size: 8px;
+  line-height: 1;
 }
 .st-hud__weapon-value {
+  overflow: hidden;
+  max-width: 104px;
   font-family: var(--font-display);
   font-weight: bold;
+  font-size: 11px;
+  line-height: 1.15;
   letter-spacing: 0.5px;
   color: var(--gold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .st-hud__controls {
   position: absolute;
@@ -2267,8 +2433,24 @@ export class HUD {
   from { opacity: 1; }
   to { opacity: 0; }
 }
+@keyframes st-hud-turn-handoff {
+  0% {
+    filter: brightness(1.65);
+    box-shadow: inset 3px 0 var(--st-turn-color), 0 0 18px rgba(255, 210, 63, 0.34);
+  }
+  100% {
+    filter: brightness(1);
+    box-shadow: inset 3px 0 transparent, 0 0 0 rgba(255, 210, 63, 0);
+  }
+}
+@keyframes st-hud-roster-handoff {
+  0% { filter: brightness(1.55); }
+  100% { filter: brightness(1); }
+}
 @media (prefers-reduced-motion: reduce) {
   .st-hud__player--active { animation: none; }
+  .st-hud__player--handoff,
+  .st-hud__active-row--handoff { animation: none; }
   .st-hud__player--hit::after { animation: none; opacity: 0; }
   .st-hud__bar-fill,
   .st-hud__weapon-btn,
@@ -2518,17 +2700,35 @@ export class HUD {
 }
 /* Active player + weapon row (below the cluster). */
 .st-hud__active-row {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 31px;
+  padding: 5px 2px 6px 11px;
   overflow: hidden;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--st-turn-color) 12%, transparent), transparent 58%);
   /* Same flex-crush guard as .st-hud__instruments: this is the only other #hud
    * flex child with overflow:hidden, so without it the name/weapon row is the
    * next element squeezed to zero when the panel content overflows on touch. */
   flex-shrink: 0;
 }
+.st-hud__active-row::before {
+  content: '';
+  position: absolute;
+  inset: 5px auto 5px 2px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--st-turn-color, var(--ui-action));
+  box-shadow: 0 0 8px var(--st-turn-color, var(--ui-action));
+}
+.st-hud__active-row--handoff {
+  animation: st-hud-turn-handoff 560ms ease-out;
+}
 .st-hud__active-row--hidden { display: none; }
-/* The aim strip is only shown during "Sending..." (firing state). */
+/* Shot progress replaces the owner row during submit, flight, and resolution. */
 .st-hud__aim--hidden { display: none; }
 /* Gauges are reduced-motion-safe by construction: needle/marker/fill are driven by
    direct attribute mutation (transform / stroke-dasharray) with no CSS transition,
