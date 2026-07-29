@@ -23,6 +23,6 @@ combat rail.
   coverage findings.
 - [x] Run focused tests, deterministic checks, client coverage, Edge tests,
   production build, full E2E, runtime audit, diff hygiene, and secret scan.
-- [ ] Commit through the governed gate.
+- [x] Commit through the governed gate.
 - [ ] Open a ready stacked PR against `codex/toolchain-security-refresh`.
 - [ ] Prove exact-head hosted CI and CodeQL green; do not merge or deploy.

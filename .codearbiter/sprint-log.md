@@ -1467,3 +1467,8 @@ Spec/plan: `.codearbiter/specs/turn-handoff-beacon.md`, `.codearbiter/plans/turn
 - Correctness/coverage review accepted the authoritative phase/owner model and eight focused tests with no remaining findings. Rendering/accessibility review accepted the fitted team-accent hierarchy, roster handoff cue, polite status semantics, and reduced-motion path with no remaining findings. Confidence high.
 - Fresh stacked proof on Vite 6.4.3 and Vitest 4.1.10: deterministic/typecheck checks passed; 73 client files / 540 tests passed; coverage reached 86.21% statements, 75.36% branches, 72.84% functions, and 89.31% lines; all 159 Edge tests passed; production build passed at 237.05 kB / 63.62 kB gzip for the main bundle.
 - The full production-browser matrix passed 37 tests with 8 expected project skips across desktop, pixel-touch, and small-window. Runtime audit found zero vulnerabilities; all 145 auditable packages had verified registry signatures and 57 verified attestations; diff hygiene, conflict-marker check, and changed-file secret scan were clean. No engine, physics, replay, action-log, database, migration, Edge Function, Supabase, or deterministic behavior changed. Confidence high.
+
+
+### Turn handoff beacon behavior commit
+
+- Governed behavior commit 8129637 (eat(hud): clarify turn handoffs) is linearly based on the final PR #199 governance head 9df7d36. The append-only sprint-log conflict was resolved by retaining the complete toolchain receipt and appending the complete turn-handoff history; all application, test, spec, plan, and UI-system content is unchanged from the fully verified pre-rebase tree. Confidence high.
