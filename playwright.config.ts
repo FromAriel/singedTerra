@@ -50,7 +50,7 @@ export default defineConfig({
       },
 
   projects: [
-    // Roomy desktop window: not compact — expects the analog dials (gauge-row).
+    // Roomy desktop window: not compact; the arsenal starts expanded.
     {
       name: 'desktop-fine',
       use: {
@@ -59,7 +59,7 @@ export default defineConfig({
       },
     },
     // Phone in LANDSCAPE (the game blocks portrait via #portrait-warn). Coarse
-    // pointer + touch + small viewport => #app.is-compact => numeric readouts.
+    // pointer + touch + small viewport => #app.is-compact with strengthened gauges.
     // This is the viewport where the flex-crush regression actually reproduces
     // (the touch strip pushes #hud content past the panel height).
     {
@@ -71,9 +71,8 @@ export default defineConfig({
         isMobile: true,
       },
     },
-    // Small FINE-pointer desktop window — also below the compact threshold, so it
-    // exercises the numeric-readout path without touch. Guards the "small remote
-    // window" case the compact swap was built for.
+    // Small FINE-pointer desktop window — also below the compact threshold.
+    // Its arsenal starts collapsed so the full HUD fits without an inner scrollbar.
     {
       name: 'small-window',
       use: {

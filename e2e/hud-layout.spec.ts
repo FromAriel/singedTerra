@@ -33,23 +33,14 @@ test.describe('HUD layout guardrails', () => {
     ).toEqual([]);
   });
 
-  test('exactly one gauge representation is visible, boxed, and inside #hud', async ({ page }) => {
-    const compact = await isCompact(page);
+  test('the analog console is visible, boxed, and inside #hud at every scale', async ({ page }) => {
     const dials = page.locator('.st-hud__gauge-row');
     const nums = page.locator('.st-hud__gauge-nums');
 
-    // Compact layouts swap the analog dials for numeric readouts; roomy desktop
-    // keeps the dials. Exactly one is shown.
-    if (compact) {
-      await expect(nums).toBeVisible();
-      await expect(dials).toBeHidden();
-    } else {
-      await expect(dials).toBeVisible();
-      await expect(nums).toBeHidden();
-    }
+    await expect(dials).toBeVisible();
+    await expect(nums).toHaveCount(0);
 
-    const shown = compact ? nums : dials;
-    const gaugeBox = await shown.boundingBox();
+    const gaugeBox = await dials.boundingBox();
     expect(gaugeBox, 'the visible gauge representation should have a box').not.toBeNull();
     expect(gaugeBox!.width).toBeGreaterThan(0);
     expect(gaugeBox!.height).toBeGreaterThan(0);
@@ -61,6 +52,17 @@ test.describe('HUD layout guardrails', () => {
     expect(gaugeBox!.x + gaugeBox!.width).toBeLessThanOrEqual(hudBox!.x + hudBox!.width + 1);
     expect(gaugeBox!.y).toBeGreaterThanOrEqual(hudBox!.y - 1);
     expect(gaugeBox!.y + gaugeBox!.height).toBeLessThanOrEqual(hudBox!.y + hudBox!.height + 1);
+
+    const elevationBox = await page.locator('.st-hud__gauge-cell--elevation').boundingBox();
+    const powerBox = await page.locator('.st-hud__gauge-cell--power').boundingBox();
+    const windBox = await page.locator('.st-hud__gauge-cell--wind').boundingBox();
+    expect(elevationBox).not.toBeNull();
+    expect(powerBox).not.toBeNull();
+    expect(windBox).not.toBeNull();
+    expect(Math.abs(elevationBox!.y - powerBox!.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(elevationBox!.width - powerBox!.width)).toBeLessThanOrEqual(1);
+    expect(windBox!.y).toBeGreaterThan(elevationBox!.y + elevationBox!.height);
+    expect(windBox!.width).toBeGreaterThan(elevationBox!.width * 1.8);
   });
 
   test('active player + weapon row has a non-zero visible box', async ({ page }) => {
@@ -101,11 +103,25 @@ test.describe('HUD layout guardrails', () => {
 });
 
 test.describe('HUD arsenal responsive defaults', () => {
-  test('desktop-fine and small-window start with an expanded arsenal', async ({ page }, testInfo) => {
-    test.skip(!['desktop-fine', 'small-window'].includes(testInfo.project.name));
+  test('desktop-fine starts with an expanded arsenal', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop-fine');
     await gotoRunningGame(page);
     await expect(page.locator('.st-hud__strip-grid')).toBeVisible();
     await expect(page.locator('.st-hud__strip-toggle')).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('small fine-pointer windows start collapsed and keep the HUD fitted', async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'small-window');
+    await gotoRunningGame(page);
+    await expect(page.locator('.st-hud__strip-grid')).toBeHidden();
+    await expect(page.locator('.st-hud__strip-toggle')).toHaveAttribute('aria-expanded', 'false');
+    const geometry = await page.locator('#hud').evaluate((hud) => ({
+      clientHeight: hud.clientHeight,
+      scrollHeight: hud.scrollHeight,
+    }));
+    expect(geometry.scrollHeight).toBeLessThanOrEqual(geometry.clientHeight + 1);
   });
 
   test('saved expanded preference wins on compact touch', async ({ page }, testInfo) => {
@@ -120,7 +136,7 @@ test.describe('HUD arsenal responsive defaults', () => {
     page,
   }, testInfo) => {
     test.skip(testInfo.project.name !== 'pixel-touch');
-    await page.setViewportSize({ width: 915, height: 720 });
+    await page.setViewportSize({ width: 1200, height: 720 });
     await gotoRunningGame(page);
     const strip = page.locator('.st-hud__strip');
     const toggle = page.locator('.st-hud__strip-toggle');
@@ -131,7 +147,7 @@ test.describe('HUD arsenal responsive defaults', () => {
     await toggle.click();
     await expect(strip).not.toHaveClass(/st-hud__strip--collapsed/);
 
-    await page.setViewportSize({ width: 915, height: 720 });
+    await page.setViewportSize({ width: 1200, height: 720 });
     await page.setViewportSize({ width: 915, height: 412 });
     await expect(strip).not.toHaveClass(/st-hud__strip--collapsed/);
   });

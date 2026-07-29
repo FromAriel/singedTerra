@@ -14,7 +14,7 @@ import {
   windDirectionSymbol,
 } from './gaugeMath';
 import {
-  COMPACT_TOUCH_QUERY,
+  COMPACT_STAGE_QUERY,
   resolveInitialArsenalCollapsed,
 } from './arsenalPreference';
 
@@ -169,7 +169,7 @@ export class HUD {
   private stripToggleEl!: HTMLButtonElement;
   private stripCollapsed = false;
   private arsenalPreferenceExplicit = false;
-  private compactTouchMedia: MediaQueryList | null = null;
+  private compactStageMedia: MediaQueryList | null = null;
   private storeBtnEl!: HTMLButtonElement;
   private storeEl!: HTMLElement;
   private storeCreditsEl!: HTMLElement;
@@ -212,14 +212,6 @@ export class HUD {
   // Power gauge SVG nodes:
   private gaugePowerArc!: SVGPathElement;
   private gaugePowerLabel!: SVGTextElement;
-  // Mobile numeric readouts (coarse-pointer). The analog dials' thin gold strokes
-  // dissolve to sub-pixel when the whole #app is zoom-scaled down on a phone, so on
-  // touch devices we hide the dials and show these bold numeric values instead. They
-  // mirror the SVG label strings verbatim (populated in syncWind / syncAim), so both
-  // representations always agree — CSS decides which one is visible.
-  private numElevValue!: HTMLElement;
-  private numWindValue!: HTMLElement;
-  private numPowerValue!: HTMLElement;
   // Active-player name row (replaces old aimTextEl player portion):
   private activePlayerEl!: HTMLElement;
 
@@ -355,17 +347,16 @@ export class HUD {
     this.roundEl.className = 'st-hud__round st-hud__round--hidden';
   }
 
-  /** Cockpit instrument cluster (#44): three SVG gauges + mobile numeric readouts. */
+  /** Responsive analog fire-control console (#44). */
   private buildInstrumentCluster(): HTMLElement {
-    // ── Cockpit instrument cluster (#44) ────────────────────────────────
-    // One framed panel holding three SVG gauges in a row: Elevation, Wind, Power.
-    // All needle/fill geometry is driven by gaugeMath helpers; nothing inline here.
+    // One inset console with large elevation/power dials and a wide wind rail.
+    // All volatile geometry remains driven by the pure gaugeMath helpers.
 
     const instruments = document.createElement('div');
     instruments.className = 'st-hud__instruments';
     const instrTitle = document.createElement('div');
     instrTitle.className = 'st-hud__instr-title';
-    instrTitle.textContent = 'Instruments';
+    instrTitle.textContent = 'Ballistic Computer';
 
     // ── Elevation gauge (semicircular dial, 180° arc) ──
     // Needle pivots at center of a 72×44 SVG.  Arc: 180° semicircle, flat edge down.
@@ -419,100 +410,93 @@ export class HUD {
     this.gaugeElevLabel.textContent = '0° ▶';
     elevSvg.append(elevTrack, elevTicks, elevPivot, this.gaugeElevNeedle, this.gaugeElevLabel);
     const elevCell = document.createElement('div');
-    elevCell.className = 'st-hud__gauge-cell';
+    elevCell.className = 'st-hud__gauge-cell st-hud__gauge-cell--elevation';
     const elevCellTitle = document.createElement('div');
     elevCellTitle.className = 'st-hud__gauge-cell-title';
-    elevCellTitle.textContent = 'Elev';
+    elevCellTitle.textContent = 'Elevation';
     elevCell.append(elevCellTitle, elevSvg);
 
     // ── Wind gauge (horizontal center-zero track) ──
-    // Track: 64px wide, center at x=32. Marker slides left/right by windNeedleOffset×28px.
-    const windSvg = HUD.makeSvg(72, 56);
+    // Wide center-zero rail. The marker traverses 116px while remaining in-frame.
+    const windSvg = HUD.makeSvg(144, 52);
     windSvg.setAttribute('aria-label', 'Wind gauge');
     // Track background bar
     const windTrack = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    windTrack.setAttribute('x', '4');
-    windTrack.setAttribute('y', '22');
-    windTrack.setAttribute('width', '64');
+    windTrack.setAttribute('x', '8');
+    windTrack.setAttribute('y', '18');
+    windTrack.setAttribute('width', '128');
     windTrack.setAttribute('height', '6');
     windTrack.setAttribute('rx', '3');
     windTrack.setAttribute('class', 'st-hud__gauge-track-rect');
     // Center tick
     const windCenter = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    windCenter.setAttribute('x1', '36');
-    windCenter.setAttribute('y1', '18');
-    windCenter.setAttribute('x2', '36');
-    windCenter.setAttribute('y2', '34');
+    windCenter.setAttribute('x1', '72');
+    windCenter.setAttribute('y1', '14');
+    windCenter.setAttribute('x2', '72');
+    windCenter.setAttribute('y2', '30');
     windCenter.setAttribute('class', 'st-hud__gauge-ticks');
     // End ticks
     const windTickL = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    windTickL.setAttribute('x1', '4'); windTickL.setAttribute('y1', '20');
-    windTickL.setAttribute('x2', '4'); windTickL.setAttribute('y2', '32');
+    windTickL.setAttribute('x1', '8'); windTickL.setAttribute('y1', '16');
+    windTickL.setAttribute('x2', '8'); windTickL.setAttribute('y2', '28');
     windTickL.setAttribute('class', 'st-hud__gauge-ticks');
     const windTickR = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    windTickR.setAttribute('x1', '68'); windTickR.setAttribute('y1', '20');
-    windTickR.setAttribute('x2', '68'); windTickR.setAttribute('y2', '32');
+    windTickR.setAttribute('x1', '136'); windTickR.setAttribute('y1', '16');
+    windTickR.setAttribute('x2', '136'); windTickR.setAttribute('y2', '28');
     windTickR.setAttribute('class', 'st-hud__gauge-ticks');
     // Moving marker (diamond shape via rect rotated 45°, centered on track center y=25)
     this.gaugeWindMarker = document.createElementNS('http://www.w3.org/2000/svg', 'rect') as SVGRectElement;
-    this.gaugeWindMarker.setAttribute('x', '32');
-    this.gaugeWindMarker.setAttribute('y', '22');
+    this.gaugeWindMarker.setAttribute('x', '68');
+    this.gaugeWindMarker.setAttribute('y', '18');
     this.gaugeWindMarker.setAttribute('width', '8');
     this.gaugeWindMarker.setAttribute('height', '8');
     this.gaugeWindMarker.setAttribute('rx', '1');
-    this.gaugeWindMarker.setAttribute('transform', 'rotate(45, 36, 25)');
+    this.gaugeWindMarker.setAttribute('transform', 'rotate(45, 72, 22)');
     this.gaugeWindMarker.setAttribute('class', 'st-hud__gauge-needle-rect');
     // Label
     this.gaugeWindLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text') as SVGTextElement;
-    this.gaugeWindLabel.setAttribute('x', '36');
-    this.gaugeWindLabel.setAttribute('y', '52');
+    this.gaugeWindLabel.setAttribute('x', '72');
+    this.gaugeWindLabel.setAttribute('y', '46');
     this.gaugeWindLabel.setAttribute('text-anchor', 'middle');
     this.gaugeWindLabel.setAttribute('class', 'st-hud__gauge-label');
     this.gaugeWindLabel.textContent = '• 0.0';
     windSvg.append(windTrack, windTickL, windTickR, windCenter, this.gaugeWindMarker, this.gaugeWindLabel);
     const windCell = document.createElement('div');
-    windCell.className = 'st-hud__gauge-cell';
+    windCell.className = 'st-hud__gauge-cell st-hud__gauge-cell--wind';
     const windCellTitle = document.createElement('div');
     windCellTitle.className = 'st-hud__gauge-cell-title';
-    windCellTitle.textContent = 'Wind';
+    windCellTitle.textContent = 'Wind Vector';
     windCell.append(windCellTitle, windSvg);
 
     // ── Power gauge (arc fill driven by stroke-dasharray) ──
-    // Arc: 220° sweep from bottom-left to bottom-right (like a fuel gauge).
-    // SVG 80×56. Center (40,48). Radius 28. Start angle = 200° from positive-x (bottom-left).
-    // We use a fixed-length path and manipulate stroke-dasharray to fill it.
-    // Arc length ≈ 2π×28×(220/360) ≈ 107.5 — we'll compute precisely.
+    // Match the elevation dial's 72×56 frame, center, radius, and semicircle so
+    // the two primary controls read as one balanced instrument pair.
     const pwrSvg = HUD.makeSvg(72, 56);
     pwrSvg.setAttribute('aria-label', 'Power gauge');
-    const PWR_R = 26; const PWR_CX = 36; const PWR_CY = 46;
-    // Start angle: 200° (bottom-left), end angle: 340° (bottom-right) — 140° sweep total
-    // Using CSS convention: 0° = top, clockwise. For SVG path arcs we use standard math angles.
-    // Start: 200° from SVG +x axis (measured clockwise from top = 110° from +x counter-clockwise)
-    // Let's use the sweep directly: start at SVG angle 200° CW from top:
-    // SVG +x is 3 o'clock. Our start = -140° from +x (i.e. 220° CW from +x).
-    // Simpler: start = lower-left, end = lower-right with a 220° sweep going CCW through top.
-    // In SVG large-arc=1, sweep=0 (CCW):
-    //   start point at angle 160° from +x (going CCW means angle decreasing for CW motion)
-    // Actually let's use: start = 200° from +x (CCW / standard math = bottom-left area)
-    //   start: (cx + r*cos(200°), cy - r*sin(200°))  [SVG y flipped]
-    //   = (36 + 26*cos(200°), 46 - 26*sin(200°))
-    //   = (36 + 26*(-0.940), 46 - 26*(-0.342))
-    //   = (36 - 24.44, 46 + 8.89) = (11.56, 54.89) → ~(12, 55)
-    //   end: angle -20° from +x (= 340°): (cx + r*cos(-20°), cy - r*sin(-20°))
-    //   = (36 + 26*0.940, 46 + 26*0.342) = (60.44, 54.89) → ~(60, 55)
-    // sweep = 140° (from 200° going CW: 200→340 = 140°)
-    // large-arc: 140° < 180° so large-arc=0
-    const psx = PWR_CX + PWR_R * Math.cos((200 * Math.PI) / 180);
-    const psy = PWR_CY - PWR_R * Math.sin((200 * Math.PI) / 180);
-    const pex = PWR_CX + PWR_R * Math.cos((-20 * Math.PI) / 180);
-    const pey = PWR_CY - PWR_R * Math.sin((-20 * Math.PI) / 180);
-    const pwrArcD = `M ${psx.toFixed(2)} ${psy.toFixed(2)} A ${PWR_R} ${PWR_R} 0 0 1 ${pex.toFixed(2)} ${pey.toFixed(2)}`;
-    // Arc circumference for a 140° sweep
-    const PWR_ARC_LEN = 2 * Math.PI * PWR_R * (140 / 360);
+    const PWR_R = 30;
+    const PWR_CX = 36;
+    const PWR_CY = 40;
+    const pwrArcD = 'M 6 40 A 30 30 0 0 1 66 40';
+    const PWR_ARC_LEN = Math.PI * PWR_R;
     // Track (full arc, dim)
     const pwrTrack = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     pwrTrack.setAttribute('d', pwrArcD);
     pwrTrack.setAttribute('class', 'st-hud__gauge-track');
+    const pwrTicks = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    pwrTicks.setAttribute('class', 'st-hud__gauge-ticks');
+    for (const deg of [0, 45, 90, 135, 180]) {
+      const rad = ((180 - deg) * Math.PI) / 180;
+      const x1 = PWR_CX + PWR_R * Math.cos(rad);
+      const y1 = PWR_CY - PWR_R * Math.sin(rad);
+      const x2 = PWR_CX + (PWR_R - 5) * Math.cos(rad);
+      const y2 = PWR_CY - (PWR_R - 5) * Math.sin(rad);
+      const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      tick.setAttribute('x1', String(x1));
+      tick.setAttribute('y1', String(y1));
+      tick.setAttribute('x2', String(x2));
+      tick.setAttribute('y2', String(y2));
+      pwrTicks.append(tick);
+    }
     // Fill arc (same path, stroke-dasharray driven by gaugeFraction × ARC_LEN)
     this.gaugePowerArc = document.createElementNS('http://www.w3.org/2000/svg', 'path') as SVGPathElement;
     this.gaugePowerArc.setAttribute('d', pwrArcD);
@@ -522,29 +506,32 @@ export class HUD {
     this.gaugePowerArc.dataset['arcLen'] = String(PWR_ARC_LEN.toFixed(4));
     // End-cap dot at start position (low end)
     const pwrDotL = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    pwrDotL.setAttribute('cx', psx.toFixed(2));
-    pwrDotL.setAttribute('cy', psy.toFixed(2));
+    pwrDotL.setAttribute('cx', '6');
+    pwrDotL.setAttribute('cy', '40');
     pwrDotL.setAttribute('r', '2.5');
     pwrDotL.setAttribute('class', 'st-hud__gauge-pivot');
     const pwrDotR = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    pwrDotR.setAttribute('cx', pex.toFixed(2));
-    pwrDotR.setAttribute('cy', pey.toFixed(2));
+    pwrDotR.setAttribute('cx', '66');
+    pwrDotR.setAttribute('cy', '40');
     pwrDotR.setAttribute('r', '2.5');
     pwrDotR.setAttribute('class', 'st-hud__gauge-pivot');
     // Numeric label
     this.gaugePowerLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text') as SVGTextElement;
     this.gaugePowerLabel.setAttribute('x', '36');
-    // y=50 seats the number INSIDE the arch's open interior. The arc is only a 140°
-    // sweep, so near the horizontal centre the curve still descends through the ~y44
-    // band and the number collided with the stroke (hard to read); y=50 clears the
-    // stroke above and the base pivots below.
-    this.gaugePowerLabel.setAttribute('y', '50');
+    this.gaugePowerLabel.setAttribute('y', '52');
     this.gaugePowerLabel.setAttribute('text-anchor', 'middle');
     this.gaugePowerLabel.setAttribute('class', 'st-hud__gauge-label st-hud__gauge-label--lg');
     this.gaugePowerLabel.textContent = '0';
-    pwrSvg.append(pwrTrack, this.gaugePowerArc, pwrDotL, pwrDotR, this.gaugePowerLabel);
+    pwrSvg.append(
+      pwrTrack,
+      pwrTicks,
+      this.gaugePowerArc,
+      pwrDotL,
+      pwrDotR,
+      this.gaugePowerLabel,
+    );
     const pwrCell = document.createElement('div');
-    pwrCell.className = 'st-hud__gauge-cell';
+    pwrCell.className = 'st-hud__gauge-cell st-hud__gauge-cell--power';
     const pwrCellTitle = document.createElement('div');
     pwrCellTitle.className = 'st-hud__gauge-cell-title';
     pwrCellTitle.textContent = 'Power';
@@ -553,34 +540,9 @@ export class HUD {
     // Assemble the instrument cluster row
     const gaugeRow = document.createElement('div');
     gaugeRow.className = 'st-hud__gauge-row';
-    gaugeRow.append(elevCell, windCell, pwrCell);
+    gaugeRow.append(elevCell, pwrCell, windCell);
 
-    // Mobile numeric readouts — same three values as bold text, shown INSTEAD of the
-    // dials on coarse-pointer (see the field comment). Each cell is a dim title + a
-    // big value node that syncWind/syncAim keep in lockstep with the SVG labels.
-    const gaugeNums = document.createElement('div');
-    gaugeNums.className = 'st-hud__gauge-nums';
-    const mkNumCell = (title: string, initial: string): { cell: HTMLElement; value: HTMLElement } => {
-      const cell = document.createElement('div');
-      cell.className = 'st-hud__gauge-num';
-      const t = document.createElement('div');
-      t.className = 'st-hud__gauge-num-title';
-      t.textContent = title;
-      const value = document.createElement('div');
-      value.className = 'st-hud__gauge-num-value';
-      value.textContent = initial;
-      cell.append(t, value);
-      return { cell, value };
-    };
-    const elevNumCell = mkNumCell('Elev', '0° ▶');
-    const windNumCell = mkNumCell('Wind', '• 0.0');
-    const powerNumCell = mkNumCell('Power', '0');
-    this.numElevValue = elevNumCell.value;
-    this.numWindValue = windNumCell.value;
-    this.numPowerValue = powerNumCell.value;
-    gaugeNums.append(elevNumCell.cell, windNumCell.cell, powerNumCell.cell);
-
-    instruments.append(instrTitle, gaugeRow, gaugeNums);
+    instruments.append(instrTitle, gaugeRow);
     return instruments;
   }
 
@@ -671,14 +633,14 @@ export class HUD {
     this.stripEl.append(stripHeader, stripGrid);
     const stored = readStoredArsenalPreference();
     this.arsenalPreferenceExplicit = stored === '0' || stored === '1';
-    this.compactTouchMedia = typeof matchMedia === 'function'
-      ? matchMedia(COMPACT_TOUCH_QUERY)
+    this.compactStageMedia = typeof matchMedia === 'function'
+      ? matchMedia(COMPACT_STAGE_QUERY)
       : null;
     this.stripCollapsed = resolveInitialArsenalCollapsed(
       stored,
-      this.compactTouchMedia?.matches ?? false,
+      this.compactStageMedia?.matches ?? false,
     );
-    this.compactTouchMedia?.addEventListener('change', (event) => {
+    this.compactStageMedia?.addEventListener('change', (event) => {
       if (this.arsenalPreferenceExplicit) return;
       this.stripCollapsed = event.matches;
       this.applyStripCollapsed();
@@ -1246,24 +1208,22 @@ export class HUD {
   /**
    * Update the wind SVG gauge: slide the marker horizontally and refresh the label.
    * The half-track half-width is 32px (track spans x=4..68, center=36, half=32).
-   * windNeedleOffset returns [-1,1]; marker center starts at x=36.
+   * windNeedleOffset returns [-1,1]; marker center starts at x=72.
    * The marker is a rotated rect with natural center at (x+4, y+4) after the 45° rotate
-   * around (x+4, y+4) = (36, 25). We translate it by offset×30px.
+   * around (x+4, y+4) = (72, 22). We translate it by offset×58px.
    */
   private syncWind(wind: number): void {
     const offset = windNeedleOffset(wind, MAX_WIND); // [-1, 1]
-    const tx = offset * 26; // ±26px keeps the 8px diamond inside the 4..68 track at max wind
-    // Marker: rect x=32 y=22 w=8 h=8, rotated 45° around its center (36,26).
-    // Translate center by tx: new center at (36+tx, 26). Update transform.
-    const cx = 36 + tx;
+    const tx = offset * 58;
+    // Marker: rect x=68 y=18 w=8 h=8, rotated around its center (72,22).
+    const cx = 72 + tx;
     this.gaugeWindMarker.setAttribute('x', String(cx - 4));
-    this.gaugeWindMarker.setAttribute('transform', `rotate(45, ${cx}, 26)`);
+    this.gaugeWindMarker.setAttribute('transform', `rotate(45, ${cx}, 22)`);
     // Label: "→ 3.2" / "← 3.2" / "• 0.0"
     const sym = windDirectionSymbol(wind);
     const mag = windMagnitudeLabel(wind);
     const lbl = `${sym} ${mag}`;
     if (this.gaugeWindLabel.textContent !== lbl) this.gaugeWindLabel.textContent = lbl;
-    if (this.numWindValue.textContent !== lbl) this.numWindValue.textContent = lbl;
   }
 
   /** Update the active tank's SVG gauges + weapon/player name row. */
@@ -1277,15 +1237,12 @@ export class HUD {
       // Zero out gauges
       this.gaugeElevNeedle.setAttribute('transform', '');
       if (this.gaugeElevLabel.textContent !== '0° ▶') this.gaugeElevLabel.textContent = '0° ▶';
-      if (this.numElevValue.textContent !== '0° ▶') this.numElevValue.textContent = '0° ▶';
-      this.gaugeWindMarker.setAttribute('x', '32');
-      this.gaugeWindMarker.setAttribute('transform', 'rotate(45, 36, 26)');
+      this.gaugeWindMarker.setAttribute('x', '68');
+      this.gaugeWindMarker.setAttribute('transform', 'rotate(45, 72, 22)');
       if (this.gaugeWindLabel.textContent !== '• 0.0') this.gaugeWindLabel.textContent = '• 0.0';
-      if (this.numWindValue.textContent !== '• 0.0') this.numWindValue.textContent = '• 0.0';
       const arcLen = parseFloat(this.gaugePowerArc.dataset['arcLen'] ?? '0');
       this.gaugePowerArc.setAttribute('stroke-dasharray', `0 ${arcLen.toFixed(2)}`);
       if (this.gaugePowerLabel.textContent !== '0') this.gaugePowerLabel.textContent = '0';
-      if (this.numPowerValue.textContent !== '0') this.numPowerValue.textContent = '0';
       return;
     }
 
@@ -1306,14 +1263,13 @@ export class HUD {
 
     // ── Elevation gauge ──
     // elevationNeedleDeg(angle) gives [0,180]: 0=right, 90=up, 180=left.
-    // The needle SVG natural position (no transform) points up (from y=40 to y=12),
-    // which corresponds to dial 90°. So we rotate by (needleDeg - 90)° around the pivot.
+    // The needle SVG natural position points up. Positive SVG rotation moves it
+    // clockwise toward screen-right, so a rightward 45° barrel needs +45°.
     const needleDeg = elevationNeedleDeg(tank.angle);
-    const needleRot = needleDeg - 90; // 0→−90° (right), 90→0° (up), 180→+90° (left)
+    const needleRot = 90 - needleDeg; // 0→+90° (right), 90→0° (up), 180→−90° (left)
     this.gaugeElevNeedle.setAttribute('transform', `rotate(${needleRot}, 36, 40)`);
     const elevLbl = `${elevationDegrees(tank.angle)}° ${aimDirectionGlyph(tank.angle)}`;
     if (this.gaugeElevLabel.textContent !== elevLbl) this.gaugeElevLabel.textContent = elevLbl;
-    if (this.numElevValue.textContent !== elevLbl) this.numElevValue.textContent = elevLbl;
 
     // ── Power gauge (arc fill) ──
     const fraction = gaugeFraction(tank.power, 0, tank.powerCap ?? 100);
@@ -1324,7 +1280,6 @@ export class HUD {
     this.gaugePowerArc.setAttribute('stroke-dasharray', dasharrayVal);
     const pwrLbl = powerLabel(tank.power);
     if (this.gaugePowerLabel.textContent !== pwrLbl) this.gaugePowerLabel.textContent = pwrLbl;
-    if (this.numPowerValue.textContent !== pwrLbl) this.numPowerValue.textContent = pwrLbl;
   }
 
   /** Flip and persist the arsenal-collapsed preference. */
@@ -2248,165 +2203,170 @@ export class HUD {
   .st-hud__turnwatch-leave { min-height: 44px; padding: 0 14px; }
 }
 
-/* ===== Cockpit instrument cluster (#44) ================================ */
-/* A single bordered panel holding three SVG gauges in a row. All sizing is
- * box-sizing:border-box and width:100% so nothing overflows the 264px panel. */
+/* ===== Ballistic fire-control console ================================== */
 .st-hud__instruments {
+  position: relative;
   box-sizing: border-box;
   width: 100%;
-  padding: 9px 9px 10px;
+  padding: 8px 10px;
   background:
-    radial-gradient(90% 80% at 50% 0%, rgba(255, 210, 63, 0.10), rgba(255, 210, 63, 0) 58%),
-    linear-gradient(180deg, rgba(28, 16, 50, 0.88), rgba(12, 7, 22, 0.76));
-  border: 1px solid rgba(255, 210, 63, 0.40);
-  border-radius: 8px;
+    linear-gradient(135deg, rgba(255, 210, 63, 0.10), transparent 28%),
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 122, 31, 0.16), transparent 62%),
+    linear-gradient(180deg, #241535 0%, #0d0816 100%);
+  border: 2px solid rgba(255, 210, 63, 0.54);
+  border-radius: 7px;
   box-shadow:
-    inset 0 0 16px rgba(255, 122, 31, 0.10),
-    inset 0 -14px 22px rgba(0, 0, 0, 0.22),
-    0 5px 16px rgba(0, 0, 0, 0.34);
+    inset 0 0 0 2px rgba(8, 4, 13, 0.92),
+    inset 0 0 24px rgba(255, 122, 31, 0.12),
+    0 0 0 1px rgba(255, 233, 168, 0.10),
+    0 7px 18px rgba(0, 0, 0, 0.42);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   overflow: hidden;
-  /* flex-shrink:0 is load-bearing. #hud is a flex column; when the touch strip
-   * (coarse-pointer) pushes total content past the 600px panel, flex shrinks
-   * children — and overflow:hidden zeroes this panel's automatic minimum size
-   * (min-height:auto floors only overflow:visible items). Without this, the
-   * cluster is the sacrificial child: it crushes to title-height and clips the
-   * gauges AND the numeric readouts, leaving only "Instruments" visible on
-   * phones. Opting out of shrink lets #hud's own overflow-y:auto scroll instead. */
+  /* Keep the console physical; the HUD itself scrolls on short touch screens. */
   flex-shrink: 0;
+}
+.st-hud__instruments::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(255, 233, 168, 0.10);
+  border-radius: 3px;
+  pointer-events: none;
+}
+.st-hud__instruments::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #09050e;
+  border: 1px solid rgba(255, 233, 168, 0.30);
+  box-shadow: 222px 0 #09050e, 0 140px #09050e, 222px 140px #09050e;
+  pointer-events: none;
 }
 .st-hud__instr-title {
   font-family: var(--font-display);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: bold;
-  letter-spacing: 3.2px;
+  letter-spacing: 2.6px;
   text-transform: uppercase;
-  color: rgba(255, 233, 168, 0.66);
+  color: var(--text-gold);
+  text-shadow: 0 0 8px rgba(255, 122, 31, 0.34);
   text-align: center;
-  padding-bottom: 5px;
-  border-bottom: 1px solid rgba(255, 210, 63, 0.18);
+  padding: 1px 12px 6px;
+  border-bottom: 1px solid rgba(255, 210, 63, 0.30);
 }
-/* Three equal-width gauge cells in a row, no overflow. */
 .st-hud__gauge-row {
-  display: flex;
-  flex-direction: row;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    'elevation power'
+    'wind wind';
+  gap: 6px;
   width: 100%;
-  overflow: hidden;
+  min-width: 0;
 }
 .st-hud__gauge-cell {
-  flex: 1 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
+  padding: 5px 6px 3px;
+  border: 1px solid rgba(255, 210, 63, 0.24);
+  border-radius: 5px;
+  background:
+    radial-gradient(circle at 50% 58%, rgba(255, 210, 63, 0.10), transparent 58%),
+    linear-gradient(180deg, rgba(7, 4, 12, 0.84), rgba(18, 10, 27, 0.78));
+  box-shadow:
+    inset 0 0 12px rgba(0, 0, 0, 0.72),
+    inset 0 1px 0 rgba(255, 233, 168, 0.08);
+}
+.st-hud__gauge-cell--elevation { grid-area: elevation; }
+.st-hud__gauge-cell--power { grid-area: power; }
+.st-hud__gauge-cell--wind {
+  grid-area: wind;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  padding: 3px 8px;
+}
+.st-hud__gauge-cell > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.st-hud__gauge-cell--elevation > svg,
+.st-hud__gauge-cell--power > svg {
+  width: 88%;
 }
 .st-hud__gauge-cell-title {
   font-family: var(--font-display);
-  font-size: 8px;
-  letter-spacing: 1.5px;
+  font-size: 9px;
+  letter-spacing: 1.3px;
   text-transform: uppercase;
-  color: var(--text-dim);
+  color: rgba(255, 233, 168, 0.70);
   text-align: center;
 }
-/* SVG gauge shared element styles — referenced by SVG class attributes. */
 .st-hud__gauge-track {
   fill: none;
-  stroke: rgba(255, 210, 63, 0.18);
-  stroke-width: 3;
+  stroke: rgba(255, 210, 63, 0.30);
+  stroke-width: 4;
   stroke-linecap: round;
+  filter: drop-shadow(0 0 2px rgba(255, 122, 31, 0.26));
 }
 .st-hud__gauge-track-rect {
-  fill: rgba(255, 210, 63, 0.12);
-  stroke: rgba(255, 210, 63, 0.22);
-  stroke-width: 1;
+  fill: rgba(255, 210, 63, 0.14);
+  stroke: rgba(255, 210, 63, 0.42);
+  stroke-width: 2;
 }
 .st-hud__gauge-ticks {
   fill: none;
-  stroke: rgba(255, 210, 63, 0.35);
-  stroke-width: 1;
+  stroke: rgba(255, 233, 168, 0.62);
+  stroke-width: 1.6;
   stroke-linecap: round;
 }
 .st-hud__gauge-pivot {
   fill: var(--gold);
+  filter: drop-shadow(0 0 3px rgba(255, 210, 63, 0.66));
 }
 .st-hud__gauge-needle {
   stroke: var(--gold);
-  stroke-width: 2;
+  stroke-width: 3;
   stroke-linecap: round;
+  filter: drop-shadow(0 0 3px rgba(255, 210, 63, 0.66));
 }
-/* Wind marker (rotated rect) */
 .st-hud__gauge-needle-rect {
   fill: var(--gold);
+  filter: drop-shadow(0 0 3px rgba(255, 210, 63, 0.72));
 }
-/* Power arc fill: gold→ember gradient effect via a single stroke color;
- * stroke-dasharray is set per-frame via JS. */
 .st-hud__gauge-power-fill {
   fill: none;
   stroke: var(--ember);
-  stroke-width: 4;
+  stroke-width: 5;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 3px rgba(255, 122, 31, 0.6));
+  filter: drop-shadow(0 0 4px rgba(255, 122, 31, 0.72));
 }
-/* On-gauge numeric labels: monospace, small, gold. */
 .st-hud__gauge-label {
   fill: var(--text-gold);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: bold;
   font-variant-numeric: tabular-nums;
 }
 .st-hud__gauge-label--lg {
-  font-size: 11px;
+  font-size: 13px;
   fill: var(--gold);
-  font-weight: bold;
 }
-/* ── Mobile numeric readouts (coarse-pointer alternative to the dials) ──────
- * The analog dials' 1–3px gold strokes go sub-pixel and vanish when #app is
- * zoom-scaled down on a phone (leaving only the bold "Instruments" title
- * legible). On touch devices we hide the dials and show these bold numbers
- * instead. Hidden by default so fine-pointer (desktop) keeps the dials. */
-.st-hud__gauge-nums {
-  display: none;
-  gap: 4px;
-  width: 100%;
-}
-.st-hud__gauge-num {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  padding: 3px 2px;
-  background: rgba(255, 210, 63, 0.06);
-  border-radius: 4px;
-}
-.st-hud__gauge-num-title {
-  font-family: var(--font-display);
-  font-size: 8px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.st-hud__gauge-num-value {
-  font-family: var(--font-mono);
-  font-size: 16px;
-  font-weight: bold;
-  color: var(--text-gold);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-  white-space: nowrap;
-}
-/* Dials -> numeric readouts is driven by the ACTUAL HUD scale, not pointer type:
- * main.ts flags #app.is-compact when the zoom drops below the dial-legibility
- * threshold, so small / remote FINE-pointer windows get numerics too, not just
- * touch devices (a pointer test left those users staring at dissolved dials).
- * The compound #app.is-compact selector easily outranks the base display rules. */
-#app.is-compact .st-hud__gauge-row  { display: none; }
-#app.is-compact .st-hud__gauge-nums { display: flex; }
+#app.is-compact .st-hud__gauge-track { stroke-width: 5; }
+#app.is-compact .st-hud__gauge-ticks { stroke-width: 2; }
+#app.is-compact .st-hud__gauge-needle { stroke-width: 4; }
+#app.is-compact .st-hud__gauge-label { font-size: 12px; }
 /* On touch devices, lift the touch controls up to sit right after the players
  * list (before the instruments) instead of being pinned to the bottom of the
  * scrollable panel. Every child from instruments onward gets order:1; the touch

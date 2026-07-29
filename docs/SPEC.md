@@ -451,6 +451,11 @@ interface ProjectileState {
 - Power meter + up/down keys (bottom center)
 - Fire button / spacebar (bottom right)
 - All HUD elements are HTML/CSS overlaid on the canvas (not drawn on canvas) — easier to style, no coordinate math
+- The right-side Ballistic Computer keeps two equally scaled analog elevation/power
+  dials above one full-width wind-vector rail at every app scale. Its elevation
+  needle follows the global firing convention (`0° = right`, `90° = up`,
+  `180° = left`), and compact stages collapse the arsenal by default so the
+  primary HUD remains a single fitted view without an inner scrollbar.
 
 ---
 
