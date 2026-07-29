@@ -27,7 +27,7 @@ const POWER_MIN = 0;
 const POWER_MAX = 100;
 
 /**
- * The implemented weapon roster, in stable WeaponSystem key order. Tab / Q cycles
+ * The implemented weapon roster, in stable WeaponSystem key order. Q cycles
  * forward through ONLY these (SPEC §4.5: MVP1 ships Baby Missile + Missile); the
  * stubbed weapons are skipped. The first entry (baby_missile) is the engine's
  * default selected weapon, so our locally-tracked index starts there.
@@ -73,7 +73,7 @@ export class InputHandler {
 
   /**
    * Index into IMPLEMENTED_WEAPONS for the locally-tracked selected weapon. Starts
-   * at 0 (baby_missile, the engine default) so Tab / Q advances deterministically.
+   * at 0 (baby_missile, the engine default) so Q advances deterministically.
    */
   private weaponIndex = 0;
 
@@ -121,7 +121,7 @@ export class InputHandler {
 
   /**
    * Re-seed the locally-tracked weapon cursor to match a tank's currently
-   * selected weapon (e.g. on turn change, so the next Tab/Q advances from THIS
+   * selected weapon (e.g. on turn change, so the next Q advances from THIS
    * player's weapon rather than whoever cycled last — the cursor is otherwise
    * shared by the single handler across all hot-seat players). Does not emit —
    * purely re-seeds the mirror. A weapon outside the implemented roster (should
@@ -174,6 +174,15 @@ export class InputHandler {
   }
 
   private handleKeyDown = (event: KeyboardEvent): void => {
+    // Let native controls own their keyboard activation. Without this guard,
+    // Space/Enter on the focused rail Fire button would emit here and then emit
+    // again when the button dispatches its semantic click.
+    if (
+      event.target instanceof Element &&
+      event.target.closest('button, input, select, textarea, a[href], [contenteditable="true"]')
+    ) {
+      return;
+    }
     switch (event.key) {
       case 'ArrowLeft':
         // angle 0=right..180=left, so swinging the barrel LEFT INCREASES the angle.
@@ -205,7 +214,6 @@ export class InputHandler {
             : { type: 'fire' },
         );
         break;
-      case 'Tab': // preventDefault so focus does not move off the canvas
       case 'q':
       case 'Q':
         event.preventDefault();

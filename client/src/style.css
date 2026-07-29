@@ -304,7 +304,7 @@ body {
 #hud > .st-ui-section--active {
   padding-block: 0 var(--ui-space-2);
 }
-#hud > .st-ui-section--store {
+#hud > .st-ui-section--actions {
   justify-content: flex-start;
   gap: var(--ui-space-2);
   color: var(--ui-copy);

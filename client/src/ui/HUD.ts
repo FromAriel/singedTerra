@@ -30,7 +30,7 @@ const STORE_ACCESSORIES: AccessoryType[] = Object.keys(ACCESSORIES) as Accessory
 /**
  * Weapons shown in the strip: only `implemented` ones, in stable WeaponSystem
  * key order. This MUST stay literally identical to InputHandler's
- * IMPLEMENTED_WEAPONS predicate+order so the active-highlight tracks Tab/Q
+ * IMPLEMENTED_WEAPONS predicate+order so the active-highlight tracks Q
  * cycling. Defined locally (not imported) to keep UI modules decoupled.
  */
 const STRIP_WEAPONS: WeaponType[] = (Object.keys(WEAPONS) as WeaponType[])
@@ -126,8 +126,9 @@ export class HUD {
   // main.ts wires these to InputHandler's public step methods.
   private touchAngleCb: ((delta: number) => void) | null = null;
   private touchPowerCb: ((delta: number) => void) | null = null;
-  private touchFireCb: (() => void) | null = null;
   private touchWeaponCb: (() => void) | null = null;
+  /** Callback fired by the shared rail action (projectile fire or shield activation). */
+  private primaryActionCb: (() => void) | null = null;
 
   /** Whether the store panel is currently open. */
   private storeOpen = false;
@@ -172,6 +173,9 @@ export class HUD {
   private stripCollapsed = false;
   private storeBtnEl!: HTMLButtonElement;
   private storeBtnLabelEl!: HTMLElement;
+  private turnActionsEl!: HTMLElement;
+  private primaryActionBtnEl!: HTMLButtonElement;
+  private primaryActionLabelEl!: HTMLElement;
   private storeEl!: HTMLElement;
   private storeCreditsEl!: HTMLElement;
   // Networked liveness widgets (P1-6): a persistent connection banner (shown only
@@ -216,9 +220,8 @@ export class HUD {
   // Active-player name row (replaces old aimTextEl player portion):
   private activePlayerEl!: HTMLElement;
 
-  // Touch-aim strip (M2 mobile): fire + weapon buttons need per-frame sync.
+  // Touch-aim strip (M2 mobile): weapon button needs per-frame sync.
   private touchStripEl!: HTMLElement;
-  private touchFireBtnEl!: HTMLButtonElement;
   private touchWeaponBtnEl!: HTMLButtonElement;
 
   constructor(root: HTMLElement, overlayRoot: HTMLElement, modalRoot: HTMLElement) {
@@ -264,18 +267,19 @@ export class HUD {
   // Touch-aim strip registrations (M2 mobile).
   onTouchAngle(cb: (delta: number) => void): void { this.touchAngleCb = cb; }
   onTouchPower(cb: (delta: number) => void): void { this.touchPowerCb = cb; }
-  onTouchFire(cb: () => void): void { this.touchFireCb = cb; }
   onTouchWeapon(cb: () => void): void { this.touchWeaponCb = cb; }
+  /** Register the shared Fire / Activate shield action. */
+  onPrimaryAction(cb: () => void): void { this.primaryActionCb = cb; }
 
   /** Update the overlay to reflect the latest game state (called every frame). */
-  update(state: GameState, isFiring = false): void {
+  update(state: GameState, isFiring = false, canControl = true): void {
     if (!this.built) this.build();
 
     this.syncRound(state);
     this.syncPlayers(state);
     this.syncWind(state.wind);
     this.syncAim(state, isFiring);
-    this.syncStrip(state, isFiring);
+    this.syncStrip(state, isFiring, canControl);
     this.syncStore(state);
     this.syncRoundOver(state);
     this.syncOverlay(state);
@@ -317,6 +321,7 @@ export class HUD {
     const controls = this.buildControlsLegend();
     this.buildArsenal();
     this.buildStore();
+    this.buildTurnActions();
     this.buildEndScreens();
     this.buildRoundShop();
     const menu = this.buildMenu();
@@ -326,7 +331,7 @@ export class HUD {
     // Touch strip goes into the HUD side panel, NOT the canvas overlay, so it
     // can never overlap the play field. margin-top:auto (via CSS) pushes it to
     // the bottom of the panel column.
-    this.root.append(menu, this.roundEl, this.playersEl, instruments, this.activePlayerEl, this.aimEl, this.storeBtnEl, this.stripEl, this.touchStripEl);
+    this.root.append(menu, this.roundEl, this.playersEl, instruments, this.activePlayerEl, this.aimEl, this.turnActionsEl, this.stripEl, this.touchStripEl);
     // buildArsenal resolves the persisted state before the rail children exist;
     // re-apply it now so a stored-open drawer also isolates covered controls.
     this.applyStripCollapsed();
@@ -592,7 +597,7 @@ export class HUD {
     controls.innerHTML =
       '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>&larr;</kbd><kbd>&rarr;</kbd></span><span>Aim</span></span>' +
       '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>&uarr;</kbd><kbd>&darr;</kbd></span><span>Power</span></span>' +
-      '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>Tab</kbd><kbd>Q</kbd></span><span>Weapon</span></span>' +
+      '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>Q</kbd></span><span>Weapon</span></span>' +
       '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>Space</kbd><kbd>Enter</kbd></span><span>Fire</span></span>';
     return controls;
   }
@@ -668,8 +673,7 @@ export class HUD {
     // Clicking the button opens/closes the modal; buying is wired per-row below.
     this.storeBtnEl = document.createElement('button');
     this.storeBtnEl.type = 'button';
-    this.storeBtnEl.className =
-      'st-hud__store-btn st-ui-action st-ui-section st-ui-section--store';
+    this.storeBtnEl.className = 'st-hud__store-btn st-ui-action';
     this.storeBtnLabelEl = document.createElement('span');
     this.storeBtnLabelEl.className = 'st-hud__store-btn-label';
     this.storeBtnEl.append(makeHudIcon('store', 16), this.storeBtnLabelEl);
@@ -765,6 +769,29 @@ export class HUD {
     this.storeEl.addEventListener('click', (e) => {
       if (e.target === this.storeEl) this.toggleStore(false);
     });
+  }
+
+  /** One bounded action row: economy on the left, turn commitment on the right. */
+  private buildTurnActions(): void {
+    this.turnActionsEl = document.createElement('div');
+    this.turnActionsEl.className =
+      'st-hud__turn-actions st-ui-section st-ui-section--actions';
+
+    this.primaryActionBtnEl = document.createElement('button');
+    this.primaryActionBtnEl.type = 'button';
+    this.primaryActionBtnEl.className =
+      'st-hud__primary-action st-ui-action';
+    this.primaryActionLabelEl = document.createElement('span');
+    this.primaryActionLabelEl.className = 'st-hud__primary-action-label';
+    this.primaryActionBtnEl.append(
+      makeHudIcon('fire', 18),
+      this.primaryActionLabelEl,
+    );
+    // Click deliberately owns every activation. Pointerdown would double-dispatch
+    // on touch when the browser follows it with the button's semantic click.
+    this.primaryActionBtnEl.addEventListener('click', () => this.primaryActionCb?.());
+
+    this.turnActionsEl.append(this.storeBtnEl, this.primaryActionBtnEl);
   }
 
   /** GAME_OVER overlay + the non-destructive PAUSE overlay. */
@@ -982,19 +1009,14 @@ export class HUD {
     const touchPowerD = mkTouchBtn('▼\nPwr');
     const touchPowerU = mkTouchBtn('Pwr\n▲');
     this.touchWeaponBtnEl = mkTouchBtn('⇄\nWeapon', 'st-hud__touch-weapon');
-    this.touchFireBtnEl = mkTouchBtn('🔥 FIRE', 'st-hud__touch-fire');
 
     wireRepeater(touchAngleL, () => this.touchAngleCb?.(-3));
     wireRepeater(touchAngleR, () => this.touchAngleCb?.(3));
     wireRepeater(touchPowerD, () => this.touchPowerCb?.(-3));
     wireRepeater(touchPowerU, () => this.touchPowerCb?.(3));
     this.touchWeaponBtnEl.addEventListener('click', () => this.touchWeaponCb?.());
-    this.touchFireBtnEl.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      this.touchFireCb?.();
-    });
 
-    this.touchStripEl.append(touchAngleL, touchAngleR, touchPowerD, touchPowerU, this.touchWeaponBtnEl, this.touchFireBtnEl);
+    this.touchStripEl.append(touchAngleL, touchAngleR, touchPowerD, touchPowerU, this.touchWeaponBtnEl);
   }
 
   /**
@@ -1331,8 +1353,12 @@ export class HUD {
   }
 
   /** Reconcile the weapon strip: owned-only visibility, active highlight, live ammo. No DOM rebuild. */
-  private syncStrip(state: GameState, isFiring: boolean): void {
+  private syncStrip(state: GameState, isFiring: boolean, canControl: boolean): void {
     const tank = state.tanks.find((t) => t.id === state.activePlayerId);
+    const canAct = canControl && !isFiring && !!tank && state.phase === 'PLAYER_TURN';
+    const selectedInventory = tank?.inventory[tank.selectedWeapon];
+    const selectedUsable = !!selectedInventory &&
+      (selectedInventory.unlimited || selectedInventory.count > 0);
     for (const [type, cell] of this.weaponCells) {
       const entry = tank?.inventory[type];
       const unlimited = entry?.unlimited ?? false;
@@ -1352,13 +1378,22 @@ export class HUD {
       // Disable while firing, when no active tank, or when depleted, so a click
       // cannot emit a select for an unusable weapon. (Engine still re-validates;
       // this is UX only.)
-      cell.el.disabled = isFiring || !tank || depleted;
+      cell.el.disabled = !canAct || depleted;
     }
-    // Sync touch-aim strip: fire disabled while firing/no tank; weapon label = current weapon.
-    const canAct = !isFiring && !!tank && state.phase === 'PLAYER_TURN';
-    this.touchFireBtnEl.disabled = !canAct;
+    // Sync the shared primary action and touch weapon stepper from the same
+    // explicit local-ownership state.
     this.touchWeaponBtnEl.disabled = !canAct;
     const weaponName = tank ? (WEAPONS[tank.selectedWeapon]?.name ?? tank.selectedWeapon) : 'Weapon';
+    const isShield = tank?.selectedWeapon === 'shield';
+    const actionLabel = isShield ? 'Activate shield' : 'Fire';
+    const actionAccessibleName = isShield ? actionLabel : `${actionLabel} ${weaponName}`;
+    if (this.primaryActionLabelEl.textContent !== actionLabel) {
+      this.primaryActionLabelEl.textContent = actionLabel;
+    }
+    this.primaryActionBtnEl.setAttribute('aria-label', actionAccessibleName);
+    const canCommit = canAct && selectedUsable;
+    this.primaryActionBtnEl.disabled = !canCommit;
+    this.primaryActionBtnEl.setAttribute('aria-disabled', String(!canCommit));
     const touchWeaponLabel = `⇄\n${weaponName}`;
     if (this.touchWeaponBtnEl.textContent !== touchWeaponLabel) {
       this.touchWeaponBtnEl.textContent = touchWeaponLabel;
@@ -1970,7 +2005,64 @@ export class HUD {
 }
 .st-hud__restart--ghost:hover { background: rgba(255, 210, 63, 0.16); }
 
-/* ---- Store ---- */
+/* ---- Turn actions + Store ---- */
+.st-hud__turn-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.st-hud__turn-actions .st-hud__store-btn {
+  width: auto;
+  min-width: 0;
+  flex: 0.9;
+}
+.st-hud__primary-action {
+  min-width: 0;
+  min-height: 40px;
+  flex: 1.35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  pointer-events: auto;
+  cursor: pointer;
+  border: 1px solid var(--ui-action);
+  border-radius: var(--ui-radius-md);
+  background:
+    linear-gradient(180deg, rgba(212, 86, 42, 0.72), rgba(115, 30, 57, 0.86));
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--ui-type-body);
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 233, 168, 0.24),
+    0 0 14px rgba(255, 122, 31, 0.18);
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+}
+.st-hud__primary-action:hover:not(:disabled) {
+  border-color: var(--gold);
+  background:
+    linear-gradient(180deg, rgba(234, 101, 43, 0.86), rgba(142, 47, 83, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 233, 168, 0.32),
+    0 0 18px rgba(255, 122, 31, 0.28);
+}
+.st-hud__primary-action:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.st-hud__primary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+  filter: saturate(0.45);
+  box-shadow: none;
+}
 .st-hud__store-btn {
   display: flex;
   align-items: center;
@@ -2192,7 +2284,9 @@ export class HUD {
   width: 100%;
   flex-shrink: 0;
   gap: 4px;
-  padding: 6px 8px;
+  /* Keep the fitted 600px rail after the shared action grows enough to retain
+     a 44px rendered touch target through the stage zoom. */
+  padding: 3px 8px;
   box-sizing: border-box;
   background: rgba(12, 7, 22, 0.88);
   border-top: 1px solid rgba(255, 210, 63, 0.22);
@@ -2228,16 +2322,6 @@ export class HUD {
   border-color: rgba(122, 215, 255, 0.4);
   color: var(--tank-blue-lite, #7ad7ff);
 }
-.st-hud__touch-fire {
-  background: rgba(142, 47, 83, 0.55);
-  border-color: var(--ember);
-  color: var(--text);
-  font-weight: bold;
-  font-size: 13px;
-  flex: 1.4;
-}
-.st-hud__touch-fire:active:not(:disabled) { background: rgba(212, 86, 42, 0.65); }
-
 /* ===== Coarse-pointer (touch) overrides ================================ */
 /* Enlarge interactive targets to ≥44px and hide the keyboard legend. */
 @media (pointer: coarse) {
@@ -2248,6 +2332,9 @@ export class HUD {
   .st-hud__restart    { min-height: 48px; padding-top: 12px; padding-bottom: 12px; }
   .st-hud__menu       { min-height: 44px; }
   .st-hud__store-btn  { min-height: 44px; }
+  /* #app zoom reaches 0.625 at the supported phone-landscape viewport, so
+     72 logical px preserves a >=44 CSS-pixel hit target after scaling. */
+  .st-hud__primary-action { min-height: 72px; }
   .st-hud__store-close { min-height: 44px; }
   .st-hud__turnwatch-leave { min-height: 44px; padding: 0 14px; }
 }
@@ -2426,7 +2513,7 @@ export class HUD {
   .st-hud__instruments,
   .st-hud__active-row,
   .st-hud__aim,
-  .st-hud__store-btn,
+  .st-hud__turn-actions,
   .st-hud__strip { order: 1; }
 }
 /* Active player + weapon row (below the cluster). */

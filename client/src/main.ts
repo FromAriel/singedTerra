@@ -6,7 +6,7 @@ import type { GameState } from '@shared/types/GameState';
 import type { GameClient, RematchInfo } from './client/GameClient';
 import { HotSeatClient } from './client/HotSeatClient';
 import { InputHandler } from './input/InputHandler';
-import { shouldAcceptLocalInput } from './input/inputGate';
+import { isActiveSeatLocal, shouldAcceptLocalInput } from './input/inputGate';
 import { Renderer } from './renderer/Renderer';
 import { AudioEngine } from './audio/AudioEngine';
 import { HUD } from './ui/HUD';
@@ -109,7 +109,7 @@ function bootstrap(): void {
     onMiss: () => audio.fizzle(),
   });
   // Mute toggle (M). Document-level so it works on any screen; 'M' is unused by
-  // InputHandler (which owns arrows/space/Tab/Q), so there's no key conflict.
+  // InputHandler (which owns arrows/space/Q), so there's no key conflict.
   window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyM' && !e.repeat) {
       const muted = audio.toggleMute();
@@ -140,6 +140,9 @@ function bootstrap(): void {
   // --- Computer-opponent (AI) driver state ---
   // Whether the active tank is CPU-controlled (gates out human input for that turn).
   let activeIsAi = false;
+  // Whether this browser owns the active seat. Hot-seat humans always do;
+  // networked opponents and CPU seats do not.
+  let activeIsLocal = false;
   // Guards against re-driving the same bot turn: onStateChange fires every frame,
   // so we act ONCE per (turn, tank) and skip until the turn changes.
   let aiActedKey: string | null = null;
@@ -176,6 +179,7 @@ function bootstrap(): void {
     renderDirty = true;
     lastPhase = null;
     activeIsAi = false;
+    activeIsLocal = false;
     aiActedKey = null;
     // Clear any opponent-turn banner so it can't leak across games (P1-6b) — e.g.
     // a networked "Waiting for…" surviving into a later hot-seat game (which has no
@@ -224,7 +228,7 @@ function bootstrap(): void {
     // rAF loop keeps running underneath either way (networked lockstep stays
     // in sync); only this LOCAL emit is suppressed.
     const newInput = new InputHandler(canvas, (action) => {
-      if (!shouldAcceptLocalInput({ activeIsAi, paused: hud.isPaused() })) return;
+      if (!shouldAcceptLocalInput({ activeIsAi, activeIsLocal, paused: hud.isPaused() })) return;
       // Any input mutates aim/weapon/turn state, so force a redraw next frame so the
       // aim guide / HUD update instantly even when the idle-skip gate would skip.
       markDirty();
@@ -267,9 +271,13 @@ function bootstrap(): void {
       // human turn in hot-seat, or (networked) the active tank is THIS client's id.
       // Never for a CPU seat or a remote opponent's turn.
       const activeTank = state.tanks.find((t) => t.id === state.activePlayerId);
-      const localControls =
-        !activeTank?.ai &&
-        (config.mode !== 'network' || state.activePlayerId === config.playerId);
+      const localControls = isActiveSeatLocal({
+        mode: config.mode,
+        activePlayerId: state.activePlayerId,
+        localPlayerId: config.playerId,
+        activeIsAi: !!activeTank?.ai,
+      });
+      activeIsLocal = localControls;
       renderer.setAimGuide(localControls);
       // Feed the active tank's barrel-origin (logical px) so mouse drag-aim can
       // derive angle/power from the drag vector (pivot = body top, y − 16).
@@ -291,11 +299,19 @@ function bootstrap(): void {
         renderer.render(state);
         renderDirty = false;
       }
-      hud.update(state, newClient.isFiring ?? false);
+      hud.update(
+        state,
+        newClient.isFiring ?? false,
+        shouldAcceptLocalInput({
+          activeIsAi: !!activeTank?.ai,
+          activeIsLocal,
+          paused: hud.isPaused(),
+        }),
+      );
 
       // When the active player changes, re-seed the input handler's aim AND
       // weapon cursor from the new active tank so each player's arrows start
-      // from their own tank's current angle/power and their Tab/Q cycles from
+      // from their own tank's current angle/power and their Q cycles from
       // their own selected weapon. Neither setter emits an action.
       if (state.activePlayerId !== lastActiveId) {
         lastActiveId = state.activePlayerId;
@@ -372,11 +388,18 @@ function bootstrap(): void {
     }
   });
 
+  const localInputAllowed = (): boolean => shouldAcceptLocalInput({
+    activeIsAi,
+    activeIsLocal,
+    paused: hud.isPaused(),
+  });
+
   // Register the weapon-strip select callback ONCE on the persistent HUD. A
   // strip click both emits select_weapon AND re-seeds the InputHandler cursor so
-  // Tab/Q cycling stays in sync with the mouse pick. client/input are the
+  // Q cycling stays in sync with the mouse pick. client/input are the
   // mutable per-game closure vars (null between teardown and startGame).
   hud.onWeaponSelect((weapon) => {
+    if (!localInputAllowed()) return;
     markDirty(); // weapon pick can change aim-guide/HUD context — repaint next frame
     client?.sendAction({ type: 'select_weapon', weapon });
     input?.setWeapon(weapon);
@@ -423,11 +446,10 @@ function bootstrap(): void {
   // Touch-aim strip callbacks (M2 mobile). Registered once on the persistent HUD;
   // `input` is the mutable per-game closure var so these always drive the live handler.
   // Same gate as the keyboard path (startGame): dropped on a CPU turn or while paused (#52).
-  const touchAllowed = (): boolean => shouldAcceptLocalInput({ activeIsAi, paused: hud.isPaused() });
-  hud.onTouchAngle((delta) => { if (touchAllowed()) input?.stepAngle(delta); });
-  hud.onTouchPower((delta) => { if (touchAllowed()) input?.stepPower(delta); });
-  hud.onTouchFire(()       => { if (touchAllowed()) input?.triggerFire(); });
-  hud.onTouchWeapon(()     => { if (touchAllowed()) input?.nextWeapon(); });
+  hud.onTouchAngle((delta) => { if (localInputAllowed()) input?.stepAngle(delta); });
+  hud.onTouchPower((delta) => { if (localInputAllowed()) input?.stepPower(delta); });
+  hud.onTouchWeapon(()     => { if (localInputAllowed()) input?.nextWeapon(); });
+  hud.onPrimaryAction(()   => { if (localInputAllowed()) input?.triggerFire(); });
 
   // Deterministic E2E entrypoint (rendering-guardrail suite). When the page is
   // loaded with `?e2e=hotseat`, skip the splash/lobby and immediately start a

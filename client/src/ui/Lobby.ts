@@ -852,7 +852,7 @@ export class Lobby {
       '<span class="lobby-controls__title">Controls</span>' +
       '<span><kbd>&larr;</kbd>/<kbd>&rarr;</kbd> Aim</span>' +
       '<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Power</span>' +
-      '<span><kbd>Tab</kbd>/<kbd>Q</kbd> Weapon</span>' +
+      '<span><kbd>Q</kbd> Weapon</span>' +
       '<span><kbd>Space</kbd>/<kbd>Enter</kbd> Fire</span>';
     return el;
   }

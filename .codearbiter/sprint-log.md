@@ -1398,3 +1398,19 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 - Ready PR #197 was CLEAN and MERGEABLE on exact head a6c5ab5ce491e3bfe847d768d4af91bcb7144bca.
 - Exact-head CI run 30416054579 passed typecheck, deterministic harnesses, client tests, production build, 159 Edge tests, and the 34-case browser matrix with 8 expected skips.
 - Exact-head CodeQL run 30416054613 passed. Supabase Preview was expectedly skipped because no backend source changed. Per the standing goal, PR #197 remains open and no deployment or merge was performed. Confidence high.
+## 2026-07-28 - Unified fire control sprint
+
+- **[high] Select an explicit primary action over more ornamental polish.** The public spec promises a bottom-right Fire button, but desktop currently offers only a keyboard legend while the only clickable Fire control is hidden behind a coarse-pointer media query. SMARTS Meaningful/Auditable/Reversible/Testable/Securable favors one shared rail action because it immediately lowers the first-turn learning barrier, delegates to the proven deterministic input path, is presentation-only, and can be pinned across ownership, weapon, and viewport states. Confidence high.
+- **[high] Use one control across pointer types.** A persistent rail button avoids competing desktop and touch interaction models. The touch strip retains aim, power, and weapon steppers while the shared action owns Fire/Activate Shield everywhere. Native button semantics cover pointer, keyboard, and assistive activation without a dependency. Confidence high.
+- **[high] Preserve authority defense in depth.** HUD disabled state communicates availability, while the callback retains shouldAcceptLocalInput and InputHandler/client/engine validation. The HUD receives the existing local-controls calculation so opponent and CPU turns are visibly disabled without turning presentation state into the security boundary. Confidence high.
+
+### 2026-07-28 - Unified fire control TDD, review, and final matrix
+
+- RED: the new HUD oracle failed 3/3 because no shared action/callback existed, and the input-gate harness failed the remote-human turn case. GREEN introduced one state-aware rail action, explicit seat ownership, and the existing InputHandler fire/shield seam.
+- Correctness review caught focused-button Space/Enter double dispatch, arsenal ownership bypass, and an AI oracle that coupled two false conditions. Interactive-target shortcut suppression, a callback authority gate, factored seat ownership, and independent truth-table coverage resolved them; re-review: ACCEPT.
+- Rendering/accessibility review caught Tab trapping focus, depleted selected ammo remaining actionable, and a nominal 44px touch target shrinking to 31.25px after stage zoom. Q now owns weapon cycling while Tab navigates, selected ammo participates in action availability, and a 72-logical-pixel coarse target proves at least 44 rendered pixels; re-review: ACCEPT.
+- The first full browser commit-gate run exposed a 606/600 touch-rail overflow. Reclaiming six logical pixels from touch-strip vertical padding preserved the 44px action target and returned closed/open rail geometry to 600/600.
+- Final deterministic workspace check passed. Client coverage passed 72 files / 525 tests at 88.65% statements and lines, 87.87% branches, and 86.20% functions. Edge tests passed 159/0. Production build passed at 231.73 kB / 62.66 kB gzip for the main bundle.
+- Final production-browser matrix passed 37 tests with 8 expected project skips across desktop, pixel-touch, and small-window. Runtime audit found zero vulnerabilities; diff hygiene and state-free changed-file secret scan were clean. No dependency, lockfile, engine, physics, replay, action-log, database, migration, Edge Function, or Supabase behavior changed. Confidence high.
+
+- Audit correction: the final client count is 72 files / 532 tests, not 525; the percentages recorded above are unchanged. Confidence high.
