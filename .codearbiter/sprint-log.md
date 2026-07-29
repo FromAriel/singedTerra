@@ -1393,3 +1393,8 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 - Behavior commit 0a64764 and governance commit 53814b6 were pushed as codex/shareable-room-invites.
 - Ready stacked PR #197: https://github.com/SUaDtL/singedTerra/pull/197
 - Base is codex/single-screen-combat-shell (#196), so review isolates only the room-invite slice. Exact-head hosted CI and CodeQL remain pending; per the standing goal, the PR will not be merged and nothing will be deployed. Confidence high.
+### 2026-07-28 - Shareable room invites hosted gate receipt
+
+- Ready PR #197 was CLEAN and MERGEABLE on exact head a6c5ab5ce491e3bfe847d768d4af91bcb7144bca.
+- Exact-head CI run 30416054579 passed typecheck, deterministic harnesses, client tests, production build, 159 Edge tests, and the 34-case browser matrix with 8 expected skips.
+- Exact-head CodeQL run 30416054613 passed. Supabase Preview was expectedly skipped because no backend source changed. Per the standing goal, PR #197 remains open and no deployment or merge was performed. Confidence high.
