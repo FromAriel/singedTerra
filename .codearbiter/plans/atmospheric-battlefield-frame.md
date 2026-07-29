@@ -22,5 +22,5 @@
 - [x] Run focused tests, deterministic checks, client coverage, Edge tests,
   production build, full E2E, runtime audit, diff hygiene, and secret scan.
 - [x] Commit through the governed gate.
-- [ ] Open a ready stacked PR against `codex/turn-handoff-beacon`.
+- [x] Open a ready stacked PR against `codex/turn-handoff-beacon`.
 - [ ] Prove exact-head hosted CI and CodeQL green; do not merge or deploy.

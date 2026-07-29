@@ -1509,3 +1509,10 @@ Spec/plan: .codearbiter/specs/atmospheric-battlefield-frame.md, .codearbiter/pla
 ### Atmospheric battlefield frame behavior commit
 
 - Governed behavior commit 46f2563 (eat(renderer): deepen battlefield atmosphere) was created on final-green PR #200 head 10694d6. Fresh deterministic checks, 542 client tests, coverage, 159 Edge tests, production build, 40-case browser matrix with 8 expected skips, zero-vulnerability audit, visual review, staged diff hygiene, and staged secret scan passed. Confidence high.
+
+
+### Atmospheric battlefield frame ready PR opened
+
+- Behavior commit 46f2563 and governance commit 46a069 were pushed as codex/atmospheric-battlefield-frame.
+- Ready stacked PR #201: https://github.com/SUaDtL/singedTerra/pull/201
+- Base is codex/turn-handoff-beacon (#200) at final-green head 10694d6, so review isolates only the atmosphere slice. Exact-head hosted CI and CodeQL are pending; per the standing goal, the PR remains open and no merge or deployment was performed. Confidence high.
