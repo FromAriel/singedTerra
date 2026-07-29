@@ -1,6 +1,7 @@
 import type { AiDifficulty } from '@shared/types/GameState';
 import { clamp } from '@shared/engine/math';
 import { armsLabel, roundsLabel, botLabel } from './browseLabels';
+import { buildRoomInviteUrl, readRoomInviteCode } from './roomInvite';
 import {
   LobbyTransport,
   type NetworkPlayer,
@@ -236,6 +237,12 @@ export class Lobby {
     this.onReady = onReady;
     this.players = [defaultRow(0), defaultRow(1)];
     this.session = new LobbySession(this.transport, (event) => this.handleSessionEvent(event));
+    const inviteCode = readRoomInviteCode(window.location.href);
+    if (inviteCode) {
+      this.activeTab = 'online';
+      this.onlineSubView = 'join';
+      this.joinCode = inviteCode;
+    }
   }
 
   private handleSessionEvent(event: LobbySessionEvent): void {
@@ -726,7 +733,7 @@ export class Lobby {
         display: flex; align-items: center; gap: 16px; margin-top: 4px;
       }
       #lobby .online-code-display {
-        display: flex; gap: 8px; justify-content: center; margin: 12px 0 20px;
+        display: flex; gap: 8px; justify-content: center; margin: 12px 0;
       }
       #lobby .online-code-char {
         width: 40px; height: 44px; background: rgba(12, 7, 22, 0.8);
@@ -735,6 +742,18 @@ export class Lobby {
         font-size: 24px; font-weight: 700; letter-spacing: 0; color: var(--gold);
         font-family: var(--font-mono);
       }
+      #lobby .online-invite {
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+        gap: 8px 12px; margin: 0 0 20px;
+      }
+      #lobby .online-invite-copy {
+        min-width: 164px;
+      }
+      #lobby .online-invite-status {
+        flex: 1 1 100%; min-height: 18px; margin: 0;
+        color: var(--ready); font-size: 12px; text-align: center;
+      }
+      #lobby .online-invite-status.error { color: var(--tank-red); }
       #lobby .online-player-list {
         list-style: none; margin: 0 0 16px; padding: 0;
         display: flex; flex-direction: column; gap: 6px;
@@ -1661,6 +1680,22 @@ export class Lobby {
     }
     frag.append(codeDisplay);
 
+    const invite = document.createElement('div');
+    invite.className = 'online-invite';
+    const copyInvite = document.createElement('button');
+    copyInvite.type = 'button';
+    copyInvite.className = 'lobby-btn online-invite-copy';
+    copyInvite.textContent = 'Copy invite link';
+    const inviteStatus = document.createElement('p');
+    inviteStatus.className = 'online-invite-status';
+    inviteStatus.setAttribute('role', 'status');
+    inviteStatus.setAttribute('aria-live', 'polite');
+    copyInvite.addEventListener('click', () => {
+      void this.copyWaitingRoomInvite(copyInvite, inviteStatus);
+    });
+    invite.append(copyInvite, inviteStatus);
+    frag.append(invite);
+
     // Player list
     const listHeader = document.createElement('p');
     listHeader.style.cssText = 'color:var(--text-dim);font-size:13px;margin:0 0 8px;';
@@ -1773,6 +1808,28 @@ export class Lobby {
     frag.append(btnRow);
 
     return frag;
+  }
+
+  /** Copy a public-code-only room invite and report the result without a modal. */
+  private async copyWaitingRoomInvite(
+    button: HTMLButtonElement,
+    status: HTMLElement,
+  ): Promise<void> {
+    const inviteUrl = buildRoomInviteUrl(window.location.href, this.waitingRoomCode);
+    try {
+      if (!inviteUrl || !navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(inviteUrl);
+      button.textContent = 'Copy invite link';
+      status.classList.remove('error');
+      status.setAttribute('role', 'status');
+      status.textContent = 'Invite copied';
+    } catch {
+      button.textContent = 'Copy invite link';
+      status.classList.add('error');
+      status.setAttribute('role', 'alert');
+      status.textContent =
+        `Could not copy invite link. Share code ${this.waitingRoomCode} instead.`;
+    }
   }
 
   private async subscribeWaitingRoom(): Promise<void> {
