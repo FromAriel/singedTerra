@@ -1472,3 +1472,10 @@ Spec/plan: `.codearbiter/specs/turn-handoff-beacon.md`, `.codearbiter/plans/turn
 ### Turn handoff beacon behavior commit
 
 - Governed behavior commit 8129637 (eat(hud): clarify turn handoffs) is linearly based on the final PR #199 governance head 9df7d36. The append-only sprint-log conflict was resolved by retaining the complete toolchain receipt and appending the complete turn-handoff history; all application, test, spec, plan, and UI-system content is unchanged from the fully verified pre-rebase tree. Confidence high.
+
+
+### Turn handoff beacon ready PR opened
+
+- Behavior commit 8129637 and governance commit bb3339 were pushed as codex/turn-handoff-beacon.
+- Ready stacked PR #200: https://github.com/SUaDtL/singedTerra/pull/200
+- Base is codex/toolchain-security-refresh (#199) at final-green head 9df7d36, so review isolates only the turn-handoff slice. Exact-head hosted CI and CodeQL are pending; per the standing goal, the PR remains open and no merge or deployment was performed. Confidence high.
