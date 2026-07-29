@@ -29,6 +29,6 @@
 
 - [x] Update dependency documentation and close the existing audit task.
 - [x] Append exact evidence and SMARTS decisions to the sprint log.
-- [ ] Run diff hygiene, secret scan, and the full commit gate.
-- [ ] Commit and open a ready stacked PR against `codex/unified-fire-control`.
+- [x] Run diff hygiene, secret scan, and the full commit gate.
+- [x] Commit and open a ready stacked PR against `codex/unified-fire-control`.
 - [ ] Require exact-head hosted CI and CodeQL success; do not merge or deploy.
