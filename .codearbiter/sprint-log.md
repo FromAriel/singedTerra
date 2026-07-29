@@ -1516,3 +1516,10 @@ Spec/plan: .codearbiter/specs/atmospheric-battlefield-frame.md, .codearbiter/pla
 - Behavior commit 46f2563 and governance commit 46a069 were pushed as codex/atmospheric-battlefield-frame.
 - Ready stacked PR #201: https://github.com/SUaDtL/singedTerra/pull/201
 - Base is codex/turn-handoff-beacon (#200) at final-green head 10694d6, so review isolates only the atmosphere slice. Exact-head hosted CI and CodeQL are pending; per the standing goal, the PR remains open and no merge or deployment was performed. Confidence high.
+
+
+### Atmospheric battlefield frame hosted gate receipt
+
+- Ready PR #201 was MERGEABLE on exact implementation/governance head 08f41981070d139b0bc985443f766f247abeac0.
+- Exact-head CI run 30457986920 passed typecheck, deterministic harnesses, client tests, production build, 159 Edge tests, and the 40-case browser matrix with 8 expected skips.
+- Exact-head CodeQL run 30457986882 passed. Supabase Preview was expectedly skipped because no backend source changed. This receipt and the completed plan checkbox form the final governance-only delta; the pushed governance head must independently clear CI and CodeQL before the PR is called final-green. Per the standing goal, PR #201 remains open and no deployment or merge was performed. Confidence high.
