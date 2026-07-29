@@ -1358,3 +1358,8 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 - Full Playwright production-browser matrix: 31 passed / 8 expected project skips, including fitted drawer geometry and keyboard lifecycle across desktop, compact-touch, and small-window projects.
 - Runtime dependency audit: 0 vulnerabilities. git diff --check: clean. State-free changed-file secret scan: no findings.
 - No physics, input, replay, action-log, network, database, migration, authentication, Edge Function, or Supabase behavior changed. Confidence high.
+### 2026-07-28 - Single-screen combat shell behavior commit
+
+- Governed behavior commit: d2c5f12 (feat(hud): unify the combat rail).
+- Exact behavior set: continuous semantic combat rail, bounded default-closed arsenal drawer, focus-safe keyboard lifecycle, programmatic selection state, four-icon Lucide seam, responsive browser guardrails, design-system documentation, and dependency notices.
+- Commit gate evidence: fresh 25-test focused proof, full deterministic workspace check, client coverage, 159 Edge tests, production build, 31-case browser matrix with 8 expected skips, zero runtime audit vulnerabilities, clean staged diff hygiene, and state-free secret scan with no findings. Confidence high.
