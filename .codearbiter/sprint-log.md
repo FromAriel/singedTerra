@@ -1442,3 +1442,8 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 
 - Governed dependency commit `8ac9bac` was pushed and ready stacked PR #199 was opened: https://github.com/SUaDtL/singedTerra/pull/199
 - Base is `codex/unified-fire-control` at `31ba030`, so review isolates the dependency maintenance slice. PR #199 is MERGEABLE; exact-head CI and CodeQL are pending. Supabase Preview is expectedly skipped because no backend source changed. Per the standing goal, the PR remains open and no merge or deployment was performed. Confidence high.
+### Toolchain security refresh hosted gate receipt
+
+- Ready PR #199 was MERGEABLE on exact implementation head `f51cb5685e28ad0c3387ccf31f7dc21e0b1da3fe`.
+- Exact-head CI run `30419308867` passed typecheck, deterministic harnesses, client tests, production build, 159 Edge tests, and the 37-case browser matrix with 8 expected skips.
+- Exact-head CodeQL run `30419308885` passed. Supabase Preview was expectedly skipped because no backend source changed. This receipt and the completed plan checkbox form the final governance-only delta; the pushed governance head must independently clear CI and CodeQL before the PR is called green. Per the standing goal, PR #199 remains open and no deployment or merge was performed. Confidence high.
