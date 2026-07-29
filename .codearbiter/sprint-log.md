@@ -1384,3 +1384,6 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 - Security/coverage review caught credential-bearing and non-web URLs, ambiguous duplicate parameters, and under-tested clipboard absence. The helper now permits only HTTP(S), clears URL credentials, requires exactly one strict code, and pins missing API, invalid code, rejection, and retry paths; re-review: ACCEPT.
 - UI/accessibility review caught the reusable copy button being renamed to past-tense status. The action label now remains stable while the adjacent live region owns success/error feedback; re-review: ACCEPT. No dependency is warranted; native URL and Clipboard APIs cover the flow with a visible manual-code fallback.
 - Fresh proof: 2 focused files / 11 tests; deterministic workspace check passed; client coverage 88.37% statements/lines, 87.51% branches, 85.80% functions; Edge 159/0; production build passed at 228.48 kB / 61.88 kB gzip; Playwright 34 passed / 8 expected skips; runtime audit zero vulnerabilities; diff and secret gates clean. Confidence high.
+### 2026-07-28 - Shareable room invites behavior commit
+
+- Governed behavior commit: 0a64764 (feat(lobby): add shareable room invites). Fresh full matrix, independent review, staged diff, runtime audit, and state-free secret scan passed. Confidence high.
