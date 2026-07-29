@@ -40,6 +40,7 @@ import {
   type ImpactDepthParallax,
 } from './impactDepthParallax';
 import { getNapalmFirelightPools } from './napalmFirelight';
+import { AtmosphereCloudLayer } from './atmosphereClouds';
 
 /** Shared barrel geometry keeps muzzle FX at the visual tip. */
 /**
@@ -219,6 +220,8 @@ export class Renderer {
   private readonly tanks = new TankRenderer();
   private readonly projectile = new ProjectileRenderer();
   private readonly hud = new HUDRenderer();
+  /** Cached static far-sky art; impact parallax moves the completed layer. */
+  private readonly atmosphereClouds = new AtmosphereCloudLayer();
 
   /** Cached sky gradient, rebuilt only on (re)size. */
   private skyGradient: CanvasGradient | null = null;
@@ -1456,8 +1459,8 @@ export class Renderer {
     // Oversized by the composed shake + kick bound so no backdrop strip is exposed.
     const m = WORLD_TRANSLATION_MARGIN;
     ctx.fillRect(-m, -m, CANVAS_WIDTH + 2 * m, CANVAS_HEIGHT + 2 * m);
-    this.drawCloudBanks();
     this.drawStars();
+    this.drawCloudBanks();
     this.drawSun();
     this.drawHorizonHaze();
     ctx.restore();
@@ -1477,39 +1480,9 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Wide translucent cloud shelves keep the empty sky from feeling flat. */
+  /** Cached cel-shaded ash shelves keep the panoramic sky dimensional at rest. */
   private drawCloudBanks(): void {
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.fillStyle = 'rgba(12, 7, 22, 0.18)';
-
-    ctx.beginPath();
-    ctx.moveTo(54, 146);
-    ctx.lineTo(150, 132);
-    ctx.lineTo(250, 142);
-    ctx.lineTo(360, 126);
-    ctx.lineTo(472, 140);
-    ctx.lineTo(560, 132);
-    ctx.lineTo(640, 146);
-    ctx.lineTo(640, 170);
-    ctx.lineTo(54, 170);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = 'rgba(255, 233, 168, 0.045)';
-    ctx.beginPath();
-    ctx.moveTo(702, 118);
-    ctx.lineTo(808, 104);
-    ctx.lineTo(914, 116);
-    ctx.lineTo(1040, 98);
-    ctx.lineTo(1168, 112);
-    ctx.lineTo(CANVAS_WIDTH, 104);
-    ctx.lineTo(CANVAS_WIDTH, 136);
-    ctx.lineTo(702, 136);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.restore();
+    this.atmosphereClouds.draw(this.ctx);
   }
 
   /** A low, soft sun glow on the horizon (partly occluded by terrain hills). */

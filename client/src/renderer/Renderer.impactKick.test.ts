@@ -275,6 +275,10 @@ describe('Renderer directional impact kick', () => {
       [profile.middle.x, profile.middle.y],
       [profile.world.x, profile.world.y],
     ]);
+    expect(renderer.drawStars.mock.invocationCallOrder[0])
+      .toBeLessThan(renderer.drawCloudBanks.mock.invocationCallOrder[0]);
+    expect(renderer.drawCloudBanks.mock.invocationCallOrder[0])
+      .toBeLessThan(renderer.drawSun.mock.invocationCallOrder[0]);
     expect(renderer.drawCloudBanks.mock.invocationCallOrder[0])
       .toBeLessThan(renderer.drawDistantRidges.mock.invocationCallOrder[0]);
     expect(renderer.drawDistantRidges.mock.invocationCallOrder[0])
@@ -326,8 +330,8 @@ describe('Renderer directional impact kick', () => {
       'save',
       'translate:0.96,-0.72',
       'sky-fill:0.96,-0.72',
-      'clouds:0.96,-0.72',
       'stars:0.96,-0.72',
+      'clouds:0.96,-0.72',
       'sun:0.96,-0.72',
       'haze:0.96,-0.72',
       'restore',
