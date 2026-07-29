@@ -1297,3 +1297,35 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 - Behavior commit `0d3ddfdfcc5b919b55c01c0cdd28f09e98517423` and governance commit `dded7cc938fd4f5ae3901f4ed19ceea8fb2875e9` were pushed as `codex/napalm-firelight-bloom`.
 - Ready PR #194: https://github.com/SUaDtL/singedTerra/pull/194
 - Hosted exact-head CI and CodeQL are now the active gates; merge and exact-SHA Pages proof remain. Confidence high.
+
+## Napalm firelight bloom mainline integration receipt (2026-07-26)
+
+- **[high] PR #194 merged and exact-SHA Pages deployment verified.** Exact-head CI run `30280932648` and CodeQL run `30280932494` passed with PR #194 clean and mergeable. Main advanced to `37263541747eb322c0ab6cceec89932d17af9fb3`; main CI `30281118070`, CodeQL `30281118011`, and Pages `30281117969` passed build, current-main verification, deployment, provenance, and live smoke. An independent no-cache request confirmed the same SHA/run in `deploy-meta.json` and HTTP 200 from the public site. No Supabase deployment was warranted because no backend source changed. Confidence high.
+
+## 2026-07-26 - Fire control console sprint
+
+- **[high] Diagnose the apparent instrument-panel reversion.** Live exact-main inspection shows the visual-overhaul analog DOM and styling still ship. Git history proves commit `21d3e016` has intentionally hidden the analog row below app scale `0.8` since 2026-07-03, replacing it with plain numeric cells; later visual-overhaul and compact-touch commits retained that switch. Arsenal local storage is independent. The perceived reversion is therefore a responsive presentation fallback, not lost code. Confidence high.
+- **[high] Select a conspicuous responsive ballistic console.** SMARTS Meaningful/Auditable/Reversible/Testable/Securable favors removing the duplicate numeric-only mode and reorganizing the same SVG telemetry into two large upper dials plus a full-width wind rail. This changes the HUD's first-glance silhouette across every turn while keeping existing gauge math, input, engine, replay, dependencies, and Supabase untouched. Confidence high.
+- **[high] Incorporate live aim and scale findings.** Real-browser player acceptance caught that positive SVG rotation had been interpreted backwards: Player 1's global 45-degree rightward barrel produced a negative 45-degree up-left needle. The console now maps global angle to SVG rotation with 90 - angle, and the power instrument adopts the elevation dial's exact frame, radius, semicircle, ticks, and label baseline. Regression tests pin rightward and leftward transforms plus matched geometry. Confidence high.
+- **[high] Keep compact play fitted by default.** The restored console exposed 33 pixels of inner HUD overflow in a 994-pixel fine-pointer window because the arsenal default still collapsed only for short coarse-pointer viewports. SMARTS favors aligning the implicit arsenal default with the existing whole-stage compact threshold while preserving explicit saved preferences. Small-window browser coverage now requires a collapsed arsenal and zero default HUD overflow. Confidence high.
+- **[high] Queue a coherent single-screen design-system slice next.** User acceptance establishes that isolated visual polish is no longer sufficient: the next sprint must unify tokens, typed variants/primitives, reusable assets, and responsive composition around a clean single-viewport game shell. Third-party dependencies are allowed when they improve play, fun, appearance, or iteration; each candidate still passes the governed license, provenance, and supply-chain gate and SMARTS comparison against a local typed layer. Confidence high.
+### 2026-07-26 - Fire Control Console review gate
+
+- Rendering, responsive-layout, accessibility, performance, and scope review: ACCEPT. Desktop, compact-touch, and small-window browser layouts retained a visible analog console; compact HUD geometry fitted exactly, dials matched, and 45-degree global aim pointed up-right.
+- Coverage review initially found surviving mutations in wind sign and bounds, elevation cardinal angles, and live power-fill/cap behavior. Exact center, extremes, clamp, labels, 0/45/90/135/180 transforms, and zero/mid/cap/custom-cap arc assertions now pin each contract; re-review: ACCEPT.
+- Focused gate: 22 tests passed across the instrument, arsenal, and preference suites; client typecheck and diff hygiene passed. Confidence high.
+### 2026-07-26 - Fire Control Console final local matrix
+
+- Fresh behavioral proof: 3 focused files / 22 tests passed; production browser contract: 18 passed / 12 expected project skips.
+- Deterministic workspace check, including both workspace typechecks and every engine harness: passed.
+- Client coverage: all tests passed; statements and lines 86.88%, branches 87.23%, functions 84.88%; arsenalPreference is fully covered.
+- Supabase Edge tests: 159 passed / 0 failed.
+- Production build: passed; 104 modules transformed; main bundle 222.76 kB (60.26 kB gzip).
+- Full Playwright production-browser matrix: 30 passed / 12 expected project skips.
+- git diff --check: clean. State-free changed-file secret scan: no findings.
+- No dependency, lockfile, migration, action-log, or Supabase backend change; no backend deployment is required. Confidence high.
+### 2026-07-26 - Fire Control Console behavior commit
+
+- Governed behavior commit: d0678f84abdcdee81ba7bc5aca74c3f583b26cad (feat(hud): restore the ballistic computer).
+- Exact behavior set: persistent two-tier analog console, corrected global-angle needle transform, matched elevation and power geometry, full-width wind rail, compact-stage arsenal default, adversarial unit oracles, production-browser guardrails, and public specification.
+- Commit gate evidence: fresh 22-test focused proof, full deterministic workspace check, client coverage, 159 Edge tests, production build, 30-case browser matrix with 12 expected skips, clean diff hygiene, and state-free secret scan with no findings. Confidence high.
