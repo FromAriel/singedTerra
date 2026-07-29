@@ -1414,3 +1414,7 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 - Final production-browser matrix passed 37 tests with 8 expected project skips across desktop, pixel-touch, and small-window. Runtime audit found zero vulnerabilities; diff hygiene and state-free changed-file secret scan were clean. No dependency, lockfile, engine, physics, replay, action-log, database, migration, Edge Function, or Supabase behavior changed. Confidence high.
 
 - Audit correction: the final client count is 72 files / 532 tests, not 525; the percentages recorded above are unchanged. Confidence high.
+
+### 2026-07-28 - Unified fire control behavior commit
+
+- Governed behavior commit: 80fcf8b (feat(hud): add unified fire control). Fresh deterministic checks, 532 client tests, coverage, 159 Edge tests, production build, 37-case browser matrix with 8 expected skips, zero-vulnerability runtime audit, independent re-review, staged diff hygiene, and staged secret scan passed. Confidence high.
