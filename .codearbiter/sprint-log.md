@@ -1363,3 +1363,8 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 - Governed behavior commit: d2c5f12 (feat(hud): unify the combat rail).
 - Exact behavior set: continuous semantic combat rail, bounded default-closed arsenal drawer, focus-safe keyboard lifecycle, programmatic selection state, four-icon Lucide seam, responsive browser guardrails, design-system documentation, and dependency notices.
 - Commit gate evidence: fresh 25-test focused proof, full deterministic workspace check, client coverage, 159 Edge tests, production build, 31-case browser matrix with 8 expected skips, zero runtime audit vulnerabilities, clean staged diff hygiene, and state-free secret scan with no findings. Confidence high.
+### 2026-07-28 - Single-screen combat shell ready PR opened
+
+- Behavior commit d2c5f12 and governance commit ffb456d were pushed as codex/single-screen-combat-shell.
+- Ready stacked PR #196: https://github.com/SUaDtL/singedTerra/pull/196
+- Base is codex/instrument-panel-restoration (#195), so review isolates only this combat-shell slice. Exact-head hosted CI and CodeQL remain pending; per the standing goal, the PR will not be merged and nothing will be deployed. Confidence high.

@@ -37,5 +37,5 @@ into one fitted combat rail with a non-scrolling arsenal drawer.
 - [x] Run focused tests, deterministic checks, client coverage, Edge tests,
   production build, full E2E, diff hygiene, and secret scan.
 - [x] Commit through the governed gate.
-- [ ] Open a ready stacked PR against `codex/instrument-panel-restoration`.
+- [x] Open a ready stacked PR against `codex/instrument-panel-restoration`.
 - [ ] Prove exact-head hosted CI and CodeQL green; do not merge or deploy.
