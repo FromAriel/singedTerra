@@ -1661,3 +1661,11 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Base: `codex/opening-salvo-assist` at `ae42485042fcd854fa7ef243cfd80316875ab4f6`; head at PR creation: `48dbd98`.
 - Reviewer follow-up accepted the headroom fix with no remaining Critical, High, Important, or Medium finding.
 - Merge and deployment intentionally not performed. Exact receipt head must clear hosted CI and CodeQL.
+### 2026-07-28 — Material impact hosted gate receipt
+- PR #204 implementation receipt head `8d6e48690644a5ad476b13e4940019604255c083`: OPEN and MERGEABLE.
+- CI `typecheck · harnesses · build`: SUCCESS.
+- CI `edge function tests (deno)`: SUCCESS.
+- CI `e2e · rendering guardrails`: SUCCESS.
+- CodeQL `analyze (javascript-typescript)`: SUCCESS; repository CodeQL check: SUCCESS.
+- Supabase Preview: expected SKIPPED because no backend surface changed.
+- No merge or deployment performed. This receipt-only governance commit becomes the final PR head and must independently clear the same hosted gates.
