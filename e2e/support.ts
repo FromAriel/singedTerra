@@ -26,7 +26,7 @@ export async function gotoRunningGame(page: Page): Promise<void> {
   await expect(page.locator('.st-hud__instruments')).toBeVisible();
 }
 
-/** Whether the app is in compact (numeric-readout) layout for the current viewport. */
+/** Whether the fixed stage is rendered below its compact-scale threshold. */
 export async function isCompact(page: Page): Promise<boolean> {
   return page.evaluate(() => !!document.getElementById('app')?.classList.contains('is-compact'));
 }
@@ -94,7 +94,7 @@ export async function findHudLayoutViolations(page: Page): Promise<LayoutViolati
  * Assert the instrument cluster is not crushed: its rendered box height clears a
  * sane floor. A 10.6px flex-crush (the shipped regression) must fail this. The
  * floor is lower in compact/zoomed layouts (the whole #app is CSS-zoomed down, so
- * boundingBox heights shrink with it) but still far above a title-only crush.
+ * boundingBox heights shrink with it) but still far above a clipped console.
  */
 export async function assertInstrumentsHeight(page: Page, compact: boolean): Promise<void> {
   const box = await page.locator('.st-hud__instruments').boundingBox();
