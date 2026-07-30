@@ -304,3 +304,50 @@ Deno.test('submitActionCore: normal-turn buy from an inactive seat is rejected 4
   assertEquals((await res.json()).error, 'Not your turn')
   assertEquals(rpcCalls.length, 0)
 })
+
+Deno.test('submitActionCore: active-seat movement commits exact payload turn-neutrally', async () => {
+  const { client, rpcCalls } = makeFakeClient({
+    room: activeRoom([player('human-1'), player('p2')], 0, 4),
+    seat: seatToken('secret'),
+    rpc: { data: 11, error: null },
+  })
+  const res = await submitActionCore(
+    {
+      roomId: 'room-1',
+      playerId: 'human-1',
+      token: 'secret',
+      nextActiveIndex: 1,
+      action: { type: 'move', delta: -8 },
+    },
+    client,
+  )
+
+  assertEquals(res.status, 200)
+  assertEquals(await res.json(), { seq: 11, ok: true })
+  assertEquals(rpcCalls.length, 1)
+  const { args } = rpcCalls[0]
+  assertEquals(args.p_action, { type: 'move', delta: -8 })
+  assertEquals(args.p_ends_turn, false)
+  assertEquals(args.p_next_index, 0)
+  assertEquals(args.p_next_turn, 4)
+})
+
+Deno.test('submitActionCore: movement from an inactive seat is rejected before the RPC', async () => {
+  const { client, rpcCalls } = makeFakeClient({
+    room: activeRoom([player('human-1'), player('p2')], 1, 4),
+    seat: seatToken('secret'),
+  })
+  const res = await submitActionCore(
+    {
+      roomId: 'room-1',
+      playerId: 'human-1',
+      token: 'secret',
+      action: { type: 'move', delta: 8 },
+    },
+    client,
+  )
+
+  assertEquals(res.status, 403)
+  assertEquals((await res.json()).error, 'Not your turn')
+  assertEquals(rpcCalls.length, 0)
+})

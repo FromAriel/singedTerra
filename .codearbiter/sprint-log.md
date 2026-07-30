@@ -1523,3 +1523,38 @@ Spec/plan: .codearbiter/specs/atmospheric-battlefield-frame.md, .codearbiter/pla
 - Ready PR #201 was MERGEABLE on exact implementation/governance head 08f41981070d139b0bc985443f766f247abeac0.
 - Exact-head CI run 30457986920 passed typecheck, deterministic harnesses, client tests, production build, 159 Edge tests, and the 40-case browser matrix with 8 expected skips.
 - Exact-head CodeQL run 30457986882 passed. Supabase Preview was expectedly skipped because no backend source changed. This receipt and the completed plan checkbox form the final governance-only delta; the pushed governance head must independently clear CI and CodeQL before the PR is called final-green. Per the standing goal, PR #201 remains open and no deployment or merge was performed. Confidence high.
+
+## 2026-07-28 - Fuel-limited movement sprint
+
+- **[high] Select deterministic fuel movement as the next gameplay pillar.** The backlog names movement the largest missing Scorched Earth mechanic, `TankState.fuel` and the product spec already reserve it, and the completed visual sprint leaves gameplay depth as the higher-value next move. SMARTS Meaningful/Auditable/Reversible/Testable/Securable favors a bounded logged action because it creates positioning decisions without changing projectile physics or backend authority. Confidence high.
+- **[high] Use signed eight-pixel commitments resolved one pixel at a time.** A non-zero integer delta in `[-8,8]` gives each input meaningful motion while keeping action frequency below the existing referee rate-limit surface. Four-pixel terrain-rise tolerance, battlefield clamping, living-tank collision, and fuel-per-actual-pixel yield deterministic partial movement with no tunneling. Confidence high.
+- **[high] Keep movement turn-neutral and canonical.** Network movement enters the ordered room action log, retains active-seat and credential authorization, advances no cursor, and applies only from Realtime echo. Local aim remains unlogged; movement cannot be local-only because tank position changes later ballistics. Conflict hierarchy levels 1 and 2: security controls and lockstep data integrity. Confidence high.
+- **[high] Activate the canonical Fuel Tank economy.** Fresh rounds start at 100 fuel; the arms-level-3 Fuel Tank costs $10,000 and adds 100 current-round fuel from the catalog's ten tanks at ten units each. Purchases stack but fuel resets with other per-round combat state. Confidence high.
+- **[high] Reuse the active-turn row for the mobility rocker.** A compact semantic left/fuel/right control keeps movement and its resource adjacent to turn ownership without another panel, modal, or scroll region. Keyboard repeat is suppressed for A/D; each semantic button emits one bounded action. Confidence high.
+- **[high] No dependency is warranted for this slice.** Dependencies remain fully authorized, but the existing deterministic engine, action-log contract, semantic DOM buttons, and design tokens already own every required primitive. A movement or component library would add supply-chain/runtime surface without improving the bounded mechanic. Confidence high.
+- **[high] Approve the scoped spec and plan as SUaDtL under standing sprint authority.** The user delegated recurring passion-project decisions and explicitly asked the loop not to stop for approval. Hard gates remain enforced. Confidence high.
+
+Spec/plan: `.codearbiter/specs/fuel-limited-movement.md`, `.codearbiter/plans/fuel-limited-movement.md`.
+### Fuel-limited movement TDD, review, and local gate
+
+- RED: the new movement harness failed fresh-fuel, action, traversal, economy, round-reset, and replay obligations; focused Vitest failed the absent A/D and mobility seams; Edge tests rejected the absent `move` contract. GREEN now resolves signed moves one integer column at a time, spends only accepted distance, preserves aim/turn/wind, replays ordered movement, and exposes the canonical arms-level-3 Fuel Tank. Confidence high.
+- Inline correctness/security review found no remaining BLOCK findings. Move payloads are bounded identically in engine and referee, retain seat-token/membership/active-seat/bot-proxy/rate-limit/atomic-sequence controls, never advance the cursor, and apply in networked play only from ordered echo. Rendering review caught the compact rail overflowing by seven logical pixels; a component-owned `--ui-section-padding` token repaired the shell/component cascade without hiding overflow. Fresh desktop and Pixel-landscape visual inspection retained the one-page composition. Confidence high.
+- Fresh `npm run check` passed all deterministic harnesses. Isolated client coverage passed 75 files / 552 tests at 86.55% statements, 76.11% branches, 73.31% functions, and 89.61% lines. All 166 Edge tests passed. The Vite 6.4.3 production build passed at 243.06 kB / 65.39 kB gzip for the main bundle. The full production-browser matrix passed 43 tests with 8 intentional project skips across desktop, pixel-touch, and small-window. `npm audit --audit-level=high` found zero vulnerabilities. Confidence high.
+- `npm audit signatures` could not audit the local private workspace link because npm 11.16.0 attempted to resolve `@singedterra/shared@0.0.0` from the public registry and returned 404; no dependency changed in this slice, so the prior dependency-vetted lock remains untouched. The sanctioned `$ca-task` writer likewise could not parse the legacy plain-bullet movement entry and wrote nothing; the audit board was not hand-edited, while README and `docs/TASKS.md` now reflect the shipped behavior. Confidence high.- **Verification receipt correction:** the final store-readout oracle raised the client total to 553 passing tests; final production output is 243.18 kB / 65.41 kB gzip for the main bundle. Coverage percentages are unchanged. Confidence high.
+### Fuel-limited movement ready PR opened
+
+- Governed behavior commit `0137eb9` was pushed as `codex/fuel-limited-movement`.
+- Ready stacked PR #202: https://github.com/SUaDtL/singedTerra/pull/202
+- Base is exact final-green atmosphere head `4711a0bd` on `codex/atmospheric-battlefield-frame`, so review isolates the movement slice. Exact-head hosted CI and CodeQL are pending; per the standing goal, the PR remains open and no merge or deployment was performed. Confidence high.
+
+### Fuel-limited movement authoritative local receipt
+
+- Final client coverage: 75 files and 553 tests passed; 86.55% statements, 76.11% branches, 73.31% functions, and 89.61% lines.
+- Final production build: 243.18 kB / 65.41 kB gzip main bundle. All deterministic, Edge, browser, audit, diff, and secret gates remain green.
+
+
+### Fuel-limited movement hosted gate receipt
+
+- Ready PR #202 was MERGEABLE on exact implementation/governance head 3e841c4c59f8b110079a1cc68ff538ac40f4a97d.
+- Exact-head CI run 30501673883 passed deterministic harnesses, 553 client tests, production build, 166 Edge tests, and the 43-case browser matrix with 8 intentional skips.
+- Exact-head CodeQL run 30501673891 passed. Supabase Preview was expectedly skipped because the integration did not provision a branch. This receipt and the completed plan checkbox form the final governance-only delta; the pushed governance head must independently clear CI and CodeQL before the PR is called final-green. No merge or deployment was performed. Confidence high.

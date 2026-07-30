@@ -24,7 +24,7 @@ import { makeHudIcon } from './hudIcons';
  */
 export type StorePurchase = { weapon?: WeaponType; accessory?: AccessoryType };
 
-/** Accessories sold in the store, in stable record order (currently just Battery). */
+/** Accessories sold in the store, in stable catalog order. */
 const STORE_ACCESSORIES: AccessoryType[] = Object.keys(ACCESSORIES) as AccessoryType[];
 
 /**
@@ -129,6 +129,8 @@ export class HUD {
   private touchWeaponCb: (() => void) | null = null;
   /** Callback fired by the shared rail action (projectile fire or shield activation). */
   private primaryActionCb: (() => void) | null = null;
+  /** Callback fired by one semantic mobility-rocker activation. */
+  private moveCb: ((delta: number) => void) | null = null;
 
   /** Whether the store panel is currently open. */
   private storeOpen = false;
@@ -219,7 +221,11 @@ export class HUD {
   private gaugePowerLabel!: SVGTextElement;
   // Active-player name row (replaces old aimTextEl player portion):
   private activePlayerEl!: HTMLElement;
+  private turnStatusEl!: HTMLElement;
   private turnOwnerEl!: HTMLElement;
+  private moveLeftBtnEl!: HTMLButtonElement;
+  private moveRightBtnEl!: HTMLButtonElement;
+  private fuelValueEl!: HTMLElement;
   /** Last turn actually presented in the owner row; resets between games. */
   private lastPresentedTurnKey: string | null = null;
 
@@ -273,6 +279,8 @@ export class HUD {
   onTouchWeapon(cb: () => void): void { this.touchWeaponCb = cb; }
   /** Register the shared Fire / Activate shield action. */
   onPrimaryAction(cb: () => void): void { this.primaryActionCb = cb; }
+  /** Register one bounded left/right movement commitment. */
+  onMove(cb: (delta: number) => void): void { this.moveCb = cb; }
 
   /** Update the overlay to reflect the latest game state (called every frame). */
   update(state: GameState, isFiring = false, canControl = true): void {
@@ -296,6 +304,7 @@ export class HUD {
     this.syncPlayers(state, isHandoff);
     this.syncWind(state.wind);
     this.syncAim(state, isFiring, isHandoff);
+    this.syncMobility(state, isFiring, canControl);
     this.syncStrip(state, isFiring, canControl);
     this.syncStore(state);
     this.syncRoundOver(state);
@@ -584,10 +593,12 @@ export class HUD {
     this.activePlayerEl = document.createElement('div');
     this.activePlayerEl.className =
       'st-hud__active-row st-ui-section st-ui-section--active';
-    this.activePlayerEl.setAttribute('role', 'status');
-    this.activePlayerEl.setAttribute('aria-live', 'polite');
-    this.activePlayerEl.setAttribute('aria-atomic', 'true');
-    this.activePlayerEl.setAttribute('aria-label', 'No active turn.');
+    this.turnStatusEl = document.createElement('div');
+    this.turnStatusEl.className = 'st-hud__turn-status';
+    this.turnStatusEl.setAttribute('role', 'status');
+    this.turnStatusEl.setAttribute('aria-live', 'polite');
+    this.turnStatusEl.setAttribute('aria-atomic', 'true');
+    this.turnStatusEl.setAttribute('aria-label', 'No active turn.');
     // aimEl announces transport, flight, and resolution progress without changing
     // the compact rail's height.
     this.aimEl = document.createElement('div');
@@ -620,9 +631,37 @@ export class HUD {
     this.weaponValueEl = document.createElement('span');
     this.weaponValueEl.className = 'st-hud__weapon-value';
     weapon.append(weaponLabel, this.weaponValueEl);
+
+    const mobility = document.createElement('div');
+    mobility.className = 'st-hud__mobility';
+    mobility.setAttribute('role', 'group');
+    mobility.setAttribute('aria-label', 'Tank movement');
+    const makeMoveButton = (delta: -8 | 8, label: string, glyph: string): HTMLButtonElement => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'st-hud__move-btn';
+      button.dataset['move'] = String(delta);
+      button.setAttribute('aria-label', label);
+      button.textContent = glyph;
+      button.addEventListener('click', () => this.moveCb?.(delta));
+      return button;
+    };
+    this.moveLeftBtnEl = makeMoveButton(-8, 'Move tank left, 8 fuel maximum', 'A‹');
+    this.moveRightBtnEl = makeMoveButton(8, 'Move tank right, 8 fuel maximum', '›D');
+    const fuel = document.createElement('div');
+    fuel.className = 'st-hud__fuel';
+    const fuelLabel = document.createElement('span');
+    fuelLabel.className = 'st-hud__fuel-label';
+    fuelLabel.textContent = 'Fuel';
+    this.fuelValueEl = document.createElement('span');
+    this.fuelValueEl.className = 'st-hud__fuel-value';
+    fuel.append(fuelLabel, this.fuelValueEl);
+    mobility.append(this.moveLeftBtnEl, fuel, this.moveRightBtnEl);
+
     // Active player row: player name + weapon readout, shown when not firing.
     // Sits directly below the instrument cluster.
-    this.activePlayerEl.append(owner, weapon);
+    this.turnStatusEl.append(owner, weapon);
+    this.activePlayerEl.append(this.turnStatusEl, mobility);
   }
 
   /** Controls legend (bottom-right; built once, never updated). */
@@ -633,6 +672,7 @@ export class HUD {
     controls.innerHTML =
       '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>&larr;</kbd><kbd>&rarr;</kbd></span><span>Aim</span></span>' +
       '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>&uarr;</kbd><kbd>&darr;</kbd></span><span>Power</span></span>' +
+      '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>A</kbd><kbd>D</kbd></span><span>Move</span></span>' +
       '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>Q</kbd></span><span>Weapon</span></span>' +
       '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>Space</kbd><kbd>Enter</kbd></span><span>Fire</span></span>';
     return controls;
@@ -1171,7 +1211,7 @@ export class HUD {
       cell.buyBtn.classList.toggle('st-hud__store-buy--disabled', !buyable);
     }
 
-    // Accessory rows: owned-readout is the effect (battery => current power cap), gated by arms level.
+    // Accessory rows show the live resource each purchase improves.
     for (const [key, cell] of this.storeAccessoryCells) {
       const acc = ACCESSORIES[key];
       const locked = acc.armsLevel > this.armsLevel;
@@ -1179,7 +1219,7 @@ export class HUD {
         ? `🔒 Arms Lv ${acc.armsLevel}`
         : key === 'battery'
           ? `Cap ${active?.powerCap ?? 100}`
-          : '';
+          : `Fuel ${Math.max(0, Math.floor(active?.fuel ?? 0))}`;
       if (cell.owned.textContent !== label) cell.owned.textContent = label;
       const buyable = canAct && !locked && credits >= acc.price;
       cell.buyBtn.disabled = !buyable;
@@ -1351,8 +1391,8 @@ export class HUD {
       if (this.turnOwnerEl.textContent !== '') this.turnOwnerEl.textContent = '';
       if (this.weaponValueEl.textContent !== '—') this.weaponValueEl.textContent = '—';
       if (this.aimTextEl.textContent !== '') this.aimTextEl.textContent = '';
-      if (this.activePlayerEl.getAttribute('aria-label') !== 'No active turn.') {
-        this.activePlayerEl.setAttribute('aria-label', 'No active turn.');
+      if (this.turnStatusEl.getAttribute('aria-label') !== 'No active turn.') {
+        this.turnStatusEl.setAttribute('aria-label', 'No active turn.');
       }
       if (this.aimEl.getAttribute('aria-label') !== 'No shot in progress.') {
         this.aimEl.setAttribute('aria-label', 'No shot in progress.');
@@ -1418,9 +1458,10 @@ export class HUD {
     ) {
       this.activePlayerEl.style.setProperty('--st-turn-color', tank.color);
     }
-    const activeLabel = `${ownerLabel}'s turn. Weapon ${weaponName}.`;
-    if (this.activePlayerEl.getAttribute('aria-label') !== activeLabel) {
-      this.activePlayerEl.setAttribute('aria-label', activeLabel);
+    const activeLabel =
+      `${ownerLabel}'s turn. Weapon ${weaponName}. ${Math.max(0, Math.floor(tank.fuel))} fuel remaining.`;
+    if (this.turnStatusEl.getAttribute('aria-label') !== activeLabel) {
+      this.turnStatusEl.setAttribute('aria-label', activeLabel);
     }
     if (isHandoff) {
       this.activePlayerEl.classList.remove('st-hud__active-row--handoff');
@@ -1447,6 +1488,35 @@ export class HUD {
     this.gaugePowerArc.setAttribute('stroke-dasharray', dasharrayVal);
     const pwrLbl = powerLabel(tank.power);
     if (this.gaugePowerLabel.textContent !== pwrLbl) this.gaugePowerLabel.textContent = pwrLbl;
+  }
+
+  /** Reconcile the authoritative fuel readout and bounded movement controls. */
+  private syncMobility(state: GameState, isFiring: boolean, canControl: boolean): void {
+    const tank = state.tanks.find((candidate) => candidate.id === state.activePlayerId);
+    const fuel = tank ? Math.max(0, Math.floor(tank.fuel)) : 0;
+    const visibleValue = tank ? String(fuel) : '—';
+    if (this.fuelValueEl.textContent !== visibleValue) {
+      this.fuelValueEl.textContent = visibleValue;
+    }
+    const fuelLabel = tank ? `${fuel} fuel remaining` : 'No active fuel';
+    if (this.fuelValueEl.getAttribute('aria-label') !== fuelLabel) {
+      this.fuelValueEl.setAttribute('aria-label', fuelLabel);
+    }
+
+    const canMove = canControl &&
+      !isFiring &&
+      state.phase === 'PLAYER_TURN' &&
+      !!tank?.alive &&
+      !tank.buried &&
+      fuel > 0;
+    const disabled = !canMove;
+    for (const button of [this.moveLeftBtnEl, this.moveRightBtnEl]) {
+      if (button.disabled !== disabled) button.disabled = disabled;
+      const ariaDisabled = String(disabled);
+      if (button.getAttribute('aria-disabled') !== ariaDisabled) {
+        button.setAttribute('aria-disabled', ariaDisabled);
+      }
+    }
   }
 
   /** Flip and persist the arsenal-collapsed preference. */
@@ -1624,7 +1694,7 @@ export class HUD {
         ? `🔒 Lv ${acc.armsLevel}`
         : key === 'battery'
           ? `cap ${tank?.powerCap ?? 100}`
-          : '';
+          : `fuel ${Math.max(0, Math.floor(tank?.fuel ?? 0))}`;
       cell.buyBtn.disabled = !tank || locked || tank.credits < acc.price;
     }
   }
@@ -1789,6 +1859,13 @@ export class HUD {
   justify-content: center;
   min-width: 0;
   gap: 1px;
+}
+.st-hud__turn-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 .st-hud__turn-kicker {
   color: var(--ui-muted);
@@ -2700,13 +2777,13 @@ export class HUD {
 }
 /* Active player + weapon row (below the cluster). */
 .st-hud__active-row {
+  --ui-section-padding: 3px 2px 3px 11px;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   min-height: 31px;
-  padding: 5px 2px 6px 11px;
   overflow: hidden;
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--st-turn-color) 12%, transparent), transparent 58%);
@@ -2714,6 +2791,69 @@ export class HUD {
    * flex child with overflow:hidden, so without it the name/weapon row is the
    * next element squeezed to zero when the panel content overflows on touch. */
   flex-shrink: 0;
+}
+.st-hud__mobility {
+  display: grid;
+  grid-template-columns: 26px 34px 26px;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  pointer-events: auto;
+}
+.st-hud__move-btn {
+  min-width: 0;
+  min-height: 20px;
+  padding: 0;
+  border: 1px solid rgba(122, 215, 255, 0.32);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgba(122, 215, 255, 0.12), rgba(12, 7, 22, 0.72));
+  color: var(--tank-blue-lite, #7ad7ff);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+.st-hud__move-btn:hover:not(:disabled) {
+  border-color: rgba(122, 215, 255, 0.68);
+  background:
+    linear-gradient(180deg, rgba(122, 215, 255, 0.24), rgba(12, 7, 22, 0.72));
+}
+.st-hud__move-btn:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.st-hud__move-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.36;
+}
+.st-hud__fuel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  border: 1px solid rgba(255, 210, 63, 0.18);
+  border-radius: 4px;
+  background: rgba(7, 4, 12, 0.66);
+}
+.st-hud__fuel-label {
+  color: var(--ui-muted);
+  font-family: var(--font-display);
+  font-size: 6px;
+  line-height: 1;
+  letter-spacing: 0.75px;
+  text-transform: uppercase;
+}
+.st-hud__fuel-value {
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 .st-hud__active-row::before {
   content: '';

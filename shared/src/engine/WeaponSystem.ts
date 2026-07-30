@@ -241,9 +241,9 @@ export const TURN_STIPEND = 500;        // flat income per shot fired
 /**
  * Purchasable accessories — non-weapon economy items bought through the same `buy` action
  * (its optional `accessory` field) but NOT held in the weapon inventory. The union is the
- * extension point for parachutes/fuel later; today only Battery is wired.
+ * extension point for parachutes and other non-weapon equipment.
  */
-export type AccessoryType = 'battery';
+export type AccessoryType = 'battery' | 'fuel_tank';
 
 /**
  * Battery accessory economy (SE-parity). A Battery raises a tank's `powerCap` above the 100
@@ -256,6 +256,16 @@ export const BATTERY_PRICE = 5000;
 export const BATTERY_BUNDLE_SIZE = 10;
 export const BATTERY_POWER_PER_UNIT = 10;
 export const BATTERY_ARMS_LEVEL = 2;
+
+/**
+ * Fuel Tank accessory economy (SE-parity). The canonical catalog sells ten
+ * tanks at ten fuel units each for $10,000 at arms level 3.
+ */
+export const FUEL_TANK_PRICE = 10_000;
+export const FUEL_TANK_BUNDLE_SIZE = 10;
+export const FUEL_PER_TANK = 10;
+export const FUEL_TANK_FUEL = FUEL_TANK_BUNDLE_SIZE * FUEL_PER_TANK;
+export const FUEL_TANK_ARMS_LEVEL = 3;
 
 /**
  * Store descriptor for a purchasable accessory — the SINGLE source the store UI reads for an
@@ -288,6 +298,14 @@ export const ACCESSORIES: Record<AccessoryType, AccessoryDefinition> = {
     bundleSize: BATTERY_BUNDLE_SIZE,
     armsLevel: BATTERY_ARMS_LEVEL,
     blurb: `+${BATTERY_POWER_PER_UNIT * BATTERY_BUNDLE_SIZE} power cap`,
+  },
+  fuel_tank: {
+    type: 'fuel_tank',
+    name: 'Fuel Tank',
+    price: FUEL_TANK_PRICE,
+    bundleSize: FUEL_TANK_BUNDLE_SIZE,
+    armsLevel: FUEL_TANK_ARMS_LEVEL,
+    blurb: `+${FUEL_TANK_FUEL} movement fuel`,
   },
 };
 

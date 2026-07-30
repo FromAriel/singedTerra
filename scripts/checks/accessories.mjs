@@ -13,6 +13,10 @@ import {
   BATTERY_PRICE,
   BATTERY_BUNDLE_SIZE,
   BATTERY_ARMS_LEVEL,
+  FUEL_TANK_PRICE,
+  FUEL_TANK_BUNDLE_SIZE,
+  FUEL_TANK_ARMS_LEVEL,
+  FUEL_TANK_FUEL,
 } from '../../shared/src/engine/WeaponSystem.ts';
 
 let failed = false;
@@ -27,6 +31,25 @@ const fail = (m) => { failed = true; log(`FAIL: ${m}`); };
   if (b && b.bundleSize !== BATTERY_BUNDLE_SIZE) fail(`battery bundleSize ${b.bundleSize} != BATTERY_BUNDLE_SIZE ${BATTERY_BUNDLE_SIZE}`);
   if (b && b.armsLevel !== BATTERY_ARMS_LEVEL) fail(`battery armsLevel ${b.armsLevel} != BATTERY_ARMS_LEVEL ${BATTERY_ARMS_LEVEL}`);
   if (!failed) log('PASS: ACCESSORIES.battery price/bundle/armsLevel track the BATTERY_* constants.');
+}
+
+// --- Check 1b: Fuel Tank catalog entry tracks its canonical constants ---
+{
+  const fuel = ACCESSORIES.fuel_tank;
+  if (!fuel) fail('ACCESSORIES.fuel_tank is missing');
+  if (fuel && fuel.price !== FUEL_TANK_PRICE) {
+    fail(`fuel tank price ${fuel.price} != FUEL_TANK_PRICE ${FUEL_TANK_PRICE}`);
+  }
+  if (fuel && fuel.bundleSize !== FUEL_TANK_BUNDLE_SIZE) {
+    fail(`fuel tank bundleSize ${fuel.bundleSize} != FUEL_TANK_BUNDLE_SIZE ${FUEL_TANK_BUNDLE_SIZE}`);
+  }
+  if (fuel && fuel.armsLevel !== FUEL_TANK_ARMS_LEVEL) {
+    fail(`fuel tank armsLevel ${fuel.armsLevel} != FUEL_TANK_ARMS_LEVEL ${FUEL_TANK_ARMS_LEVEL}`);
+  }
+  if (fuel && !fuel.blurb.includes(String(FUEL_TANK_FUEL))) {
+    fail(`fuel tank blurb does not name its ${FUEL_TANK_FUEL}-fuel effect`);
+  }
+  if (!failed) log('PASS: ACCESSORIES.fuel_tank tracks the canonical fuel constants.');
 }
 
 // --- Check 2: every entry's `type` matches its key (no mislabelled accessory) ---

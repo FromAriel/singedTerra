@@ -58,10 +58,12 @@ can blow a hole straight through.
 |---|---|
 | `←` / `→` | Adjust **angle** |
 | `↑` / `↓` | Adjust **power** |
+| `A` / `D` | Move the active tank left / right (spends fuel) |
 | `Space` / `Enter` | **Fire** |
 | `Tab` / `Q` | Cycle weapon (accelerator) |
 | **Click the weapon strip** | Select a weapon directly (shows live ammo), including the **Shield** |
-| **Store panel** | Buy weapons with credits (mid-turn, and per-tank in the between-rounds shop) |
+| **Mobility rocker** | Move left / right and read remaining fuel |
+| **Store panel** | Buy weapons and accessories with credits (mid-turn, and per-tank in the between-rounds shop) |
 | **Menu** (side panel) / **Main Menu** (game-over) | Quit the game back to the lobby |
 
 Input is accepted only on your turn, only while aiming, never mid-flight.
@@ -261,7 +263,7 @@ The same property is why nothing but the log is ever shipped over the wire, and 
 | **Sprint 4**: Combat Depth (ammo, nukes, weapon strip, new-motion weapons, shield) | ✅ Done |
 | **Sprint 5**: Graphical overhaul (banner art direction, CRT, juice, side-panel HUD) | ✅ Done |
 | **Sprint 6**: V1 match structure (best-of-N rounds, scoreboard, between-rounds shop, score persistence) | ✅ Done · live |
-| **V1 (remaining)**: fuel/movement, turn timer, audio, mobile HUD, terrain-type options, session score history | ⏳ Planned |
+| **V1 (remaining)**: turn timer, audio, mobile HUD, terrain-type options, session score history | ⏳ Planned |
 
 The living register is [`docs/TASKS.md`](docs/TASKS.md); the full design is [`docs/SPEC.md`](docs/SPEC.md);
 recent sprint plans live in [`docs/`](docs/) (older ones archived under [`docs/archive/`](docs/archive/)).

@@ -24,7 +24,8 @@ export type StoredAction =
   | { type: "fire"; angle: number; power: number; weapon: string }
   | { type: "use_shield" }
   | { type: "buy"; weapon?: string; accessory?: string; tankId?: string }
-  | { type: "next_round" };
+  | { type: "next_round" }
+  | { type: "move"; delta: number };
 
 export interface StoredScoreEntry {
   tankId: string;
