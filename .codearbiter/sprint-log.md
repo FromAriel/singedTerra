@@ -1760,3 +1760,61 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Base: `codex/reflective-sidewalls` at `61cbb955e9fd84a019227fb66099c63634f91ef1`; implementation head at PR creation: `95a5fcdfa36b772f3ccb3d769b13674c4baf054f`.
 - Adversarial rendering review returned no Critical, Important, or Minor finding. Required coverage audit returned no Critical or High finding; its three hardening notes are non-blocking and do not invalidate the current production seams or receipts.
 - Merge and deployment intentionally not performed. The final governance receipt head must clear hosted CI and CodeQL before this cell closes.
+### 2026-07-30 — Authored backdrop hosted gate receipt
+- PR #206 final governance head `49f9f0854aa4e1c2b1ac69a4e7289fdef8bb916b`: OPEN and MERGEABLE.
+- CI `typecheck · harnesses · build`: SUCCESS.
+- CI `edge function tests (deno)`: SUCCESS.
+- CI `e2e · rendering guardrails`: SUCCESS.
+- CodeQL `analyze (javascript-typescript)`: SUCCESS; repository CodeQL check: SUCCESS.
+- Supabase Preview: expected SKIPPED because no backend surface changed.
+- No merge or deployment performed. The authored battlefield backdrop cell is exact-head green.
+### 2026-07-30 — Next slice: authored terrain material
+- Closed prior cell: PR #206 is OPEN, MERGEABLE, and exact-final-head green at `49f9f0854aa4e1c2b1ac69a4e7289fdef8bb916b`; no merge or deployment performed.
+- The live destructible terrain is now the largest remaining flat procedural surface beneath the authored panorama.
+- SMARTS criteria: visible-area payoff 30%, gameplay readability 25%, deterministic/cache fit 20%, performance/reversibility 15%, future asset leverage 10%.
+- Options scored: authored terrain material overlay 9.05; authored tank hull system 7.45; HUD commander portraits 6.80.
+- Decision: add one subtle seamless neutral-rock bitmap as a cached luminance material inside the existing terrain dirty rebuild. Existing palette, strata, rim, bevel, deformation, and collision remain authoritative. Confidence 0.94.
+- Asset/tool decision: built-in image generation + local WebP optimization 9.4 vs a runtime texture/rendering dependency 3.5. No repository dependency is justified. Confidence 0.99.
+- Design/spec gate auto-approved under the standing passion-project sprint authority and direct request to improve artwork in general.
+- Hard boundaries: presentation only; no collision/terrain bitmap/engine/action-log/Supabase/layout/dependency/lockfile/merge/deployment change; no per-frame texture work; no spend beyond tokens.
+### 2026-07-30 — Authored terrain material TDD and visual QA
+- Asset-contract RED: the absent `art/terrain-material.webp` returned the Vite HTML shell MIME, proving missing or misrouted material cannot pass.
+- Built-in image generation produced a fine-grained neutral basalt/ash tile with no large cracks, crater, object, text, directional light, or collision-like silhouette. Local ffmpeg reduced it to an opaque 256x256 WebP at 17,572 bytes; a 2x2 repeat inspection showed no obvious hard seam.
+- Asset-contract GREEN: exact dimensions, WebP MIME, transfer cap, full alpha, and luminance variation pass. Root and `/singedTerra/` matrices each pass 6/6 across desktop, touch landscape, and small-window profiles.
+- Loader TDD RED: focused import failed because `TerrainMaterial` did not exist. GREEN: 4/4 tests prove one image/decode surface, handlers before `src`, base-aware URL, exact-square validation, deterministic wrapped signed luminance, first-application settlement, and fail-closed decode/pixel errors.
+- Integration TDD RED: material-ready RGB remained identical to fallback, same-version readiness did not invalidate the terrain cache, and idle rendering released before material application. GREEN: ready grain is sampled only during the existing dirty rebuild; terrain bytes, alpha, two-pixel rim, version-cache reuse, and late-ready one-rebuild behavior are pinned. Focused material/edge/bevel/renderer suite passed 15/15 and workspace typecheck passed.
+- First browser inspection found the initial 8% one-pixel treatment too timid at gameplay scale. A new test required a material delta of at least 10 red-channel levels and failed at 7. The texture now centers on its own exposure, renders at two world pixels per texel, and stays bounded to 16% modulation. Focused repair suite passed 11/11. Confidence 0.97.
+- Browser QA at 1280x720: fine grain is visible on intact slopes, fresh crater walls, and deep strata while tanks, crater rim, aim cues, fire control, and HUD stay clear. The document remains exactly viewport-sized with no scrolling.
+- Live-compositing E2E forces material failure on one page, compares deep-terrain canvas samples against an authored page, and rejects a decoded-but-unapplied texture. All three profiles pass.### 2026-07-30 — Authored terrain material adversarial review repairs
+- Independent review found one Important lifecycle gap: a same-origin image request that never emitted `load` or `error` kept the renderer active indefinitely. TDD RED reproduced the stuck `loading` state under fake timers.
+- Repair: the loader now fails closed after a bounded five-second deadline, clears that deadline on every normal settlement, and ignores all late callbacks. TDD GREEN: 5/5 loader tests; focused material/render lifecycle suite 10/10. Confidence 0.99.
+- Deformation coverage now changes the authoritative terrain version, carves an exposed wall, and proves authored RGB modulation survives there without changing terrain bytes or edge alpha.
+- Seam coverage computes opposing-edge RGB error from the decoded asset and enforces a bounded continuity contract. Root and `/singedTerra/` production matrices each pass 6/6 across all viewport profiles.### 2026-07-30 — Authored terrain material final local gate
+- Adversarial follow-up: PASS with 0 Critical, 0 Important, and 0 Minor findings after the bounded pending-load repair, deformation coverage, and decoded-edge continuity contract.
+- `npm run check`: PASS, including deterministic engine, nearest-opponent 45°/135° defaults, replay, and 403/403 muzzle assertions.
+- Client coverage: PASS, 86 files / 596 tests; 87.06% statements, 76.93% branches, 74.46% functions, 90.08% lines; `TerrainMaterial.ts` 93.82% statements / 79.16% branches / 92.85% functions / 95.89% lines.
+- Edge: PASS, 170 passed / 0 failed. Production build: PASS, 1,879 modules; main 254.47 kB / 68.98 kB gzip.
+- Rendering E2E: PASS, 61 passed / 8 expected project skips. Focused root and `/singedTerra/` terrain matrices each passed 6/6 across all viewport profiles.
+- Runtime audit: PASS, 0 vulnerabilities. Cached diff hygiene, conflict-marker scan, exact staged manifest, and state-free changed-file secret scan: PASS (`[]`).
+- No dependency, lockfile, engine, action-log, Supabase, migration, layout, merge, deployment, or spend beyond tokens.### 2026-07-30 — Authored terrain material coverage hardening
+- Required PR coverage audit returned no Critical or High blocker and identified two Medium oracle gaps plus two Low branch/order gaps.
+- Negative-path coverage now proves signed luminance darkens terrain rather than merely changing it; a constant-highlight test pins material-before-bevel ordering; the null decode-context failure settles into fallback.
+- Browser coverage now drives the real deterministic fire path on fallback and authored pages, derives newly exposed wall coordinates from pre/post canvas frames, and proves material modulation on those live crater-wall pixels after the engine advances terrain version.
+- Focused unit suite passed 12/12. Root and `/singedTerra/` production Playwright matrices each passed 6/6 across all profiles. Confidence 0.97.### 2026-07-30 — Authored terrain material PR receipt
+- Governed implementation commit: `278dbca` (`feat(rendering): add authored terrain material`).
+- Coverage hardening commit: `dd969eb` (`test(rendering): harden terrain material oracles`).
+- Ready stacked PR opened: https://github.com/SUaDtL/singedTerra/pull/207
+- Base: `codex/authored-battlefield-backdrop` at `49f9f0854aa4e1c2b1ac69a4e7289fdef8bb916b`; implementation head at PR creation: `dd969eb4bedea119796ad717dae636b8bd86547c`.
+- Adversarial rendering review and required coverage audit each returned zero findings at every reported severity.
+- Merge and deployment intentionally not performed. The final governance receipt head must clear hosted CI and CodeQL.### 2026-07-30 — Authored terrain material hosted gate receipt
+- PR #207 governance head `17ef516098459a825106f518d11e8b460a8c0069`: OPEN and MERGEABLE.
+- CI `typecheck · harnesses · build`: SUCCESS.
+- CI `edge function tests (deno)`: SUCCESS.
+- CI `e2e · rendering guardrails`: SUCCESS.
+- CodeQL `analyze (javascript-typescript)`: SUCCESS; repository CodeQL check: SUCCESS.
+- Supabase Preview: expected SKIPPED because no backend surface changed.
+- No merge or deployment performed. This receipt-only governance commit becomes the final PR head and must independently clear the same hosted gates.
+### 2026-07-30 - Terrain material hosted wall-signal correction
+
+- Fresh up-to-date PR #207 head `03df25014244604f284498328b49f74092cebdee` preserved the exact previously-green source tree, but hosted small-window E2E reproduced the crater-wall material delta at 0.7223 and 0.7125 against a threshold of 0.8; deep-fill proof, asset decode, geometry, 60 other browser cases, deterministic checks, both CodeQL surfaces, build, and Edge remained green.
+- **[high] Treat the dual hosted reproduction as an overfit visual oracle, not a product regression.** SMARTS Meaningful/Auditable/Reversible/Testable/Securable favors retaining the same non-zero authored-vs-fallback comparison at 0.5: fallback is 0, the observed material signal remains comfortably above the boundary, and wall pixels intentionally blend the authored field through rim/bevel shading. No runtime code or visual output changed. Confidence high.

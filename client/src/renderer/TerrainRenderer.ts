@@ -3,6 +3,10 @@ import { BACKDROP, TERRAIN, hexToRgb } from '../ui/theme';
 import { bandFloatForY } from './strata';
 import { terrainEdgeAlpha } from './terrainEdges';
 import { createTerrainBevelSampler } from './terrainBevelLighting';
+import {
+  TerrainMaterial,
+  type TerrainMaterialSampler,
+} from './TerrainMaterial';
 
 /**
  * Scorched depth ramp (banner palette): a LIT RIM on the top 2px of every solid
@@ -17,6 +21,10 @@ const DEEP = hexToRgb(TERRAIN.deep);
 const BEVEL_SHADOW = hexToRgb(BACKDROP);
 /** Depth (px below the lit rim) over which top→mid→deep fully ramps. */
 const RAMP_DEPTH = 120;
+/** Maximum authored luminance modulation applied below the two-pixel lit rim. */
+export const TERRAIN_MATERIAL_STRENGTH = 0.16;
+/** Two logical pixels per texel keeps the fine grain readable after CSS scaling. */
+export const TERRAIN_MATERIAL_WORLD_SCALE = 2;
 type TerrainBevelSamplerFactory = typeof createTerrainBevelSampler;
 
 /**
@@ -70,6 +78,7 @@ const BAND_COLORS: [[number, number, number], [number, number, number], [number,
 export class TerrainRenderer {
   constructor(
     private readonly createBevelSampler: TerrainBevelSamplerFactory = createTerrainBevelSampler,
+    private readonly material: TerrainMaterialSampler = new TerrainMaterial(),
   ) {}
 
   /** Lazily-created offscreen canvas holding the composited terrain (1200×600). */
@@ -98,7 +107,7 @@ export class TerrainRenderer {
     const off = this.ensureOffscreen();
 
     let rebuilt = false;
-    if (this.forceRedraw || version !== this.lastVersion) {
+    if (this.needsRedraw(version)) {
       rebuilt = this.rebuild(terrain);
       if (rebuilt) {
         this.lastVersion = version;
@@ -122,7 +131,15 @@ export class TerrainRenderer {
    * the last rebuilt state.
    */
   needsRedraw(version: number): boolean {
-    return this.forceRedraw || version !== this.lastVersion;
+    return (
+      this.forceRedraw
+      || version !== this.lastVersion
+      || this.material.needsApplication
+    );
+  }
+
+  get isMaterialSettled(): boolean {
+    return this.material.isSettled;
   }
 
   /** Lazily create the offscreen canvas + its context and ImageData buffer. */
@@ -206,6 +223,16 @@ export class TerrainRenderer {
               g = t < 0.58 ? MID[1] : DEEP[1];
               b = t < 0.58 ? MID[2] : DEEP[2];
             }
+            const materialFactor = (
+              1
+              + this.material.sample(
+                x / TERRAIN_MATERIAL_WORLD_SCALE,
+                y / TERRAIN_MATERIAL_WORLD_SCALE,
+              ) * TERRAIN_MATERIAL_STRENGTH
+            );
+            r *= materialFactor;
+            g *= materialFactor;
+            b *= materialFactor;
           }
           const bevel = bevelAt(x, y);
           if (bevel > 0) {
@@ -229,6 +256,9 @@ export class TerrainRenderer {
       }
     }
     offCtx.putImageData(img, 0, 0);
+    if (this.material.needsApplication) {
+      this.material.acknowledgeApplied();
+    }
     return true;
   }
 }

@@ -1,0 +1,180 @@
+export const TERRAIN_MATERIAL_ASSET = 'art/terrain-material.webp';
+export const TERRAIN_MATERIAL_SIZE = 256;
+export const TERRAIN_MATERIAL_LOAD_TIMEOUT_MS = 5_000;
+
+const MATERIAL_MASK = TERRAIN_MATERIAL_SIZE - 1;
+const SIGNED_LUMINANCE_MAX = 127;
+
+export type TerrainMaterialState = 'loading' | 'ready' | 'failed';
+export type TerrainMaterialImageFactory = () => HTMLImageElement;
+export type TerrainMaterialCanvasFactory = () => HTMLCanvasElement;
+
+export interface TerrainMaterialSampler {
+  readonly isSettled: boolean;
+  readonly needsApplication: boolean;
+  sample(x: number, y: number): number;
+  acknowledgeApplied(): void;
+}
+
+function createBrowserImage(): HTMLImageElement {
+  return new Image();
+}
+
+function createBrowserCanvas(): HTMLCanvasElement {
+  return document.createElement('canvas');
+}
+
+function assetUrl(baseUrl: string): string {
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  return `${normalizedBase}${TERRAIN_MATERIAL_ASSET}`;
+}
+
+/**
+ * Decodes one project-bound rock tile into a compact signed luminance field.
+ * Sampling is allocation-free and wraps by a power-of-two mask.
+ */
+export class TerrainMaterial implements TerrainMaterialSampler {
+  private readonly image: HTMLImageElement;
+  private currentState: TerrainMaterialState = 'loading';
+  private luminance: Int8Array | null = null;
+  private pendingApplication = false;
+  private loadTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(
+    createImage: TerrainMaterialImageFactory = createBrowserImage,
+    private readonly createCanvas: TerrainMaterialCanvasFactory =
+      createBrowserCanvas,
+    baseUrl: string = import.meta.env.BASE_URL,
+  ) {
+    this.image = createImage();
+    this.image.onload = () => {
+      if (this.currentState !== 'loading') return;
+      const { naturalWidth: width, naturalHeight: height } = this.image;
+      if (
+        width !== TERRAIN_MATERIAL_SIZE
+        || height !== TERRAIN_MATERIAL_SIZE
+      ) {
+        this.fail();
+        return;
+      }
+
+      try {
+        const canvas = this.createCanvas();
+        canvas.width = TERRAIN_MATERIAL_SIZE;
+        canvas.height = TERRAIN_MATERIAL_SIZE;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (ctx === null) {
+          this.fail();
+          return;
+        }
+        ctx.drawImage(
+          this.image,
+          0,
+          0,
+          TERRAIN_MATERIAL_SIZE,
+          TERRAIN_MATERIAL_SIZE,
+        );
+        const pixels = ctx.getImageData(
+          0,
+          0,
+          TERRAIN_MATERIAL_SIZE,
+          TERRAIN_MATERIAL_SIZE,
+        ).data;
+        const sampleCount = TERRAIN_MATERIAL_SIZE * TERRAIN_MATERIAL_SIZE;
+        let luminanceTotal = 0;
+        let luminanceSquaredTotal = 0;
+        for (let index = 0; index < sampleCount; index++) {
+          const offset = index * 4;
+          const value = (
+            pixels[offset]! * 0.2126
+            + pixels[offset + 1]! * 0.7152
+            + pixels[offset + 2]! * 0.0722
+          );
+          luminanceTotal += value;
+          luminanceSquaredTotal += value * value;
+        }
+        const mean = luminanceTotal / sampleCount;
+        const variance = (
+          luminanceSquaredTotal / sampleCount - mean * mean
+        );
+        // Centre the authored field around its own exposure so it adds grain
+        // instead of globally brightening or darkening the terrain palette.
+        const contrastScale = Math.max(
+          Math.sqrt(Math.max(variance, 0)) * 2.5,
+          1,
+        );
+        const luminance = new Int8Array(sampleCount);
+        for (let index = 0; index < luminance.length; index++) {
+          const offset = index * 4;
+          const value = (
+            pixels[offset]! * 0.2126
+            + pixels[offset + 1]! * 0.7152
+            + pixels[offset + 2]! * 0.0722
+          );
+          const normalized = Math.max(
+            -1,
+            Math.min(1, (value - mean) / contrastScale),
+          );
+          luminance[index] = Math.round(
+            normalized * SIGNED_LUMINANCE_MAX,
+          );
+        }
+        this.luminance = luminance;
+        this.clearLoadTimeout();
+        this.currentState = 'ready';
+        this.pendingApplication = true;
+      } catch {
+        this.fail();
+      }
+    };
+    this.image.onerror = () => this.fail();
+    this.loadTimeout = globalThis.setTimeout(
+      () => this.fail(),
+      TERRAIN_MATERIAL_LOAD_TIMEOUT_MS,
+    );
+    this.image.src = assetUrl(baseUrl);
+  }
+
+  get state(): TerrainMaterialState {
+    return this.currentState;
+  }
+
+  get needsApplication(): boolean {
+    return this.pendingApplication;
+  }
+
+  get isSettled(): boolean {
+    return (
+      this.currentState === 'failed'
+      || (this.currentState === 'ready' && !this.pendingApplication)
+    );
+  }
+
+  sample(x: number, y: number): number {
+    if (this.luminance === null) return 0;
+    const wrappedX = Math.floor(x) & MATERIAL_MASK;
+    const wrappedY = Math.floor(y) & MATERIAL_MASK;
+    return (
+      this.luminance[wrappedY * TERRAIN_MATERIAL_SIZE + wrappedX]!
+      / SIGNED_LUMINANCE_MAX
+    );
+  }
+
+  acknowledgeApplied(): void {
+    if (this.currentState === 'ready') this.pendingApplication = false;
+  }
+
+  private fail(): void {
+    if (this.currentState !== 'loading') return;
+    this.clearLoadTimeout();
+    this.luminance = null;
+    this.pendingApplication = false;
+    this.currentState = 'failed';
+  }
+
+  private clearLoadTimeout(): void {
+    if (this.loadTimeout === null) return;
+    globalThis.clearTimeout(this.loadTimeout);
+    this.loadTimeout = null;
+  }
+}
