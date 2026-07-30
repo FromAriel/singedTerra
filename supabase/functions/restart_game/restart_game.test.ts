@@ -12,6 +12,7 @@ import {
   projectExistingRematchInfo,
 } from './index.ts'
 import type { StoredPlayer } from '../_shared/mod.ts'
+import { DEFAULT_TANK_LOADOUT } from '../_shared/mod.ts'
 
 const NOW = 1_700_000_000_000
 
@@ -45,6 +46,22 @@ Deno.test('buildRematchPlayers marks everyone ready and stamps lastSeen', () => 
   assertEquals(out[0].lastSeen, NOW)
   assertEquals(out[0].id, 'uid-a')
   assertEquals(out[0].ai, 'hard')
+})
+
+Deno.test('buildRematchPlayers preserves valid cosmetics and defaults old seats', () => {
+  const mixed = {
+    treads: 'ranger',
+    hull: 'bulwark',
+    turret: 'foundry',
+    barrel: 'ranger',
+  } as const
+  const out = buildRematchPlayers([
+    { id: 'uid-a', name: 'Ana', color: '#f00', ready: false, loadout: mixed },
+    { id: 'uid-b', name: 'Bo', color: '#00f', ready: false },
+  ], NOW)
+
+  assertEquals(out[0].loadout, mixed)
+  assertEquals(out[1].loadout, DEFAULT_TANK_LOADOUT)
 })
 
 Deno.test('normalizeRematchOptions preserves reflective walls and rejects invalid values', () => {
@@ -95,8 +112,8 @@ Deno.test('lost-claim response projector preserves reflective walls', () => {
   assertEquals(info.roomId, 'existing-room')
   assertEquals(info.options.walls, 'reflective')
   assertEquals(info.players, [
-    { id: 'uid-a', name: 'Ana', color: '#f00' },
-    { id: 'uid-b', name: 'Bo', color: '#00f' },
+    { id: 'uid-a', name: 'Ana', color: '#f00', loadout: DEFAULT_TANK_LOADOUT },
+    { id: 'uid-b', name: 'Bo', color: '#00f', loadout: DEFAULT_TANK_LOADOUT },
   ])
 })
 
@@ -122,7 +139,37 @@ Deno.test('winning-create response projector preserves reflective walls', () => 
   assertEquals(info.roomId, 'created-room')
   assertEquals(info.options.walls, 'reflective')
   assertEquals(info.players, [
-    { id: 'uid-a', name: 'Ana', color: '#f00' },
-    { id: 'uid-b', name: 'CPU', color: '#0f0' },
+    { id: 'uid-a', name: 'Ana', color: '#f00', loadout: DEFAULT_TANK_LOADOUT },
+    { id: 'uid-b', name: 'CPU', color: '#0f0', loadout: DEFAULT_TANK_LOADOUT },
   ])
+})
+
+Deno.test('rematch response projectors carry the synchronized loadout', () => {
+  const loadout = {
+    treads: 'bulwark',
+    hull: 'bulwark',
+    turret: 'ranger',
+    barrel: 'foundry',
+  } as const
+  const players: StoredPlayer[] = [
+    { id: 'uid-a', name: 'Ana', color: '#f00', ready: true, loadout },
+  ]
+
+  const existing = projectExistingRematchInfo({
+    id: 'existing-room',
+    code: 'LOAD42',
+    seed: 42,
+    options: { maxPlayers: 2, maxWind: 7, gravity: 0.2 },
+    players,
+  })
+  const created = projectCreatedRematchInfo(
+    'created-room',
+    'KIT042',
+    43,
+    { maxPlayers: 2, maxWind: 7, gravity: 0.2 },
+    players,
+  )
+
+  assertEquals(existing.players[0].loadout, loadout)
+  assertEquals(created.players[0].loadout, loadout)
 })

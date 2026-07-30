@@ -1,5 +1,9 @@
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js'
 import {
+  normalizeTankLoadout,
+  type TankLoadout,
+} from '@shared/types/TankLoadout'
+import {
   LobbyTransport,
   type NetworkPlayer,
   type RoomOptions,
@@ -184,7 +188,11 @@ export class LobbySession {
     return result
   }
 
-  async updatePlayer(fields: { name?: string; color?: string }): Promise<
+  async updatePlayer(fields: {
+    name?: string
+    color?: string
+    loadout?: TankLoadout
+  }): Promise<
     Awaited<ReturnType<SessionTransport['updatePlayer']>> | LobbySessionStaleOutcome
   > {
     if (!this.actionLifecycleOpen) return { stale: true }
@@ -293,6 +301,18 @@ export class LobbySession {
   }
 
   private waitingSignature(players: NetworkPlayer[], status?: string): string {
-    return `${players.map((player) => `${player.id}|${player.name}|${player.color}|${player.ready}`).join(',')}|${status ?? ''}`
+    return `${players.map((player) => {
+      const loadout = normalizeTankLoadout(player.loadout)
+      return [
+        player.id,
+        player.name,
+        player.color,
+        player.ready,
+        loadout.treads,
+        loadout.hull,
+        loadout.turret,
+        loadout.barrel,
+      ].join('|')
+    }).join(',')}|${status ?? ''}`
   }
 }

@@ -1,4 +1,5 @@
 import type { NetworkAction } from '@shared/net/replay'
+import type { TankLoadout } from '@shared/types/TankLoadout'
 
 // Matches the rooms table
 export interface Room {
@@ -19,6 +20,7 @@ export interface RoomPlayer {
   name: string
   color: string
   ready: boolean
+  loadout?: TankLoadout
 }
 
 // Matches the room_actions table. `action` carries the full committed-action

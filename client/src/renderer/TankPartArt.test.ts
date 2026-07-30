@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { TankState } from '@shared/types/GameState';
 import {
+  DEFAULT_TANK_LOADOUT,
+  type TankLoadout,
+} from '@shared/types/TankLoadout';
+import {
   TANK_PART_ATLAS_HEIGHT,
   TANK_PART_ATLAS_WIDTH,
   TANK_PART_SLOTS,
@@ -31,12 +35,13 @@ function controlledImage(): ControlledImage {
   };
 }
 
-function tank(): TankState {
+function tank(loadout: TankLoadout = { ...DEFAULT_TANK_LOADOUT }): TankState {
   return {
     x: 240,
     y: 410,
     angle: 42,
     color: '#d65cff',
+    loadout,
   } as TankState;
 }
 
@@ -187,6 +192,35 @@ describe('TankPartArt', () => {
     expect(art.isSettled).toBe(false);
     expect(art.drawStatic(ctx, subject)).toBe(true);
     expect(art.isSettled).toBe(true);
+  });
+
+  it('reads every source row from the tank mixed-slot loadout', () => {
+    const image = controlledImage();
+    const harness = canvasFactory();
+    const art = new TankPartArt(
+      () => image as unknown as HTMLImageElement,
+      harness.factory,
+      '/',
+    );
+    const subject = tank({
+      treads: 'bulwark',
+      hull: 'ranger',
+      turret: 'foundry',
+      barrel: 'ranger',
+    });
+    const target = {
+      save: vi.fn(),
+      restore: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn(),
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    settleValid(image);
+
+    expect(art.drawStatic(target, subject)).toBe(true);
+    expect(art.drawBarrel(target, subject)).toBe(true);
+    expect(harness.contexts.map(({ drawImage }) =>
+      drawImage.mock.calls[0][2])).toEqual([256, 128, 0, 128]);
   });
 
   it.each([

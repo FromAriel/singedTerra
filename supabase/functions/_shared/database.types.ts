@@ -7,6 +7,7 @@ export interface StoredPlayer {
   ready: boolean;
   lastSeen?: number;
   ai?: "easy" | "medium" | "hard";
+  loadout?: import("./tankLoadout.ts").TankLoadout;
 }
 
 export interface StoredOptions {

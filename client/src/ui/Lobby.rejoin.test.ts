@@ -14,6 +14,7 @@ import { Lobby, type LobbyConfig } from './Lobby';
 import { LobbyTransport, type FetchedRoom } from '../client/LobbyTransport';
 import { writeSession, readSession, type SessionDescriptor } from '../lib/sessionDescriptor';
 import { NetworkClient } from '../client/NetworkClient';
+import { DEFAULT_TANK_LOADOUT } from '@shared/types/TankLoadout';
 
 interface LobbyInternals {
   transport: LobbyTransport;
@@ -241,8 +242,18 @@ describe('Lobby.handleRejoin (T-10, AC-06)', () => {
     expect(config.playerId).toBe('p-1');
     expect(config.token).toBe('secret-token-abc');
     expect(config.players).toEqual([
-      { id: 'p-1', name: 'Alice', color: '#e84d4d' },
-      { id: 'p-2', name: 'Bob', color: '#4d8ce8' },
+      {
+        id: 'p-1',
+        name: 'Alice',
+        color: '#e84d4d',
+        loadout: DEFAULT_TANK_LOADOUT,
+      },
+      {
+        id: 'p-2',
+        name: 'Bob',
+        color: '#4d8ce8',
+        loadout: DEFAULT_TANK_LOADOUT,
+      },
     ]);
     expect(config.settings).toMatchObject({
       seed: 7,

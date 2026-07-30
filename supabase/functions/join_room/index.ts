@@ -1,4 +1,15 @@
-import { withCors, json, getServiceClient, reap, isValidColor, mintSeatToken, StoredOptions, StoredPlayer } from '../_shared/mod.ts'
+import {
+  withCors,
+  json,
+  getServiceClient,
+  reap,
+  isValidColor,
+  mintSeatToken,
+  DEFAULT_TANK_LOADOUT,
+  parseTankLoadout,
+  type StoredOptions,
+  type StoredPlayer,
+} from '../_shared/mod.ts'
 
 /**
  * Pure post-reap join eligibility: capacity, then color, then name conflict (name
@@ -24,11 +35,19 @@ export function checkJoinEligibility(
   return { ok: true }
 }
 
-export async function handleJoinRoom(body: unknown): Promise<Response> {
-  const { code, playerName, color } = body as {
+interface JoinRoomDependencies {
+  serviceClient?: ReturnType<typeof getServiceClient>
+}
+
+async function handleJoinRoomWithDependencies(
+  body: unknown,
+  dependencies: JoinRoomDependencies,
+): Promise<Response> {
+  const { code, playerName, color, loadout } = body as {
     code?: unknown
     playerName?: unknown
     color?: unknown
+    loadout?: unknown
   }
 
   // Validate code
@@ -48,10 +67,16 @@ export async function handleJoinRoom(body: unknown): Promise<Response> {
   if (!isValidColor(color)) {
     return json({ error: 'Invalid input: color' }, 400)
   }
+  const playerLoadout = loadout === undefined
+    ? { ...DEFAULT_TANK_LOADOUT }
+    : parseTankLoadout(loadout)
+  if (playerLoadout === null) {
+    return json({ error: 'Invalid input: loadout' }, 400)
+  }
 
   const normalizedCode = code.trim().toUpperCase()
 
-  const supabase = getServiceClient()
+  const supabase = dependencies.serviceClient ?? getServiceClient()
 
   // Fetch room by code, must be in 'waiting' status
   const { data: room, error: fetchError } = await supabase
@@ -113,6 +138,7 @@ export async function handleJoinRoom(body: unknown): Promise<Response> {
     color: color.trim(),
     ready: false,
     lastSeen: nowMs,
+    loadout: playerLoadout,
   }
 
   const updatedPlayers = [...existingPlayers, newPlayer]
@@ -147,6 +173,16 @@ export async function handleJoinRoom(body: unknown): Promise<Response> {
     options: roomOptions,
     players: updatedPlayers,
   }, 200)
+}
+
+export function joinRoomHandler(
+  dependencies: JoinRoomDependencies,
+): (body: unknown) => Promise<Response> {
+  return (body) => handleJoinRoomWithDependencies(body, dependencies)
+}
+
+export async function handleJoinRoom(body: unknown): Promise<Response> {
+  return handleJoinRoomWithDependencies(body, {})
 }
 
 if (import.meta.main) {

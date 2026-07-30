@@ -1,5 +1,6 @@
 import type { WeaponType } from '../engine/WeaponSystem';
 import type { WallMode } from './GameOptions';
+import type { TankLoadout } from './TankLoadout';
 
 /** Turn-system phases (SPEC §4.3 / §6). */
 export type GamePhase =
@@ -201,6 +202,8 @@ export interface TankState {
   inventory: Record<WeaponType, AmmoEntry>;
   /** CSS color string. */
   color: string;
+  /** Presentation-only authored part selection; simulation never reads it. */
+  loadout: TankLoadout;
   alive: boolean;
   /**
    * Remaining shield HP — a damage-absorbing force field (SPEC §4.5, Sprint 4

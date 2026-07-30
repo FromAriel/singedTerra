@@ -4,6 +4,10 @@ import type { GameState } from '@shared/types/GameState';
 import type { PlayerAction } from '@shared/types/PlayerAction';
 import type { GameOptions } from '@shared/types/GameOptions';
 import type { AiDifficulty } from '@shared/types/GameState';
+import {
+  normalizeTankLoadout,
+  type TankLoadout,
+} from '@shared/types/TankLoadout';
 import { GameEngine } from '@shared/engine/GameEngine';
 import { computeAiPlan } from '@shared/engine/AI';
 import { GRAVITY, MAX_WIND } from '@shared/engine/Physics';
@@ -43,6 +47,7 @@ interface NetworkPlayerEntry {
   name:  string;
   color: string;
   ai?:   AiDifficulty;
+  loadout?: TankLoadout;
 }
 
 // GameOptions extended with the network-mode player id field.
@@ -781,7 +786,12 @@ export class NetworkClient implements GameClient {
       walls?: 'open' | 'reflective';
       rounds?: number;
     };
-    const players = (data.players ?? []) as Array<{ id: string; name: string; color: string }>;
+    const players = (data.players ?? []) as Array<{
+      id: string;
+      name: string;
+      color: string;
+      loadout?: TankLoadout;
+    }>;
     listener({
       roomId:  data.id as string,
       code:    data.code as string,
@@ -794,7 +804,12 @@ export class NetworkClient implements GameClient {
         // Carry best-of-N across a rematch so the successor match keeps the format.
         ...(typeof opts.rounds === 'number' ? { rounds: opts.rounds } : {}),
       },
-      players: players.map(p => ({ id: p.id, name: p.name, color: p.color })),
+      players: players.map(p => ({
+        id: p.id,
+        name: p.name,
+        color: p.color,
+        loadout: normalizeTankLoadout(p.loadout),
+      })),
     });
   }
 

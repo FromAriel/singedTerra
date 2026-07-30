@@ -2,8 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { BARREL_LENGTH, BARREL_PIVOT_HEIGHT, barrelTip } from '@shared/engine/Tank';
 import type { TankState } from '@shared/types/GameState';
 import {
+  DEFAULT_TANK_LOADOUT,
+  TANK_KIT_IDS,
+  type TankLoadout,
+} from '@shared/types/TankLoadout';
+import {
   DEFAULT_TANK_PART_SET,
+  TANK_PART_ATLAS_HEIGHT,
+  TANK_PART_SETS,
   TANK_PART_SLOTS,
+  tankPartDefinition,
   tankBarrelMount,
 } from './tankPartCatalog';
 
@@ -25,6 +33,44 @@ describe('modular tank part catalog', () => {
       { x: 512, y: 0, width: 256, height: 128 },
       { x: 768, y: 0, width: 256, height: 128 },
     ]);
+  });
+
+  it('defines three coherent atlas rows with one compatible part per slot', () => {
+    expect(TANK_PART_ATLAS_HEIGHT).toBe(384);
+    expect(Object.keys(TANK_PART_SETS)).toEqual(TANK_KIT_IDS);
+
+    for (const [row, kit] of TANK_KIT_IDS.entries()) {
+      expect(Object.keys(TANK_PART_SETS[kit].parts)).toEqual(TANK_PART_SLOTS);
+      expect(TANK_PART_SLOTS.map((slot) =>
+        TANK_PART_SETS[kit].parts[slot].source)).toEqual(
+        TANK_PART_SLOTS.map((_, column) => ({
+          x: column * 256,
+          y: row * 128,
+          width: 256,
+          height: 128,
+        })),
+      );
+    }
+  });
+
+  it('resolves every slot independently from a mixed player loadout', () => {
+    const loadout: TankLoadout = {
+      treads: 'bulwark',
+      hull: 'ranger',
+      turret: 'foundry',
+      barrel: 'ranger',
+    };
+
+    expect(TANK_PART_SLOTS.map((slot) =>
+      tankPartDefinition(loadout, slot).source.y)).toEqual([
+      256,
+      128,
+      0,
+      128,
+    ]);
+    expect(tankPartDefinition(DEFAULT_TANK_LOADOUT, 'barrel')).toBe(
+      DEFAULT_TANK_PART_SET.parts.barrel,
+    );
   });
 
   it('anchors the visible barrel pivot and muzzle to shared engine geometry', () => {
