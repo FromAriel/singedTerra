@@ -488,6 +488,7 @@ export class GameEngine {
       return {
         ...t,
         inventory: inv as typeof t.inventory,
+        loadout: { ...t.loadout },
       };
     });
 

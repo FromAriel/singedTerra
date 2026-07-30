@@ -7,6 +7,7 @@ import type {
   StoredOptions,
   StoredPlayer,
   StoredScoreEntry,
+  TankLoadout,
 } from "./mod.ts";
 
 type Equal<Actual, Expected> =
@@ -32,6 +33,7 @@ type ExpectedStoredPlayer = {
   ready: boolean;
   lastSeen?: number;
   ai?: "easy" | "medium" | "hard";
+  loadout?: TankLoadout;
 };
 type ExpectedStoredOptions = {
   maxPlayers: number;

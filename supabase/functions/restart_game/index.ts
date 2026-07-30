@@ -6,6 +6,9 @@ import {
   UUID_REGEX,
   StoredOptions,
   StoredPlayer,
+  DEFAULT_TANK_LOADOUT,
+  parseTankLoadout,
+  TankLoadout,
   ServiceClient,
   DEFAULT_GRAVITY,
   DEFAULT_MAX_WIND,
@@ -23,7 +26,12 @@ interface RematchInfo {
     gravity: number
     walls: 'open' | 'reflective'
   }
-  players: Array<{ id: string; name: string; color: string }>
+  players: Array<{
+    id: string
+    name: string
+    color: string
+    loadout: TankLoadout
+  }>
 }
 
 interface ExistingRematchRecord {
@@ -55,7 +63,12 @@ export function projectExistingRematchInfo(room: ExistingRematchRecord): Rematch
     code: room.code,
     seed: Number(room.seed),
     options: normalizeRematchOptions((room.options ?? {}) as StoredOptions, players.length),
-    players: players.map(p => ({ id: p.id, name: p.name, color: p.color })),
+    players: players.map(p => ({
+      id: p.id,
+      name: p.name,
+      color: p.color,
+      loadout: parseTankLoadout(p.loadout) ?? { ...DEFAULT_TANK_LOADOUT },
+    })),
   }
 }
 
@@ -72,7 +85,12 @@ export function projectCreatedRematchInfo(
     code,
     seed,
     options: normalizeRematchOptions(options, players.length),
-    players: players.map(p => ({ id: p.id, name: p.name, color: p.color })),
+    players: players.map(p => ({
+      id: p.id,
+      name: p.name,
+      color: p.color,
+      loadout: parseTankLoadout(p.loadout) ?? { ...DEFAULT_TANK_LOADOUT },
+    })),
   }
 }
 
@@ -91,6 +109,7 @@ export function buildRematchPlayers(players: StoredPlayer[], nowMs: number): Sto
     ready: true,
     lastSeen: nowMs,
     ...(p.ai ? { ai: p.ai } : {}),
+    loadout: parseTankLoadout(p.loadout) ?? { ...DEFAULT_TANK_LOADOUT },
   }))
 }
 

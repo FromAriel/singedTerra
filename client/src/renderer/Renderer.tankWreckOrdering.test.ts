@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { GameState, TankState } from '@shared/types/GameState';
+import { DEFAULT_TANK_LOADOUT } from '@shared/types/TankLoadout';
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/engine/Terrain';
 import { Renderer } from './Renderer';
 
@@ -60,6 +61,7 @@ function tank(id: string, overrides: Partial<TankState> = {}): TankState {
     selectedWeapon: 'baby_missile',
     inventory: {} as TankState['inventory'],
     color: '#d65cff',
+    loadout: { ...DEFAULT_TANK_LOADOUT },
     alive: true,
     shieldHp: 0,
     ai: null,

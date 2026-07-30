@@ -9,3 +9,19 @@ Deno.test('handleCreateRoom: missing playerName returns 400 (no DB)', async () =
   const res = await handleCreateRoom({})
   assertEquals(res.status, 400)
 })
+
+Deno.test('handleCreateRoom: rejects an unknown tank loadout before DB access', async () => {
+  const res = await handleCreateRoom({
+    playerName: 'Ana',
+    color: '#e84d4d',
+    loadout: {
+      treads: 'foundry',
+      hull: 'foundry',
+      turret: 'foundry',
+      barrel: 'prototype',
+    },
+    options: { maxPlayers: 2 },
+  })
+  assertEquals(res.status, 400)
+  assertEquals(await res.json(), { error: 'Invalid input: loadout' })
+})

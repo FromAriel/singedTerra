@@ -4,21 +4,22 @@ import {
   barrelTip,
 } from '@shared/engine/Tank';
 import type { TankState } from '@shared/types/GameState';
+import {
+  TANK_KIT_IDS,
+  TANK_PART_SLOTS,
+  type TankKitId,
+  type TankLoadout,
+  type TankPartSlot,
+} from '@shared/types/TankLoadout';
+
+export { TANK_KIT_IDS, TANK_PART_SLOTS };
+export type { TankKitId, TankPartSlot };
 
 export const TANK_PART_ATLAS_ASSET = 'art/tank-parts.webp';
 export const TANK_PART_ATLAS_WIDTH = 1024;
-export const TANK_PART_ATLAS_HEIGHT = 128;
+export const TANK_PART_ATLAS_HEIGHT = 384;
 export const TANK_PART_CELL_WIDTH = 256;
 export const TANK_PART_CELL_HEIGHT = 128;
-
-export const TANK_PART_SLOTS = [
-  'treads',
-  'hull',
-  'turret',
-  'barrel',
-] as const;
-
-export type TankPartSlot = (typeof TANK_PART_SLOTS)[number];
 
 export interface TankPartSource {
   readonly x: number;
@@ -40,26 +41,27 @@ export interface TankPartDefinition {
 }
 
 export interface TankPartSet {
-  readonly id: string;
+  readonly id: TankKitId;
   readonly parts: Record<TankPartSlot, TankPartDefinition>;
 }
 
-const source = (column: number): TankPartSource => ({
+const source = (column: number, row: number): TankPartSource => ({
   x: column * TANK_PART_CELL_WIDTH,
-  y: 0,
+  y: row * TANK_PART_CELL_HEIGHT,
   width: TANK_PART_CELL_WIDTH,
   height: TANK_PART_CELL_HEIGHT,
 });
 
 /**
- * One coherent starter set. Slot-local layout data keeps the renderer generic:
- * future compatible sets can replace any definition without branching on style.
+ * All three authored families share one gameplay footprint and mount contract.
+ * Each row was composed as a complete tank before its exclusive slot partition.
  */
-export const DEFAULT_TANK_PART_SET: TankPartSet = {
-  id: 'foundry',
-  parts: {
+function partSet(id: TankKitId, row: number): TankPartSet {
+  return {
+    id,
+    parts: {
     treads: {
-      source: source(0),
+      source: source(0, row),
       offsetX: -18,
       offsetY: -24,
       width: 36,
@@ -68,7 +70,7 @@ export const DEFAULT_TANK_PART_SET: TankPartSet = {
       muzzleX: 0,
     },
     hull: {
-      source: source(1),
+      source: source(1, row),
       offsetX: -18,
       offsetY: -24,
       width: 36,
@@ -77,7 +79,7 @@ export const DEFAULT_TANK_PART_SET: TankPartSet = {
       muzzleX: 0,
     },
     turret: {
-      source: source(2),
+      source: source(2, row),
       offsetX: -18,
       offsetY: -24,
       width: 36,
@@ -86,7 +88,7 @@ export const DEFAULT_TANK_PART_SET: TankPartSet = {
       muzzleX: 0,
     },
     barrel: {
-      source: source(3),
+      source: source(3, row),
       offsetX: -7,
       offsetY: -7,
       width: 30,
@@ -94,8 +96,25 @@ export const DEFAULT_TANK_PART_SET: TankPartSet = {
       pivotX: 7,
       muzzleX: 7 + BARREL_LENGTH,
     },
-  },
+    },
+  };
+}
+
+export const TANK_PART_SETS: Readonly<Record<TankKitId, TankPartSet>> = {
+  foundry: partSet('foundry', 0),
+  ranger: partSet('ranger', 1),
+  bulwark: partSet('bulwark', 2),
 };
+
+export const DEFAULT_TANK_PART_SET = TANK_PART_SETS.foundry;
+
+/** Resolve one slot independently so mixed-kit loadouts remain data-driven. */
+export function tankPartDefinition(
+  loadout: Readonly<TankLoadout>,
+  slot: TankPartSlot,
+): TankPartDefinition {
+  return TANK_PART_SETS[loadout[slot]].parts[slot];
+}
 
 export interface TankBarrelMount {
   readonly pivot: { readonly x: number; readonly y: number };

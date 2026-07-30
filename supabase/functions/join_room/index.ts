@@ -1,4 +1,15 @@
-import { withCors, json, getServiceClient, reap, isValidColor, mintSeatToken, StoredOptions, StoredPlayer } from '../_shared/mod.ts'
+import {
+  withCors,
+  json,
+  getServiceClient,
+  reap,
+  isValidColor,
+  mintSeatToken,
+  DEFAULT_TANK_LOADOUT,
+  parseTankLoadout,
+  type StoredOptions,
+  type StoredPlayer,
+} from '../_shared/mod.ts'
 
 /**
  * Pure post-reap join eligibility: capacity, then color, then name conflict (name
@@ -25,10 +36,11 @@ export function checkJoinEligibility(
 }
 
 export async function handleJoinRoom(body: unknown): Promise<Response> {
-  const { code, playerName, color } = body as {
+  const { code, playerName, color, loadout } = body as {
     code?: unknown
     playerName?: unknown
     color?: unknown
+    loadout?: unknown
   }
 
   // Validate code
@@ -47,6 +59,12 @@ export async function handleJoinRoom(body: unknown): Promise<Response> {
   // Validate color (bounded hex; see isValidColor / appsec-003)
   if (!isValidColor(color)) {
     return json({ error: 'Invalid input: color' }, 400)
+  }
+  const playerLoadout = loadout === undefined
+    ? { ...DEFAULT_TANK_LOADOUT }
+    : parseTankLoadout(loadout)
+  if (playerLoadout === null) {
+    return json({ error: 'Invalid input: loadout' }, 400)
   }
 
   const normalizedCode = code.trim().toUpperCase()
@@ -113,6 +131,7 @@ export async function handleJoinRoom(body: unknown): Promise<Response> {
     color: color.trim(),
     ready: false,
     lastSeen: nowMs,
+    loadout: playerLoadout,
   }
 
   const updatedPlayers = [...existingPlayers, newPlayer]

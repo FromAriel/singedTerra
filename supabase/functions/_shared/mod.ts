@@ -27,6 +27,17 @@ export type {
   StoredScoreEntry,
   RoomReapTrim,
 } from './database.types.ts'
+export {
+  DEFAULT_TANK_LOADOUT,
+  TANK_KIT_IDS,
+  TANK_PART_SLOTS,
+  parseTankLoadout,
+} from './tankLoadout.ts'
+export type {
+  TankKitId,
+  TankLoadout,
+  TankPartSlot,
+} from './tankLoadout.ts'
 
 // ---------------------------------------------------------------------------
 // CORS + request preamble

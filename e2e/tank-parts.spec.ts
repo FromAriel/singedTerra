@@ -1,19 +1,19 @@
 import { test, expect } from '@playwright/test';
 import { BARREL_LENGTH } from '../shared/src/engine/Tank';
 import {
-  DEFAULT_TANK_PART_SET,
+  TANK_KIT_IDS,
+  TANK_PART_ATLAS_HEIGHT,
+  TANK_PART_ATLAS_WIDTH,
   TANK_PART_CELL_HEIGHT,
   TANK_PART_CELL_WIDTH,
+  TANK_PART_SETS,
 } from '../client/src/renderer/tankPartCatalog';
 
 const ATLAS_PATH = 'art/tank-parts.webp';
-const ATLAS_WIDTH = 1024;
-const ATLAS_HEIGHT = 128;
-const CELL_WIDTH = 256;
-const MAX_TRANSFER_BYTES = 150_000;
+const MAX_TRANSFER_BYTES = 250_000;
 
 test.describe('modular authored tank atlas', () => {
-  test('ships four independently occupied transparent gameplay parts', async ({
+  test('ships twelve independently occupied transparent gameplay parts', async ({
     page,
     request,
   }) => {
@@ -25,14 +25,15 @@ test.describe('modular authored tank atlas', () => {
     );
 
     await page.goto('.');
-    const barrelDefinition = DEFAULT_TANK_PART_SET.parts.barrel;
+    const barrelDefinitions = TANK_KIT_IDS.map((kit) =>
+      TANK_PART_SETS[kit].parts.barrel);
     const decoded = await page.evaluate(async ({
       src,
       atlasWidth,
       atlasHeight,
       cellWidth,
       cellHeight,
-      barrel,
+      barrels,
     }) => {
       const image = new Image();
       image.src = src;
@@ -50,18 +51,21 @@ test.describe('modular authored tank atlas', () => {
         canvas.height,
       ).data;
 
-      const cells = Array.from({ length: 4 }, (_, cell) => {
+      const cells = Array.from({ length: 12 }, (_, cell) => {
+        const row = Math.floor(cell / 4);
+        const column = cell % 4;
         let visible = 0;
         let minX = cellWidth;
         let maxX = -1;
-        let minY = atlasHeight;
+        let minY = cellHeight;
         let maxY = -1;
         let minLuminance = 255;
         let maxLuminance = 0;
-        for (let y = 0; y < atlasHeight; y++) {
+        for (let y = 0; y < cellHeight; y++) {
           for (let x = 0; x < cellWidth; x++) {
-            const atlasX = cell * cellWidth + x;
-            const offset = (y * atlasWidth + atlasX) * 4;
+            const atlasX = column * cellWidth + x;
+            const atlasY = row * cellHeight + y;
+            const offset = (atlasY * atlasWidth + atlasX) * 4;
             const alpha = pixels[offset + 3]!;
             if (alpha <= 32) continue;
             visible++;
@@ -89,8 +93,8 @@ test.describe('modular authored tank atlas', () => {
         };
       });
 
-      const barrelCellX = 3 * cellWidth;
       const alphaNear = (
+        row: number,
         centerX: number,
         centerY: number,
         radius: number,
@@ -106,61 +110,150 @@ test.describe('modular authored tank atlas', () => {
             x++
           ) {
             const offset = (
-              (y * atlasWidth + barrelCellX + x) * 4 + 3
+              (
+                (row * cellHeight + y) * atlasWidth
+                + 3 * cellWidth
+                + x
+              ) * 4 + 3
             );
             if (pixels[offset]! > 32) return true;
           }
         }
         return false;
       };
-      const mountY = -barrel.offsetY / barrel.height * cellHeight;
-      // One rendered logical pixel converted back into source-cell pixels.
-      const sourceRadius = Math.ceil(cellWidth / barrel.width);
-
       return {
         width: image.naturalWidth,
         height: image.naturalHeight,
         cells,
-        barrelPivotOccupied: alphaNear(
-          barrel.pivotX / barrel.width * cellWidth,
-          mountY,
-          sourceRadius,
-        ),
-        barrelMuzzleOccupied: alphaNear(
-          barrel.muzzleX / barrel.width * cellWidth,
-          mountY,
-          sourceRadius,
-        ),
+        barrels: barrels.map((barrel, row) => {
+          const mountY = -barrel.offsetY / barrel.height * cellHeight;
+          // One rendered logical pixel converted back into source-cell pixels.
+          const sourceRadius = Math.ceil(cellWidth / barrel.width);
+          return {
+            pivotOccupied: alphaNear(
+              row,
+              barrel.pivotX / barrel.width * cellWidth,
+              mountY,
+              sourceRadius,
+            ),
+            muzzleOccupied: alphaNear(
+              row,
+              barrel.muzzleX / barrel.width * cellWidth,
+              mountY,
+              sourceRadius,
+            ),
+          };
+        }),
       };
     }, {
       src: ATLAS_PATH,
-      atlasWidth: ATLAS_WIDTH,
-      atlasHeight: ATLAS_HEIGHT,
-      cellWidth: CELL_WIDTH,
+      atlasWidth: TANK_PART_ATLAS_WIDTH,
+      atlasHeight: TANK_PART_ATLAS_HEIGHT,
+      cellWidth: TANK_PART_CELL_WIDTH,
       cellHeight: TANK_PART_CELL_HEIGHT,
-      barrel: barrelDefinition,
+      barrels: barrelDefinitions,
     });
 
-    expect(decoded.width).toBe(ATLAS_WIDTH);
-    expect(decoded.height).toBe(ATLAS_HEIGHT);
-    expect(decoded.cells).toHaveLength(4);
-    const minimums = [
-      { visible: 8_000, width: 220, height: 40 },
-      { visible: 5_000, width: 220, height: 28 },
-      { visible: 2_000, width: 170, height: 20 },
-      { visible: 5_000, width: 210, height: 35 },
+    expect(decoded.width).toBe(TANK_PART_ATLAS_WIDTH);
+    expect(decoded.height).toBe(TANK_PART_ATLAS_HEIGHT);
+    expect(decoded.cells).toHaveLength(12);
+    const minimumsBySlot = [
+      { visible: 7_000, width: 200, height: 35 },
+      { visible: 4_000, width: 190, height: 24 },
+      { visible: 700, width: 80, height: 18 },
+      { visible: 4_000, width: 200, height: 28 },
     ];
     for (const [index, cell] of decoded.cells.entries()) {
-      expect(cell.visible).toBeGreaterThan(minimums[index]!.visible);
-      expect(cell.occupiedWidth).toBeGreaterThan(minimums[index]!.width);
-      expect(cell.occupiedHeight).toBeGreaterThan(minimums[index]!.height);
-      expect(cell.luminanceRange).toBeGreaterThan(70);
+      const minimums = minimumsBySlot[index % 4]!;
+      expect(cell.visible).toBeGreaterThan(minimums.visible);
+      expect(cell.occupiedWidth).toBeGreaterThan(minimums.width);
+      expect(cell.occupiedHeight).toBeGreaterThan(minimums.height);
+      expect(cell.luminanceRange).toBeGreaterThan(60);
     }
 
-    expect(barrelDefinition.muzzleX - barrelDefinition.pivotX)
-      .toBe(BARREL_LENGTH);
-    expect(TANK_PART_CELL_WIDTH).toBe(CELL_WIDTH);
-    expect(decoded.barrelPivotOccupied).toBe(true);
-    expect(decoded.barrelMuzzleOccupied).toBe(true);
+    for (const [index, barrel] of barrelDefinitions.entries()) {
+      expect(barrel.muzzleX - barrel.pivotX).toBe(BARREL_LENGTH);
+      expect(decoded.barrels[index]!.pivotOccupied).toBe(true);
+      expect(decoded.barrels[index]!.muzzleOccupied).toBe(true);
+    }
+  });
+
+  test('keeps the approved Foundry chassis within lossless-atlas quantization', async ({
+    page,
+  }) => {
+    await page.goto('.');
+    const comparison = await page.evaluate(async ({
+      atlasSrc,
+      chassisSrc,
+      cellWidth,
+      cellHeight,
+    }) => {
+      const load = async (src: string): Promise<HTMLImageElement> => {
+        const image = new Image();
+        image.src = src;
+        await image.decode();
+        return image;
+      };
+      const [atlas, chassis] = await Promise.all([
+        load(atlasSrc),
+        load(chassisSrc),
+      ]);
+      const expected = document.createElement('canvas');
+      expected.width = cellWidth;
+      expected.height = cellHeight;
+      expected.getContext('2d')!.drawImage(chassis, 0, 0);
+
+      const reconstructed = document.createElement('canvas');
+      reconstructed.width = cellWidth;
+      reconstructed.height = cellHeight;
+      const ctx = reconstructed.getContext('2d')!;
+      for (let column = 0; column < 3; column++) {
+        ctx.drawImage(
+          atlas,
+          column * cellWidth,
+          0,
+          cellWidth,
+          cellHeight,
+          0,
+          0,
+          cellWidth,
+          cellHeight,
+        );
+      }
+
+      const actualPixels = ctx.getImageData(
+        0,
+        0,
+        cellWidth,
+        cellHeight,
+      ).data;
+      const expectedPixels = expected.getContext('2d')!.getImageData(
+        0,
+        0,
+        cellWidth,
+        cellHeight,
+      ).data;
+      let changedChannels = 0;
+      let changedAlphaChannels = 0;
+      let maximumDelta = 0;
+      for (let index = 0; index < actualPixels.length; index++) {
+        const delta = Math.abs(actualPixels[index]! - expectedPixels[index]!);
+        if (delta > 0) {
+          changedChannels++;
+          if (index % 4 === 3) changedAlphaChannels++;
+        }
+        maximumDelta = Math.max(maximumDelta, delta);
+      }
+      return { changedChannels, changedAlphaChannels, maximumDelta };
+    }, {
+      atlasSrc: ATLAS_PATH,
+      chassisSrc: 'art/tank-chassis.webp',
+      cellWidth: TANK_PART_CELL_WIDTH,
+      cellHeight: TANK_PART_CELL_HEIGHT,
+    });
+
+    expect(comparison.changedAlphaChannels).toBe(0);
+    expect(comparison.changedChannels).toBeLessThanOrEqual(100);
+    expect(comparison.maximumDelta).toBeLessThanOrEqual(2);
   });
 });

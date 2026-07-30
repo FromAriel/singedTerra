@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 import { Lobby } from './Lobby';
 import type { NetworkPlayer, RoomOptions } from '../client/LobbyTransport';
+import { DEFAULT_TANK_LOADOUT } from '@shared/types/TankLoadout';
 
 interface CapturedChannel {
   name: string;
@@ -210,6 +211,25 @@ describe('Lobby waiting-room session lifecycle (characterization)', () => {
     expect(runtimePlayers[0].lastSeen).toBe(200);
     expect(runtimePlayers[1].lastSeen).toBe(200);
     expect(render).toHaveBeenCalledTimes(1);
+
+    const customizedLoadout = {
+      treads: 'ranger' as const,
+      hull: 'bulwark' as const,
+      turret: 'foundry' as const,
+      barrel: 'ranger' as const,
+    };
+    const customizedPlayers = waitingPlayers.map((player, index) => index === 0
+      ? {
+          ...player,
+          loadout: customizedLoadout,
+        }
+      : player);
+    update!({ new: { status: 'waiting', players: customizedPlayers } });
+
+    expect(internals(lobby).waitingPlayers[0].loadout).toEqual(
+      customizedLoadout,
+    );
+    expect(render).toHaveBeenCalledTimes(2);
   });
 
   it('converts an active broadcast to one complete network config after lifecycle cleanup', async () => {
@@ -226,8 +246,19 @@ describe('Lobby waiting-room session lifecycle (characterization)', () => {
     expect(onReady).toHaveBeenCalledWith({
       mode: 'network',
       players: [
-        { id: 'p-1', name: 'Alice', color: '#e84d4d' },
-        { id: 'p-2', name: 'CPU', color: '#4d8ce8', ai: 'medium' },
+        {
+          id: 'p-1',
+          name: 'Alice',
+          color: '#e84d4d',
+          loadout: DEFAULT_TANK_LOADOUT,
+        },
+        {
+          id: 'p-2',
+          name: 'CPU',
+          color: '#4d8ce8',
+          ai: 'medium',
+          loadout: DEFAULT_TANK_LOADOUT,
+        },
       ],
       playerNames: ['Alice', 'CPU'],
       roomCode: 'ABCD',

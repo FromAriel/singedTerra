@@ -2,6 +2,7 @@
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts'
 import { applyPlayerUpdate } from './index.ts'
 import type { StoredPlayer } from '../_shared/mod.ts'
+import { DEFAULT_TANK_LOADOUT } from '../_shared/mod.ts'
 
 const NOW = 1_700_000_000_000
 const P = (id: string, name: string, color: string): StoredPlayer => ({ id, name, color, ready: false })
@@ -45,5 +46,33 @@ Deno.test('applyPlayerUpdate: applies trimmed name + color, bumps lastSeen, leav
   if (r.ok) {
     assertEquals(r.updatedPlayers[0], { id: 'a', name: 'Cy', color: '#00f', ready: false, lastSeen: NOW })
     assertEquals(r.updatedPlayers[1], { id: 'b', name: 'Bo', color: '#0f0', ready: false })
+  }
+})
+
+Deno.test('applyPlayerUpdate: replaces only the target loadout with a bounded copy', () => {
+  const loadout = {
+    treads: 'ranger',
+    hull: 'bulwark',
+    turret: 'foundry',
+    barrel: 'ranger',
+  } as const
+  const r = applyPlayerUpdate(
+    [
+      { ...P('a', 'Ana', '#f00'), loadout: { ...DEFAULT_TANK_LOADOUT } },
+      P('b', 'Bo', '#0f0'),
+    ],
+    'a',
+    undefined,
+    undefined,
+    NOW,
+    loadout,
+  )
+  assertEquals(r.ok, true)
+  if (r.ok) {
+    assertEquals(r.updatedPlayers[0].loadout, loadout)
+    if (r.updatedPlayers[0].loadout === loadout) {
+      throw new Error('stored loadout must not alias the request object')
+    }
+    assertEquals(r.updatedPlayers[1], P('b', 'Bo', '#0f0'))
   }
 })

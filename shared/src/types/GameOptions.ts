@@ -1,4 +1,5 @@
 import type { AiDifficulty } from './GameState';
+import type { TankLoadout } from './TankLoadout';
 
 /** Horizontal battlefield boundary rule. */
 export type WallMode = 'open' | 'reflective';
@@ -19,7 +20,13 @@ export interface GameOptions {
    * default two-tank layout. `maxPlayers` should agree with `players.length`.
    * `ai` marks a CPU-controlled seat at a difficulty (absent/undefined => human).
    */
-  players?: Array<{ name: string; color: string; ai?: AiDifficulty }>;
+  players?: Array<{
+    name: string;
+    color: string;
+    ai?: AiDifficulty;
+    /** Presentation-only authored part selection. */
+    loadout?: TankLoadout;
+  }>;
   /** Terrain RNG seed; same seed → same terrain. */
   seed?: number;
   /** Wind strength cap; defaults to MAX_WIND. */

@@ -36,6 +36,10 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { Mock } from 'vitest';
+import {
+  DEFAULT_TANK_LOADOUT,
+  type TankLoadout,
+} from '@shared/types/TankLoadout';
 import { Lobby } from './Lobby';
 import { readSession, writeSession } from '../lib/sessionDescriptor';
 
@@ -67,7 +71,11 @@ interface LobbyInternals {
   stopHeartbeat(): void;
   handleReadyUp(): Promise<void>;
   handleLeaveRoom(): Promise<void>;
-  updateMe(fields: { name?: string; color?: string }): Promise<void>;
+  updateMe(fields: {
+    name?: string;
+    color?: string;
+    loadout?: TankLoadout;
+  }): Promise<void>;
   cleanupWaitingChannel(): void;
   [key: string]: unknown;
 }
@@ -190,6 +198,7 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       expect(body).toEqual({
         playerName: 'Alice',
         color: '#e84d4d',
+        loadout: DEFAULT_TANK_LOADOUT,
         options: { maxPlayers: 2, visibility: 'public', walls: 'open' },
       });
       // No conditional keys leaked into the body.
@@ -224,8 +233,19 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       expect(body).toEqual({
         playerName: 'Alice',
         color: '#e84d4d',
+        loadout: DEFAULT_TANK_LOADOUT,
         // 1 CPU seat gets the first palette color NOT used by the creator (Blue).
-        bots: [{ name: 'CPU 1', color: '#4d8ce8', ai: 'hard' }],
+        bots: [{
+          name: 'CPU 1',
+          color: '#4d8ce8',
+          ai: 'hard',
+          loadout: {
+            treads: 'ranger',
+            hull: 'ranger',
+            turret: 'ranger',
+            barrel: 'ranger',
+          },
+        }],
         options: {
           maxPlayers: 3,
           visibility: 'private',
@@ -313,7 +333,13 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       await internals(lobby).handleCreateRoom();
 
       expect(internals(lobby).waitingPlayers).toEqual([
-        { id: 'me', name: 'Solo', color: '#a855f7', ready: false },
+        {
+          id: 'me',
+          name: 'Solo',
+          color: '#a855f7',
+          ready: false,
+          loadout: DEFAULT_TANK_LOADOUT,
+        },
       ]);
       await flush();
     });
@@ -402,7 +428,12 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const { url, body } = callAt(fetchMock);
       expect(url).toBe(fnUrl('join_room'));
-      expect(body).toEqual({ code: 'WXYZ', playerName: 'Bob', color: '#4d8ce8' });
+      expect(body).toEqual({
+        code: 'WXYZ',
+        playerName: 'Bob',
+        color: '#4d8ce8',
+        loadout: DEFAULT_TANK_LOADOUT,
+      });
     });
 
     it('SUCCESS: adopts room/seed/options/players + local code, persists token, transitions to waiting', async () => {
@@ -654,8 +685,18 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       expect(config).toEqual({
         mode: 'network',
         players: [
-          { id: 'p-1', name: 'Alice', color: '#e84d4d' },
-          { id: 'p-2', name: 'Bob', color: '#4d8ce8' },
+          {
+            id: 'p-1',
+            name: 'Alice',
+            color: '#e84d4d',
+            loadout: DEFAULT_TANK_LOADOUT,
+          },
+          {
+            id: 'p-2',
+            name: 'Bob',
+            color: '#4d8ce8',
+            loadout: DEFAULT_TANK_LOADOUT,
+          },
         ],
         playerNames: ['Alice', 'Bob'],
         roomCode: 'ABCD',
@@ -781,6 +822,27 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
 
       const { body } = callAt(fetchMock);
       expect(body).toEqual({ roomId: 'room-1', playerId: 'p-1', token: 'tok', color: '#4de87a' });
+    });
+
+    it('REQUEST (loadout only): POSTs the exact mixed four-part selection', async () => {
+      const fetchMock = stubFetch({ json: () => ({ error: 'stop-here' }) });
+      seedWaiting();
+      const loadout: TankLoadout = {
+        treads: 'bulwark',
+        hull: 'foundry',
+        turret: 'ranger',
+        barrel: 'bulwark',
+      };
+
+      await internals(lobby).updateMe({ loadout });
+
+      const { body } = callAt(fetchMock);
+      expect(body).toEqual({
+        roomId: 'room-1',
+        playerId: 'p-1',
+        token: 'tok',
+        loadout,
+      });
     });
 
     it('SUCCESS: adopts the returned players list', async () => {

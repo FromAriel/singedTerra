@@ -1,13 +1,18 @@
 import type { TankState } from '@shared/types/GameState';
 import {
-  DEFAULT_TANK_PART_SET,
+  DEFAULT_TANK_LOADOUT,
+  normalizeTankLoadout,
+  type TankKitId,
+  type TankLoadout,
+} from '@shared/types/TankLoadout';
+import {
   TANK_PART_ATLAS_ASSET,
   TANK_PART_ATLAS_HEIGHT,
   TANK_PART_ATLAS_WIDTH,
   TANK_PART_SLOTS,
+  tankPartDefinition,
   tankBarrelMount,
   type TankPartDefinition,
-  type TankPartSet,
   type TankPartSlot,
 } from './tankPartCatalog';
 
@@ -60,7 +65,6 @@ export class TankPartArt implements TankPartPainter {
     private readonly createCanvas: TankPartCanvasFactory =
       createBrowserCanvas,
     baseUrl: string = import.meta.env.BASE_URL,
-    private readonly partSet: TankPartSet = DEFAULT_TANK_PART_SET,
   ) {
     this.image = createImage();
     this.image.onload = () => {
@@ -98,9 +102,12 @@ export class TankPartArt implements TankPartPainter {
   }
 
   /** Test/debug seam: which independently cached slots exist for one color. */
-  cachedSlots(color: string): TankPartSlot[] {
+  cachedSlots(
+    color: string,
+    loadout: Readonly<TankLoadout> = DEFAULT_TANK_LOADOUT,
+  ): TankPartSlot[] {
     return TANK_PART_SLOTS.filter((slot) =>
-      this.variants.has(this.cacheKey(slot, color)));
+      this.variants.has(this.cacheKey(loadout[slot], slot, color)));
   }
 
   drawStatic(
@@ -108,11 +115,17 @@ export class TankPartArt implements TankPartPainter {
     tank: Readonly<TankState>,
   ): boolean {
     if (this.currentState !== 'ready') return false;
+    const loadout = normalizeTankLoadout(tank.loadout);
     const slots = ['treads', 'hull', 'turret'] as const;
     const prepared = slots.map((slot) => ({
       slot,
-      definition: this.partSet.parts[slot],
-      variant: this.variantFor(slot, tank.color),
+      definition: tankPartDefinition(loadout, slot),
+      variant: this.variantFor(
+        loadout[slot],
+        slot,
+        tankPartDefinition(loadout, slot),
+        tank.color,
+      ),
     }));
     if (prepared.some(({ variant }) => variant === null)) return false;
 
@@ -137,8 +150,14 @@ export class TankPartArt implements TankPartPainter {
     tank: Readonly<TankState>,
   ): boolean {
     if (this.currentState !== 'ready') return false;
-    const definition = this.partSet.parts.barrel;
-    const variant = this.variantFor('barrel', tank.color);
+    const loadout = normalizeTankLoadout(tank.loadout);
+    const definition = tankPartDefinition(loadout, 'barrel');
+    const variant = this.variantFor(
+      loadout.barrel,
+      'barrel',
+      definition,
+      tank.color,
+    );
     if (variant === null) return false;
     const mount = tankBarrelMount(tank);
 
@@ -167,13 +186,14 @@ export class TankPartArt implements TankPartPainter {
   }
 
   private variantFor(
+    kit: TankKitId,
     slot: TankPartSlot,
+    definition: TankPartDefinition,
     color: string,
   ): HTMLCanvasElement | null {
-    const key = this.cacheKey(slot, color);
+    const key = this.cacheKey(kit, slot, color);
     const cached = this.variants.get(key);
     if (cached !== undefined) return cached;
-    const definition = this.partSet.parts[slot];
 
     try {
       const canvas = this.createCanvas();
@@ -232,8 +252,12 @@ export class TankPartArt implements TankPartPainter {
     );
   }
 
-  private cacheKey(slot: TankPartSlot, color: string): string {
-    return `${this.partSet.id}:${slot}:${color}`;
+  private cacheKey(
+    kit: TankKitId,
+    slot: TankPartSlot,
+    color: string,
+  ): string {
+    return `${kit}:${slot}:${color}`;
   }
 
   private fail(): void {

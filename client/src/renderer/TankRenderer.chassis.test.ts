@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BARREL_LENGTH, barrelTip } from '@shared/engine/Tank';
 import type { TankState } from '@shared/types/GameState';
+import { DEFAULT_TANK_LOADOUT } from '@shared/types/TankLoadout';
 import { lightenHex } from '../ui/theme';
 import type { TankChassisPainter } from './TankChassisArt';
 import { TankRenderer } from './TankRenderer';
@@ -19,6 +20,7 @@ function tank(overrides: Partial<TankState> = {}): TankState {
     selectedWeapon: 'baby_missile',
     inventory: {} as TankState['inventory'],
     color: '#d65cff',
+    loadout: { ...DEFAULT_TANK_LOADOUT },
     alive: true,
     shieldHp: 0,
     ai: null,
