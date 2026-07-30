@@ -1593,3 +1593,11 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - `npm audit --audit-level=low`: PASS (0 vulnerabilities).
 - Diff hygiene: PASS (`git diff --check`, no conflict markers). State-free secret scan: PASS (`[]`).
 - No dependency, backend, migration, action-log, canonical engine-state, merge, or deployment change.
+
+### 2026-07-28 — Opening salvo coverage gate
+- Coverage auditor initial verdict: BLOCK on player-two opening visibility and isolated power-cache invalidation; Minor eligible-turn gravity evidence accepted for cheap hardening.
+- Browser RED: P2 default aim exits the right boundary and correctly has no cyan collision bracket. Oracle correction: rotate P2 back into the battlefield, then assert its opening bracket.
+- Added isolated power cache invalidation and eligible opening-turn configured-gravity assertions.
+- Re-audit caught the first power assertion also reset angle; corrected it to compare a same-angle baseline against a power-only mutation.
+- Final coverage re-audit: no Critical, High, or Important findings; ready for PR.
+- Verification: focused unit 9/9, focused opening unit 8/8, production opening E2E 3/3, full client 77 files / 563 tests, typecheck green.

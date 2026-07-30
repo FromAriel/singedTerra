@@ -147,6 +147,9 @@ describe('opening salvo trajectory', () => {
 
     const aimed = cache.get(frame, { ...me, angle: me.angle + 1 }, 0.15);
     expect(aimed).not.toBe(first);
+    const powerBaseline = cache.get(frame, me, 0.15);
+    const powered = cache.get(frame, { ...me, power: me.power + 1 }, 0.15);
+    expect(powered).not.toBe(powerBaseline);
     expect(cache.get({ ...frame, terrainVersion: 1 }, me, 0.15)).not.toBe(aimed);
     expect(cache.get(
       {

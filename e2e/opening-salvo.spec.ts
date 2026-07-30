@@ -57,6 +57,15 @@ test.describe('opening salvo assist', () => {
       await action.click();
       await expect(action).toBeDisabled();
       await expect(action).toBeEnabled({ timeout: 15_000 });
+      if (shot === 0) {
+        // P2 starts aimed out toward the right edge. Swing left toward the
+        // battlefield so the opening lesson includes a collision bracket.
+        for (let step = 0; step < 45; step++) {
+          await page.keyboard.press('ArrowLeft');
+        }
+        await expect.poll(async () => (await solutionPixels(page)).count)
+          .toBeGreaterThan(20);
+      }
     }
 
     await expect.poll(async () => (await solutionPixels(page)).count)

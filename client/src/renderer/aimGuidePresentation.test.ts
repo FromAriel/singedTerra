@@ -4,7 +4,12 @@ import { resolveAimGuidePresentation } from './aimGuidePresentation';
 
 describe('aim-guide presentation wiring', () => {
   it('combines local ownership with the engine-effective room gravity', () => {
-    const gravity = {
+    const openingGravity = {
+      baseGravity: 0.2,
+      turn: 0,
+      suddenDeathTurn: 6,
+    };
+    const suddenDeathGravity = {
       baseGravity: 0.2,
       turn: 9,
       suddenDeathTurn: 6,
@@ -15,7 +20,7 @@ describe('aim-guide presentation wiring', () => {
       activePlayerId: 'p2',
       localPlayerId: 'p1',
       activeIsAi: false,
-    }, gravity)).toEqual({
+    }, suddenDeathGravity)).toEqual({
       visible: false,
       gravity: effectiveGravity(0.2, 9, 6),
     });
@@ -24,9 +29,9 @@ describe('aim-guide presentation wiring', () => {
       activePlayerId: 'p1',
       localPlayerId: 'p1',
       activeIsAi: false,
-    }, gravity)).toEqual({
+    }, openingGravity)).toEqual({
       visible: true,
-      gravity: effectiveGravity(0.2, 9, 6),
+      gravity: 0.2,
     });
   });
 });
