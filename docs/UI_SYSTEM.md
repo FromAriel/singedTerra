@@ -48,6 +48,9 @@ bezel and authored gauge treatment because it is the rail's focal instrument.
 - Top-level regions use separators instead of independent card frames.
 - Gold and ember are reserved for current state, focus, and action. Muted
   lavender carries passive labels and navigation.
+- Canvas targeting language uses `ACCENT.gold` for the projected path and
+  `ACCENT.solution` for a collision solution. The cyan role is informational,
+  never a team color or destructive action.
 - Turn commitment is one persistent rail action across pointer types. It shares
   a bounded row with the Store, names the selected behavior (`Fire` or
   `Activate shield`), and communicates unavailable ownership/phase state with

@@ -289,6 +289,20 @@ describe('Renderer turn-start wind gusts', () => {
       .toBeLessThan(renderer.terrain.draw.mock.invocationCallOrder[0]);
   });
 
+  it('routes local aim guidance after tanks and payloads inside the world pass', () => {
+    const renderer = renderSeam();
+    renderer.showAimGuide = true;
+
+    renderer.render(state());
+
+    expect(renderer.tanks.drawAll.mock.invocationCallOrder[0])
+      .toBeLessThan(renderer.drawAimGuide.mock.invocationCallOrder[0]);
+    expect(renderer.projectile.draw.mock.invocationCallOrder[0])
+      .toBeLessThan(renderer.drawAimGuide.mock.invocationCallOrder[0]);
+    expect(renderer.drawLastImpact.mock.invocationCallOrder[0])
+      .toBeLessThan(renderer.drawAimGuide.mock.invocationCallOrder[0]);
+  });
+
   it('consumes profile count, length, and speed when drawing light and strong wind', () => {
     const renderer = lifecycleSeam();
     const lightProfile = getWindGustVisualProfile(0.2)!;

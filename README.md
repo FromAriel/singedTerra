@@ -43,6 +43,7 @@ can blow a hole straight through.
 - 🎯 **Turn-based artillery**: aim by angle (`0°=right, 90°=up`) and power (`0–100`), account for wind, fire.
 - ⛰️ **Truly destructible terrain**, a per-pixel bitmap. Craters are real holes; tanks get **buried**, slide, and fall when the ground under them is blown away.
 - 🌬️ **Cruel, fair wind**: a gentle per-turn drift (seeded, never random) that nudges every shell sideways.
+- 🧭 **A fair first salvo**: each seat gets one collision-accurate opening trajectory lesson, then the game returns to a short launch-only guide so ranging stays a skill.
 - 🧨 **The full arsenal**. All **11 weapons** live, each with its own blast, color, and behavior, on a credit economy with finite ammo.
 - 🏆 **Best-of-N matches**: multi-round matches with a scoreboard (kills, damage, rounds won), a between-rounds shop, and a persisted final result.
 - 🤖 **Computer opponents**: a deterministic shot-planner (easy/medium/hard), playable hot-seat *and* online.
@@ -60,7 +61,8 @@ can blow a hole straight through.
 | `↑` / `↓` | Adjust **power** |
 | `A` / `D` | Move the active tank left / right (spends fuel) |
 | `Space` / `Enter` | **Fire** |
-| `Tab` / `Q` | Cycle weapon (accelerator) |
+| `Q` | Cycle weapon |
+| `G` | Toggle trajectory guidance |
 | **Click the weapon strip** | Select a weapon directly (shows live ammo), including the **Shield** |
 | **Mobility rocker** | Move left / right and read remaining fuel |
 | **Store panel** | Buy weapons and accessories with credits (mid-turn, and per-tank in the between-rounds shop) |

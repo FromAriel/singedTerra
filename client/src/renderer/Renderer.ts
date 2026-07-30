@@ -10,8 +10,8 @@ import { getWeapon } from '@shared/engine/WeaponSystem';
 import { launchVelocity, GRAVITY, WIND_FACTOR } from '@shared/engine/Physics';
 import { fireActiveEdge, bettyHopCount, isOobFizzle } from './audioEdges';
 
-/** Aim guide length in ticks. DELIBERATELY SHORT: it shows launch direction +
- *  relative power (and which way the wind bends the opening arc), but stops long
+/** Normal aim-guide length in ticks. DELIBERATELY SHORT: after the bounded
+ *  opening-salvo lesson it shows launch direction + relative power, but stops
  *  before the landing point — so reading wind/gravity over distance stays the
  *  player's skill and the guide can't trivialize aiming (per design constraint). */
 const AIM_GUIDE_TICKS = 16;
@@ -41,6 +41,11 @@ import {
 } from './impactDepthParallax';
 import { getNapalmFirelightPools } from './napalmFirelight';
 import { AtmosphereCloudLayer } from './atmosphereClouds';
+import {
+  drawOpeningSalvoSolution,
+  getAimGuideMode,
+  OpeningSalvoCache,
+} from './openingSalvo';
 
 /** Shared barrel geometry keeps muzzle FX at the visual tip. */
 /**
@@ -304,6 +309,10 @@ export class Renderer {
   private showAimGuide = false;
   /** User master toggle (G key), persisted: aim guide on/off. */
   private aimGuideEnabled: boolean;
+  /** Effective gravity for the current authoritative turn, supplied by main. */
+  private aimGuideGravity = GRAVITY;
+  /** Avoid repeated swept traces while cosmetic opening animations redraw. */
+  private readonly openingSalvoCache = new OpeningSalvoCache();
   /** Centre of the most recent detonation, for the last-shot ranging marker. */
   private lastImpact: { x: number; y: number } | null = null;
 
@@ -333,8 +342,9 @@ export class Renderer {
 
   /** main.ts sets this each turn: true only when the LOCAL human controls the
    *  active tank (hot-seat human turn, or networked + it's my id). */
-  setAimGuide(visible: boolean): void {
+  setAimGuide(visible: boolean, gravity = GRAVITY): void {
     this.showAimGuide = visible;
+    this.aimGuideGravity = Number.isFinite(gravity) && gravity > 0 ? gravity : GRAVITY;
   }
 
   /** Flip the aim-guide master toggle (G key) and persist it. Returns new state. */
@@ -367,6 +377,7 @@ export class Renderer {
     this.scorches.length = 0;
     this.lastSeenExplosionId = 0;
     this.lastImpact = null;
+    this.openingSalvoCache?.clear();
     this.prevHealth.clear();
     this.prevShieldHp.clear();
     this.shieldBaselineRound = null;
@@ -909,19 +920,32 @@ export class Renderer {
   }
 
   /**
-   * A faint dotted launch guide from the active tank's barrel tip. It integrates
-   * the REAL projectile step (launchVelocity + gravity + this turn's wind), so it is
-   * honest — but only for AIM_GUIDE_TICKS ticks, so it reveals launch direction and
-   * relative power (and the wind's opening bend) WITHOUT showing the impact point.
-   * Read-only: it never touches the deterministic engine, only mirrors its math.
+   * Opening turns route to a collision-accurate full solution; every later or
+   * secondary-behavior turn uses the faint dotted launch guide. Both are read-only
+   * presentation and never touch deterministic engine state.
    */
   private drawAimGuide(state: GameState): void {
     const tank = state.tanks.find((t) => t.id === state.activePlayerId);
     if (!tank || !tank.alive) return;
+    const mode = getAimGuideMode(
+      state,
+      tank,
+      this.showAimGuide,
+      this.aimGuideEnabled,
+    );
+    if (mode === 'none') return;
+    if (mode === 'opening') {
+      const solution = this.openingSalvoCache.get(state, tank, this.aimGuideGravity);
+      if (!solution) return;
+      drawOpeningSalvoSolution(this.ctx, solution);
+      return;
+    }
+
     let { x, y } = barrelTip(tank, BARREL_LENGTH);
     const v = launchVelocity(tank.angle, tank.power);
     let vx = v.vx;
     let vy = v.vy;
+    if (![x, y, vx, vy, state.wind].every(Number.isFinite)) return;
     const ctx = this.ctx;
     ctx.save();
     for (let i = 0; i < AIM_GUIDE_TICKS; i++) {
