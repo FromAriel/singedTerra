@@ -1720,4 +1720,37 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - CI `e2e · rendering guardrails`: SUCCESS.
 - CodeQL `analyze (javascript-typescript)`: SUCCESS; repository CodeQL check: SUCCESS.
 - Supabase Preview: expected SKIPPED; the option is stored in existing room JSON and requires no migration or preview branch.
-- No merge or deployment performed. This receipt-only governance commit becomes the final PR head and must independently clear the same hosted gates.
+- No merge or deployment performed. This receipt-only governance commit becomes the final PR head and must independently clear the same hosted gates.### 2026-07-30 — Next slice: authored battlefield backdrop
+- Closed prior cell: PR #205 is OPEN, MERGEABLE, and exact-final-head green at `61cbb955e9fd84a019227fb66099c63634f91ef1`; no merge or deployment performed.
+- Direct player feedback prioritized higher-quality artwork over more procedural/SVG-like construction while preserving the browser game and Supabase backend.
+- SMARTS criteria: visible gameplay impact 30%, style cohesion 25%, performance/layout safety 20%, integration reversibility 15%, future asset leverage 10%.
+- Options scored: authored panoramic battlefield backdrop 9.25; generated tank sprite system 7.55; raster HUD panel skin 6.85.
+- Decision: replace only the weakest far-atmosphere layer with one cached authored 2:1 raster panorama. It improves every gameplay frame without creating tinting, barrel rotation, hitbox-readability, or responsive-HUD constraints. Confidence 0.96.
+- Asset/tool decision: built-in image generation + local WebP optimization 9.5 vs a runtime graphics dependency 3.6. No runtime or repository dependency is justified. Confidence 0.99.
+- Design/spec gate auto-approved under the standing passion-project sprint authority and direct artwork request.
+- Hard boundaries: client presentation only; existing procedural fallback retained; no engine, action-log, Supabase, layout, dependency, merge, deployment, or spend beyond tokens.### 2026-07-30 — Authored backdrop asset TDD
+- Asset-contract RED: the absent `/art/battlefield-backdrop.webp` fell through to the Vite HTML shell (`text/html`), proving the test rejects missing or misrouted art.
+- Built-in image generation produced an environment-only 1774x887 panorama with open central sky, edge-weighted mesas, and the canonical dusk/ember palette. No tanks, shells, explosions, text, UI, sun, or foreground gameplay shelf were baked in.
+- Local tool decision corrected from unavailable Pillow to installed ffmpeg; native 2:1 composition was preserved and encoded as opaque `yuv420p` WebP without adding a dependency. Final transfer size: 81,018 bytes (16.2% of the 500,000-byte cap).
+- Asset-contract GREEN: focused production-build Playwright check passed 1/1, including WebP MIME, decode, 2:1 ratio, minimum width, transfer bound, and sampled full opacity.
+- Built-in image prompt was production-bound and the final selected output is saved at `client/public/art/battlefield-backdrop.webp`.### 2026-07-30 — Authored backdrop loader and integration TDD
+- Loader RED: focused Vitest failed because `BattlefieldBackdrop` did not exist. GREEN: 5/5 prove one allocation, base-aware URL, loading fallback, exact 1200x600 draw, valid 2:1 acceptance, and fail-closed error/invalid dimensions.
+- Renderer seam RED: 3/3 assertions failed against the prior renderer because it never drew an authored panorama, never substituted clouds/ridges, and released idle while the image was still loading.
+- Renderer GREEN: the page-level renderer owns one cached backdrop, paints it inside far-atmosphere parallax, retains dynamic stars/sun/haze, replaces procedural clouds/ridges only after a successful draw, and keeps redraws alive only until load settles. Focused renderer/loader/cloud suite passed 10/10.
+- Browser visual QA: the authored sky is visibly integrated behind live destructible terrain and the HUD at 1280x720; canvas stage remains fitted and document dimensions equal viewport dimensions.
+- Cross-profile production E2E passed 6/6 across desktop, touch landscape, and small-window: live renderer requests the WebP successfully, asset contract holds, and no profile reintroduces scrolling.### 2026-07-30 — Authored backdrop adversarial review and repairs
+- Independent review found two delivery blockers: decoded success could settle the idle loop before the first authored frame was painted, and the initial asset's lower band read as solid foreground despite having no collision contract.
+- Async repair TDD RED: loader and real renderer-transition tests failed because `isSettled` became true immediately on `onload`. GREEN: readiness stays unsettled until `draw()` acknowledges the first authored frame; failed loads release idle immediately. Focused loader/renderer suite passed 10/10. Confidence 0.99.
+- Asset repair: built-in image editing preserved the upper composition while replacing the lower 20% rocky shelf with low-contrast basin haze. The selected opaque 1774x887 WebP is 58,882 bytes and exposes no false foreground plane. Confidence 0.97.
+- Edge repair TDD RED: a 16px overscan contract initially drew at the exact canvas bounds. GREEN: the 2:1 panorama expands proportionally to cover the composed shake/kick translation bound without edge strips.
+- Browser evidence strengthened: the integration suite samples the live canvas against a forced procedural fallback and requires a material color delta, catching a decoded-but-never-painted image. All 9 backdrop checks pass across desktop, touch landscape, and small-window.
+- Project-base evidence: the same 9/9 production Playwright checks pass with `VITE_BASE=/singedTerra/`; the asset response path is asserted against the page-relative URL.
+- Visual QA at 1280x720 confirms authored mesas/haze remain behind live destructible terrain and both tanks, the HUD retains contrast, and the document remains exactly viewport-sized with no scrolling.
+### 2026-07-30 — Authored backdrop final local gate
+- Adversarial follow-up: PASS; the repaired ready-frame latch, proportional overscan, haze-only lower asset band, actual canvas-compositing proof, and Vite project-base route have no remaining Critical, Important, or Minor finding.
+- `npm run check`: PASS, including deterministic engine, replay, nearest-opponent aim, and 403/403 muzzle assertions.
+- Client coverage: PASS, 83 files / 586 tests; 86.91% statements, 76.89% branches, 73.94% functions, 89.95% lines; `BattlefieldBackdrop.ts` 96% statements / 95.23% branches / 95.83% lines.
+- Edge: PASS, 170 passed / 0 failed. Production build: PASS, 1,878 modules; main 252.20 kB / 68.19 kB gzip.
+- Rendering E2E: PASS, 55 passed / 8 expected project skips. Focused root and `/singedTerra/` backdrop matrices each passed 9/9 across all viewport profiles.
+- Runtime and full audit: PASS, 0 vulnerabilities. Cached diff hygiene, conflict-marker scan, exact staged manifest, and state-free secret scan: PASS (`[]`).
+- No dependency, lockfile, engine, action-log, Supabase, migration, layout, merge, deployment, or spend beyond tokens.
