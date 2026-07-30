@@ -98,8 +98,9 @@ function bootstrap(): void {
 
   renderer.setEvents({
     onLaunch: () => audio.launch(),
-    onExplosion: (radius) => {
+    onExplosion: (radius, impact) => {
       audio.explosion(radius);
+      if (impact) audio.impact(impact.impactType, impact.radius);
       flashBloom(radius);
     },
     onHop: () => audio.hopTick(),
