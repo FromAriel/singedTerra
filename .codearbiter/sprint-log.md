@@ -1800,4 +1800,10 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Required PR coverage audit returned no Critical or High blocker and identified two Medium oracle gaps plus two Low branch/order gaps.
 - Negative-path coverage now proves signed luminance darkens terrain rather than merely changing it; a constant-highlight test pins material-before-bevel ordering; the null decode-context failure settles into fallback.
 - Browser coverage now drives the real deterministic fire path on fallback and authored pages, derives newly exposed wall coordinates from pre/post canvas frames, and proves material modulation on those live crater-wall pixels after the engine advances terrain version.
-- Focused unit suite passed 12/12. Root and `/singedTerra/` production Playwright matrices each passed 6/6 across all profiles. Confidence 0.97.
+- Focused unit suite passed 12/12. Root and `/singedTerra/` production Playwright matrices each passed 6/6 across all profiles. Confidence 0.97.### 2026-07-30 — Authored terrain material PR receipt
+- Governed implementation commit: `278dbca` (`feat(rendering): add authored terrain material`).
+- Coverage hardening commit: `dd969eb` (`test(rendering): harden terrain material oracles`).
+- Ready stacked PR opened: https://github.com/SUaDtL/singedTerra/pull/207
+- Base: `codex/authored-battlefield-backdrop` at `49f9f0854aa4e1c2b1ac69a4e7289fdef8bb916b`; implementation head at PR creation: `dd969eb4bedea119796ad717dae636b8bd86547c`.
+- Adversarial rendering review and required coverage audit each returned zero findings at every reported severity.
+- Merge and deployment intentionally not performed. The final governance receipt head must clear hosted CI and CodeQL.
