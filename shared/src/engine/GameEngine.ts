@@ -36,6 +36,8 @@ import {
   explosionDamage,
   surfaceNormalAt,
   reflectVelocity,
+  reflectSideWall,
+  MAX_FLIGHT_TICKS,
   MAX_WIND,
   WIND_DRIFT_STEP,
   MAX_DAMAGE,
@@ -106,16 +108,6 @@ function deriveRoundSeed(baseSeed: number, round: number): number {
  *  tick does not re-collide with the same solid pixel. */
 const BOUNCE_EPS = 1.5;
 
-/** Hard cap on a projectile's airborne lifetime (ticks). Once a shell has flown
- *  this long it is force-detonated where it is, bounding worst-case ANIMATION length
- *  — without this, a bounding mine's hop kick can keep it skipping for ~700 ticks
- *  (12s @60fps), leaving the player watching a shell crawl across the field. (The fire
- *  watchdog itself clears on the committed echo, not animation, so this is a UX +
- *  runaway guard, not a network-timeout fix.) Every LEGIT ballistic arc resolves by
- *  ~224 ticks (flightticks.mjs grid), so this only fires on an anomalous skip, never a
- *  normal shot. Playtest-tunable (sibling to the combat-feel rebalance, issue #45). */
-const MAX_FLIGHT_TICKS = 240;
-
 /** Aim-input clamps (SPEC §6: angle degrees 0=right..180=left; power 0–100). */
 const ANGLE_MIN = 0;
 const ANGLE_MAX = 180;
@@ -155,6 +147,8 @@ export class GameEngine {
 
   /** Monotonic explosion id source — drives ExplosionEvent.id dedupe. */
   private explosionSeq = 0;
+  /** Monotonic sidewall-contact id source for renderer/audio dedupe. */
+  private wallImpactSeq = 0;
 
   /**
    * Active napalm fire field — working store of burning column x → ticks of burn
@@ -332,6 +326,7 @@ export class GameEngine {
     // Arms level: a finite level clamped to [0,4], else 4 (everything / back-compat).
     const al = options?.armsLevel;
     this.armsLevel = Number.isFinite(al) ? clamp(Math.floor(al as number), 0, 4) : 4;
+    const walls = options?.walls === 'reflective' ? 'reflective' : 'open';
     this.turnAtRoundStart = 0; // opening round begins at the turn-0 baseline
     this.options = options;
 
@@ -356,6 +351,7 @@ export class GameEngine {
       activePlayerId: tanks[0]?.id ?? '',
       // Opening turn's wind: drift from a 0 baseline, advancing the stream once.
       wind: this.nextWind(0),
+      walls,
       // SAME reference as this.terrain — getState() returns the live bitmap by
       // reference, no per-snapshot copy/sync.
       terrain: this.terrain,
@@ -365,6 +361,7 @@ export class GameEngine {
       projectile: null,
       lastExplosion: null,
       explosions: [],
+      wallImpacts: [],
       fire: [],
       winner: null,
     };
@@ -442,6 +439,7 @@ export class GameEngine {
 
     // --- Scalar / primitive fields ---
     c.explosionSeq  = this.explosionSeq;
+    c.wallImpactSeq = this.wallImpactSeq;
     c.fireCenter    = this.fireCenter;
     c.shooterId     = this.shooterId;
     c.shotDamage    = this.shotDamage;
@@ -514,6 +512,7 @@ export class GameEngine {
       lastRoundWinnerId: s.lastRoundWinnerId,
       activePlayerId:    s.activePlayerId,
       wind:              s.wind,
+      walls:             s.walls,
       terrain:           c.terrain,   // points to the clone's own bitmap
       terrainVersion:    s.terrainVersion,
       tanks:             cloneTanks,
@@ -521,6 +520,7 @@ export class GameEngine {
       projectile:        cloneProjectile,
       lastExplosion:     cloneLastExp,
       explosions:        cloneExplosions,
+      wallImpacts:       s.wallImpacts.map((event) => ({ ...event })),
       fire:              cloneFire,
       winner:            s.winner,
     };
@@ -611,6 +611,7 @@ export class GameEngine {
         // across ticks (a cluster shot lands its bomblets over several ticks);
         // the renderer dedupes by id, so accumulating is safe.
         this.state.explosions = [];
+        this.state.wallImpacts = [];
         this.state.projectiles = [
           {
             x: tip.x,
@@ -846,10 +847,28 @@ export class GameEngine {
         }
       }
 
-      const hit = sweepCollide(p, prevX, prevY, this.terrain, this.state.tanks);
+      const hit = sweepCollide(
+        p,
+        prevX,
+        prevY,
+        this.terrain,
+        this.state.tanks,
+        this.state.walls,
+      );
 
       if (hit.type === 'none') {
         survivors.push(p); // still in flight
+        continue;
+      }
+      if (hit.type === 'wall') {
+        reflectSideWall(p, hit);
+        this.state.wallImpacts.push({
+          id: ++this.wallImpactSeq,
+          side: hit.side,
+          x: hit.x,
+          y: hit.y,
+        });
+        survivors.push(p);
         continue;
       }
 
@@ -1201,6 +1220,7 @@ export class GameEngine {
     this.state.projectiles = [];
     this.syncProjectileAlias();
     this.state.explosions = [];
+    this.state.wallImpacts = [];
     this.state.lastExplosion = null;
     this.state.fire = [];
     this.fire.clear();

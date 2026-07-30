@@ -1669,3 +1669,55 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - CodeQL `analyze (javascript-typescript)`: SUCCESS; repository CodeQL check: SUCCESS.
 - Supabase Preview: expected SKIPPED because no backend surface changed.
 - No merge or deployment performed. This receipt-only governance commit becomes the final PR head and must independently clear the same hosted gates.
+### 2026-07-28 — Next slice: reflective sidewalls
+- Closed prior cell: PR #204 is OPEN, MERGEABLE, and exact-final-head green at `d2b609405b6442c8905d742f8084fab7d882af4c`; no merge or deployment performed.
+- SMARTS criteria: gameplay/replay payoff 30%, player readability 20%, deterministic fit 20%, effort/reversibility 15%, visual identity 15%.
+- Options scored: reflective sidewalls 8.90; wrap sidewalls 7.75; larger procedural tank art 7.20; AI personalities 6.90; cosmetic-only walls 5.35.
+- Decision: one opt-in reflective rule with engine, AI, opening-guide, room-option, rail, and contact-feedback parity. It adds classic bank-shot tactics without a new synchronized action or migration. Confidence 0.93.
+- Dependency SMARTS: native engine math + Canvas/Web Audio 9.6 vs physics/particle/audio package 3.8. No dependency is justified; dependencies remain allowed for later slices. Confidence 0.98.
+- Spec gate auto-approved under the standing passion-project sprint authority.
+- Hard boundaries: open remains default; no ceiling/wrap/concrete mode, wall damage, migration, merge, deployment, or spend beyond tokens.
+### 2026-07-28 — Reflective sidewall Task 1 TDD
+- TDD RED: legacy open-wall assertions passed, while left/right live reflection, authoritative contacts, multi-bank continuation, reflective AI probing, and the opening-guide bank path failed. Result: wall harness 6 passed / 10 failed; opening focus 8 passed / 1 failed.
+- Implementation decision: one shared `reflectSideWall` primitive owns exact inset + horizontal velocity reversal; live engine, AI search, and opening trace all consume the same swept `wall` collision. Confidence 0.97.
+- Wall contacts use a monotonic engine id and current-shot event list, matching the existing explosion event/dedupe pattern without adding an action-log field. Confidence 0.94.
+- TDD GREEN: wall harness 18/18; opening-salvo focus 9/9; workspace typecheck green. Clone preserves mode/contact sequence/future flight and keeps projectile state independent.### 2026-07-29 — Reflective sidewall Task 2 and playtest correction
+- TDD RED: missing sidewall visual module; lobby coercion rejected reflective mode; Edge validation lacked a wall-mode contract. Focused lobby RED was 31 passed / 2 failed and the Edge typecheck failed on the missing export.
+- TDD GREEN: sidewall visual + bounded contact consumption, hot-seat/online selection, transport, room JSON validation, rejoin, and rematch plumbing are implemented. Focused client matrix passed 79/79; create-room Edge focus passed 12/12; wall harness passed 18/18; workspace typecheck passed.
+- Browser proof at 1280x720: reflective rails are visible, a live maximum-power bank shot reflected and resolved to Player 2, and the game remained exactly viewport-sized (1280x720 document; no scrolling).
+- Player feedback correctly identified that a collision-accurate opening path solved too much of the artillery game despite its visual appeal. Decision: remove full trajectories and impact brackets entirely; keep a polished 14-tick collision-unaware launch segment on every eligible human turn. Confidence 0.99.
+- Aim-guide correction TDD RED: new skill-preservation suite failed because the bounded guide module did not exist. GREEN: 3/3 tests prove opening/later parity, a hard 14-tick bound with no impact contract, and fail-closed invalid/hidden states; typecheck passed.
+- Next-cell priority from direct player feedback: replace the weakest high-visibility procedural/SVG-like artwork with optimized authored raster assets after this PR reaches exact-head green. Dependency and asset tooling remain allowed; no money beyond tokens.### 2026-07-29 — Reflective sidewall adversarial review and repairs
+- Independent review found two PR-blocking correctness gaps. First, the 14-tick cue still reused exact physics and concrete supported shots hit within that displayed segment (0°/power 10 at tick 5; 15°/10 at tick 9; 30°/20 at tick 12). Second, AI probing simulated 1,600 ticks while live play force-detonated at 240, allowing a valid gravity-0.05 reflective bank to score a terrain impact at tick 253 that live play could never reach.
+- Aim repair: the cue now uses a fixed local vector with a small visual flourish and relative-power length; it has no wind, gravity, collision, terrain, wall, tank, or fixed-step input. Low-power tests prove it does not reproduce the authoritative recurrence. Confidence 0.99.
+- AI repair: `MAX_FLIGHT_TICKS` is shared from Physics; AI increments projectile age and returns the exact forced-detonation point at the same 240-tick boundary as GameEngine. The reproduced low-gravity bank now matches live explosion coordinates exactly. Confidence 0.99.
+- Coverage repairs: real `applyAction` bank replay is byte-identical across fresh engines; renderer sink contacts dedupe and re-arm on reset; ricochet audio is side-distinct and capped at 0.13 combined gain / 0.11 seconds; reflective rematch options normalize through both response paths; side-wall label/select/hint relationships are accessible.
+- Direct player request folded in as a small adjacent improvement: fresh tanks and new-round tanks face the nearest opponent (45° right / 135° left), with roster order breaking equal-distance ties. Focused wall harness is 27/27; round-reset harness proves 45°/135° restoration; browser E2E proves Player 2 presents `45° ◀` after Player 1 fires. Confidence 0.99.
+- Full focused GREEN after repairs: client 81 files / 576 tests; Edge 168/168; AI search; muzzle geometry 403/403; workspace build/typecheck.### 2026-07-30 — Reflective sidewall review follow-up
+- Final reviewer blocker was coverage, not behavior: the lost-claim and winning-create rematch branches shared normalization but lacked independent response-path tests.
+- TDD RED: restart-game test import failed because the two response projectors were not yet exported.
+- Fix: extracted `projectExistingRematchInfo` and `projectCreatedRematchInfo`, routed each production branch through its corresponding projector, and pinned reflective-wall preservation independently.
+- TDD GREEN: restart-game focus passed 6/6. Adversarial follow-up confirmed both production paths execute the tested projectors; no actionable blocker remains.
+- Full deterministic/typecheck gate passed, including 27/27 wall assertions, nearest-opponent fresh/round-reset aim, AI/live 240-tick parity, clone parity, replay determinism, and 403/403 muzzle assertions.### 2026-07-30 — Reflective sidewall final local gate
+- Adversarial review: PASS; all behavioral findings and the final branch-level rematch coverage gap are resolved, with no remaining actionable blocker.
+- `npm run check`: PASS, including 27/27 wall assertions, nearest-opponent aim, round reset, shared AI/live cap, engine purity, clone parity, replay determinism, and muzzle geometry 403/403.
+- Client coverage: PASS, 81 files / 576 tests; 86.84% statements, 76.64% branches, 73.72% functions, 89.91% lines.
+- Edge: PASS, 170 passed / 0 failed, including independent lost-claim and winning-create rematch response tests.
+- Production build: PASS, 1,877 modules; main 251.17 kB / 67.80 kB gzip.
+- Rendering E2E: PASS, 46 passed / 8 expected project skips, including the bounded aim guide across three viewport profiles and Player 2's left-facing default after rotation.
+- Runtime audit: PASS, 0 vulnerabilities. Diff hygiene, conflict-marker scan, and state-free changed-line secret scan: PASS (`[]`).
+- No dependency, lockfile, migration, merge, deployment, or spend beyond tokens.### 2026-07-30 — Reflective sidewall governed commit
+- Governed behavior commit: `aafe7b6` (`feat(gameplay): add reflective sidewalls`).
+- Commit gate evidence: explicit 41-file staged manifest, complete deterministic/client/Edge/build/E2E matrix, resolved adversarial review, zero-vulnerability audit, clean cached diff, no unstaged drift, and empty staged secret scan.
+- Stacked PR target remains `codex/material-impact-signatures`; merge and deployment remain intentionally excluded.### 2026-07-30 — Reflective sidewall PR receipt
+- Ready stacked PR opened: https://github.com/SUaDtL/singedTerra/pull/205
+- Base: `codex/material-impact-signatures` at `d2b609405b6442c8905d742f8084fab7d882af4c`; head at PR creation: `ac932bb`.
+- Reviewer follow-up confirmed both rematch response paths are independently pinned and no actionable blocker remains.
+- Merge and deployment intentionally not performed. Exact receipt head must clear hosted CI and CodeQL.### 2026-07-30 — Reflective sidewall hosted gate receipt
+- PR #205 implementation receipt head `0e259d6f30b4c0dbd971b0033cbb9b54fd1c9bf4`: OPEN and MERGEABLE.
+- CI `typecheck · harnesses · build`: SUCCESS.
+- CI `edge function tests (deno)`: SUCCESS.
+- CI `e2e · rendering guardrails`: SUCCESS.
+- CodeQL `analyze (javascript-typescript)`: SUCCESS; repository CodeQL check: SUCCESS.
+- Supabase Preview: expected SKIPPED; the option is stored in existing room JSON and requires no migration or preview branch.
+- No merge or deployment performed. This receipt-only governance commit becomes the final PR head and must independently clear the same hosted gates.

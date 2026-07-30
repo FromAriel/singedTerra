@@ -6,7 +6,7 @@ export interface Room {
   code: string
   seed: number
   status: 'waiting' | 'active' | 'finished'
-  options: { maxPlayers: number; maxWind?: number; gravity?: number }
+  options: { maxPlayers: number; maxWind?: number; gravity?: number; walls?: 'open' | 'reflective' }
   players: RoomPlayer[]
   active_player_index: number
   turn: number

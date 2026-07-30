@@ -17,6 +17,7 @@
  * the pure helpers/constants already extracted into ../ui/lobbyValidation.
  */
 import type { AiDifficulty } from '@shared/types/GameState';
+import type { WallMode } from '@shared/types/GameOptions';
 import { clamp } from '@shared/engine/math';
 import { callFunction, type EdgeResult } from '../lib/edgeFunctions';
 import {
@@ -49,6 +50,7 @@ export type RoomOptions = {
   maxPlayers: number;
   maxWind: number;
   gravity: number;
+  walls?: WallMode;
   rounds?: number;
   interestRate?: number;
   suddenDeathTurn?: number;
@@ -134,6 +136,7 @@ export interface CreateRoomParams {
   /** Raw advanced-settings inputs, exactly as typed into the UI. */
   maxWind: string;
   gravity: string;
+  walls: string;
   rounds: string;
   interestRate: string;
   suddenDeath: string;
@@ -176,6 +179,7 @@ export class LobbyTransport {
       options: {
         maxPlayers: params.maxPlayers,
         visibility: params.visibility,
+        walls: params.walls === 'reflective' ? 'reflective' : 'open',
         ...(maxWind !== undefined ? { maxWind: clamp(maxWind, WIND_MIN, WIND_MAX) } : {}),
         ...(gravity !== undefined ? { gravity: clamp(gravity, GRAVITY_MIN, GRAVITY_MAX) } : {}),
         ...(rounds !== undefined ? { rounds } : {}),

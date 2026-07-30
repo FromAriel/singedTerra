@@ -1,4 +1,5 @@
 import type { WeaponType } from '../engine/WeaponSystem';
+import type { WallMode } from './GameOptions';
 
 /** Turn-system phases (SPEC §4.3 / §6). */
 export type GamePhase =
@@ -39,6 +40,8 @@ export interface GameState {
   lastRoundWinnerId: string | null;
   /** Current wind value, range [-MAX_WIND, +MAX_WIND]. */
   wind: number;
+  /** Normalized horizontal boundary rule for engine, AI, and presentation. */
+  walls: WallMode;
   /**
    * Pixel terrain bitmap (Uint8Array of length CANVAS_WIDTH*CANVAS_HEIGHT,
    * index y*CANVAS_WIDTH + x, 0 = air, 1 = solid). Held by the engine and
@@ -95,6 +98,8 @@ export interface GameState {
    * `null` if none) for back-compat with consumers that read a single event.
    */
   explosions: ExplosionEvent[];
+  /** Wall contacts produced by the current shot, with monotonic cross-shot ids. */
+  wallImpacts: WallImpactEvent[];
   /**
    * Active napalm fire field — every terrain column currently burning, with the
    * ticks of burn each has remaining. `[]` whenever nothing is alight (the
@@ -115,6 +120,14 @@ export interface FireCell {
   x: number;
   /** Ticks of burn remaining; counts down to 0, then the cell is removed. */
   life: number;
+}
+
+/** Authoritative contact emitted when a projectile reflects from a side rail. */
+export interface WallImpactEvent {
+  id: number;
+  side: 'left' | 'right';
+  x: number;
+  y: number;
 }
 
 /** Visual style of an explosion — drives the client's burst rendering. */

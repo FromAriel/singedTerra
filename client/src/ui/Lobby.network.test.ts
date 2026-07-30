@@ -148,6 +148,23 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
   // 1. create_room  (handleCreateRoom)
   // ========================================================================
   describe('create_room', () => {
+    it('associates the side-wall label and hint with its select', () => {
+      lobby.show();
+      const playOnline = Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Play Online')!;
+      playOnline.click();
+
+      const label = Array.from(root.querySelectorAll('label'))
+        .find((candidate) => candidate.textContent === 'Side walls')!;
+      expect(label.htmlFor).not.toBe('');
+      const select = root.querySelector<HTMLSelectElement>(`#${label.htmlFor}`)!;
+      expect(select).not.toBeNull();
+      const hintId = select.getAttribute('aria-describedby');
+      expect(hintId).not.toBeNull();
+      expect(root.querySelector(`#${hintId}`)?.textContent)
+        .toContain('bank shots rebound');
+    });
+
     it('GUARD: empty name sets the error and never calls fetch', async () => {
       const fetchMock = stubFetch();
       internals(lobby).onlineName = '   '; // whitespace trims to empty
@@ -173,7 +190,7 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       expect(body).toEqual({
         playerName: 'Alice',
         color: '#e84d4d',
-        options: { maxPlayers: 2, visibility: 'public' },
+        options: { maxPlayers: 2, visibility: 'public', walls: 'open' },
       });
       // No conditional keys leaked into the body.
       const opts = (body as { options: Record<string, unknown> }).options;
@@ -194,6 +211,7 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
         onlineBotDifficulty: 'hard',
         onlineMaxWind: '5',
         onlineGravity: '0.25',
+        onlineWalls: 'reflective',
         onlineRounds: '4', // even -> forced to 5
         onlineInterestRate: '0.2',
         onlineSuddenDeath: '15',
@@ -213,6 +231,7 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
           visibility: 'private',
           maxWind: 5,
           gravity: 0.25,
+          walls: 'reflective',
           rounds: 5,
           interestRate: 0.2,
           suddenDeathTurn: 15,
@@ -430,7 +449,12 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       await internals(lobby).handleJoinRoom();
 
       expect(internals(lobby).waitingSeed).toBe(0);
-      expect(internals(lobby).waitingOptions).toEqual({ maxPlayers: 2, maxWind: 10, gravity: 0.15 });
+      expect(internals(lobby).waitingOptions).toEqual({
+        maxPlayers: 2,
+        maxWind: 10,
+        gravity: 0.15,
+        walls: 'open',
+      });
       expect(internals(lobby).waitingPlayers).toEqual([]);
       await flush();
     });

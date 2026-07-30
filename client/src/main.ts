@@ -103,6 +103,7 @@ function bootstrap(): void {
       if (impact) audio.impact(impact.impactType, impact.radius);
       flashBloom(radius);
     },
+    onWallImpact: (side) => audio.wallReflect(side),
     onHop: () => audio.hopTick(),
     onFireActive: (active) => {
       if (active) audio.napalmStart();
@@ -523,6 +524,7 @@ async function createClient(config: LobbyConfig): Promise<GameClient> {
       seed:       config.settings?.seed,
       maxWind:    config.settings?.maxWind,
       gravity:    config.settings?.gravity,
+      walls:      config.settings?.walls,
       // Best-of-N is sourced from the synced room row (see Lobby.emitNetworkReady),
       // so every client builds an identical engine — required for deterministic
       // lockstep across round boundaries. Undefined => single round.
@@ -550,6 +552,7 @@ async function createClient(config: LobbyConfig): Promise<GameClient> {
     ...(settings?.seed != null ? { seed: settings.seed } : {}),
     ...(settings?.maxWind != null ? { maxWind: settings.maxWind } : {}),
     ...(settings?.gravity != null ? { gravity: settings.gravity } : {}),
+    ...(settings?.walls != null ? { walls: settings.walls } : {}),
     // Best-of-N is hot-seat-only for now: in networked lockstep `rounds` must come
     // from the synced room row so every client's engine agrees (Slice 3), otherwise
     // engines would diverge on when a round ends. Networked play stays single-round.
@@ -577,6 +580,7 @@ function rematchToConfig(info: RematchInfo, myPlayerId: string): LobbyConfig {
       seed: info.seed,
       maxWind: info.options.maxWind,
       gravity: info.options.gravity,
+      ...(info.options.walls === 'reflective' ? { walls: 'reflective' as const } : {}),
       ...(info.options.rounds !== undefined ? { rounds: info.options.rounds } : {}),
     },
   };

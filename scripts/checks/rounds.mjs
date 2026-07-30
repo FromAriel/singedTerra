@@ -89,12 +89,15 @@ function terrainsEqual(a, b) {
   if (st.tanks[0].inventory.nuke.count !== 2) fail(`inventory should carry between rounds, got ${st.tanks[0].inventory.nuke.count}`);
   if (st.tanks[0].health !== 100 || st.tanks[1].health !== 100) fail(`health should reset to 100, got ${st.tanks.map((t) => t.health)}`);
   if (!st.tanks.every((t) => t.alive)) fail('all tanks should be alive again at the start of a new round');
+  if (st.tanks[0].angle !== 45 || st.tanks[1].angle !== 135) {
+    fail(`fresh-round tanks should face each other at 45/135, got ${st.tanks.map((t) => t.angle)}`);
+  }
   if (st.terrainVersion <= versionR1) fail(`terrainVersion should bump on regen (was ${versionR1}, now ${st.terrainVersion})`);
   if (terrainsEqual(terrainR1, st.terrain)) fail('round 2 terrain should differ from round 1 (derived seed) — got an identical map');
   // next_round leaves the shop and begins combat.
   startNextRound(e);
   if (e.getState().phase !== 'PLAYER_TURN') fail(`next_round should start combat, got ${e.getState().phase}`);
-  if (!failed) log('PASS: best-of-3 pauses in ROUND_OVER then next_round starts round 2; credits/inventory carry, health/terrain reset.');
+  if (!failed) log('PASS: best-of-3 pauses in ROUND_OVER then next_round starts round 2; credits/inventory carry, health/terrain/nearest-opponent aim reset.');
 }
 
 // --- Check 2b: the between-rounds shop — a buy in ROUND_OVER carries into the round ---

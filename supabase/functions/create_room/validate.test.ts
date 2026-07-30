@@ -6,7 +6,14 @@
 // Run: "C:/Users/brenn/.deno/bin/deno.exe" test supabase/functions/create_room/validate.test.ts
 
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts'
-import { coerceEconomyOptions, coerceGravity, coerceMaxWind } from './validate.ts'
+import { coerceEconomyOptions, coerceGravity, coerceMaxWind, coerceWallMode } from './validate.ts'
+
+Deno.test('coerceWallMode: accepts the two modes and fails closed to open', () => {
+  assertEquals(coerceWallMode('reflective'), 'reflective')
+  assertEquals(coerceWallMode('open'), 'open')
+  assertEquals(coerceWallMode('lava'), 'open')
+  assertEquals(coerceWallMode(undefined), 'open')
+})
 
 // AC1.1 — present + valid => carried (clamped where applicable).
 Deno.test('coerceEconomyOptions: valid values are carried', () => {

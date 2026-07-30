@@ -1,5 +1,8 @@
 import type { AiDifficulty } from './GameState';
 
+/** Horizontal battlefield boundary rule. */
+export type WallMode = 'open' | 'reflective';
+
 /**
  * Per-room game configuration set at room creation. Consumed by the engine
  * (GameEngine/Tank) and the network client. (Formerly lived in a socket.io
@@ -23,6 +26,8 @@ export interface GameOptions {
   maxWind?: number;
   /** Gravity strength; defaults to GRAVITY. */
   gravity?: number;
+  /** Horizontal boundary behavior; defaults to open (legacy OOB miss). */
+  walls?: WallMode;
   /**
    * Best-of-N match length (V1 round system). Defaults to 1 — a single round, i.e.
    * the original "first elimination ends the game" behavior (full back-compat). For

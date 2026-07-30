@@ -1,6 +1,30 @@
 import type { ExplosionImpactType } from '@shared/types/GameState';
 import { getImpactAudioProfile } from '../feel/impactMaterial';
 
+export interface WallReflectAudioProfile {
+  readonly startFrequency: number;
+  readonly endFrequency: number;
+  readonly noiseGain: number;
+  readonly toneGain: number;
+  readonly noiseDuration: number;
+  readonly toneDuration: number;
+}
+
+/** Pure bounded profile so ricochet headroom and side distinction stay testable. */
+export function getWallReflectAudioProfile(
+  side: 'left' | 'right',
+): WallReflectAudioProfile {
+  const startFrequency = side === 'left' ? 720 : 880;
+  return {
+    startFrequency,
+    endFrequency: startFrequency * 0.55,
+    noiseGain: 0.075,
+    toneGain: 0.055,
+    noiseDuration: 0.065,
+    toneDuration: 0.11,
+  };
+}
+
 /**
  * AudioEngine — synthesized SFX via the Web Audio API, NO asset files.
  *
@@ -272,6 +296,40 @@ export class AudioEngine {
     tone.connect(gain).connect(this.master);
     tone.start(t);
     tone.stop(t + profile.duration + 0.02);
+  }
+
+  /** Bright rail ricochet, panned by pitch so left/right contacts stay distinct. */
+  wallReflect(side: 'left' | 'right'): void {
+    if (this.muted) return;
+    const ctx = this.ensure();
+    if (!ctx || !this.master) return;
+    const t = ctx.currentTime;
+    const profile = getWallReflectAudioProfile(side);
+    this.noiseHit(
+      t,
+      profile.noiseDuration,
+      profile.noiseGain,
+      'highpass',
+      2600,
+      3.5,
+    );
+    const tone = ctx.createOscillator();
+    tone.type = 'triangle';
+    tone.frequency.setValueAtTime(profile.startFrequency, t);
+    tone.frequency.exponentialRampToValueAtTime(
+      profile.endFrequency,
+      t + profile.toneDuration - 0.025,
+    );
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(profile.toneGain, t + 0.003);
+    gain.gain.exponentialRampToValueAtTime(
+      0.0001,
+      t + profile.toneDuration - 0.02,
+    );
+    tone.connect(gain).connect(this.master);
+    tone.start(t);
+    tone.stop(t + profile.toneDuration);
   }
 
   /** Soft tick for aim (angle/power) nudges. Throttled so held-key auto-repeat
