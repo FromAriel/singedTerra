@@ -31,6 +31,12 @@
   --backdrop: #0c0716;
   --line-ink: #09040d;
   --line-gold: rgba(255, 210, 63, 0.55);
+  /* Full-viewport theater frame: semantic atmosphere behind the fitted stage. */
+  --ambient-zenith: #1c1037;
+  --ambient-mid: #120a24;
+  --ambient-horizon: rgba(142, 47, 83, 0.22);
+  --ambient-ember: rgba(255, 122, 31, 0.18);
+  --ambient-star: rgba(255, 233, 168, 0.16);
   /* type system (D1: bundled display face + system mono/sans) */
   --font-display: 'SingedDisplay', 'Trebuchet MS', 'Segoe UI', Verdana, sans-serif;
   --font-mono: 'Courier New', ui-monospace, 'SFMono-Regular', monospace;
@@ -105,6 +111,28 @@ body {
 }
 
 /*
+ * Extend the authored battlefield palette through the aspect-ratio gutters.
+ * This is a static backplate, not a second game layer: it adds no animation,
+ * input surface, scroll area, or idle render work.
+ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
+  background:
+    radial-gradient(circle at 13% 18%, var(--ambient-star) 0 1px, transparent 2px),
+    radial-gradient(circle at 78% 11%, var(--ambient-star) 0 1px, transparent 2px),
+    radial-gradient(circle at 91% 29%, var(--ambient-star) 0 1px, transparent 2px),
+    radial-gradient(ellipse 58% 22% at 50% 100%, var(--ambient-ember), transparent 74%),
+    radial-gradient(ellipse 72% 24% at 50% 64%, var(--ambient-ember), transparent 72%),
+    radial-gradient(ellipse 112% 62% at 50% 54%, var(--ambient-horizon), transparent 68%),
+    linear-gradient(180deg, var(--ambient-zenith) 0%, var(--ambient-mid) 54%, var(--backdrop) 100%);
+}
+
+/*
  * #app is the positioned STAGE. It is exactly the canvas size and is scaled as
  * a single unit to fit smaller viewports — keeping aspect ratio (the same
  * scale on both axes) so canvas and HUD never desync. Larger viewports cap at
@@ -112,6 +140,7 @@ body {
  */
 #app {
   position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: row;
   width: var(--stage-w);

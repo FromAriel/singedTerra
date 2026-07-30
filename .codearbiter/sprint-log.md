@@ -1486,3 +1486,40 @@ Spec/plan: `.codearbiter/specs/turn-handoff-beacon.md`, `.codearbiter/plans/turn
 - Ready PR #200 was CLEAN and MERGEABLE on exact implementation/governance head 1b69ed657a1e56e6ef1c599b678e43ea764e442.
 - Exact-head CI run 30445016736 passed typecheck, deterministic harnesses, client tests, production build, 159 Edge tests, and the 37-case browser matrix with 8 expected skips.
 - Exact-head CodeQL run 30445015795 passed. Supabase Preview was expectedly skipped because no backend source changed. This receipt and the completed plan checkbox form the final governance-only delta; the pushed governance head must independently clear CI and CodeQL before the PR is called final-green. Per the standing goal, PR #200 remains open and no deployment or merge was performed. Confidence high.
+
+
+## 2026-07-29 - Atmospheric battlefield frame sprint
+
+- **[high] Select full-viewport atmosphere over another control or isolated effect.** Fresh 1600x900 Chromium inspection showed a strong fitted game stage surrounded by roughly 120px of nearly empty dusk gutter above and below, while the authored in-canvas cloud shelves were visually imperceptible. SMARTS Meaningful/Auditable/Reversible/Testable/Securable favors one coherent atmospheric frame because it is immediately visible before the first shot, reinforces the single-page composition, and is render-only. Confidence high.
+- **[high] Use cached procedural Canvas and semantic CSS instead of a dependency or raster download.** Dependencies remain fully allowed, but the existing theme, Canvas 2D, impact-depth parallax, and fixed viewport shell already own every required primitive. A library would add shipped/runtime surface without improving this bounded field; an image asset would complicate palette, scaling, and loading. Confidence high.
+- **[high] Keep the atmosphere static.** Continuous cloud drift would defeat the renderer's idle-skip battery optimization. Fixed bounded cloud geometry provides depth at rest; the existing impact parallax supplies momentary movement during detonations. Reduced-motion and deterministic gameplay remain untouched. Confidence high.
+- **[high] Approve the scoped spec and plan as SUaDtL under standing sprint authority.** The user delegated recurring passion-project decisions and asked the loop not to stop for approval. Hard gates remain enforced. Confidence high.
+
+Spec/plan: .codearbiter/specs/atmospheric-battlefield-frame.md, .codearbiter/plans/atmospheric-battlefield-frame.md.
+
+
+### Atmospheric battlefield frame TDD, review, and final matrix
+
+- RED: the cloud-profile suite could not resolve the absent module; renderer ordering failed because cloud art painted before stars; and the production-browser build could not satisfy the new atmospheric-frame contract. GREEN introduced four frozen far/near banks, one lazily rasterized transparent layer, star-then-cloud depth ordering, and a semantic fixed viewport backplate.
+- Live Chromium review caught the first rim implementation connecting overlapping open ellipse arcs into radar-like zigzags. Sparse crown arcs now move to each exact start point before stroking; a focused oracle pins 14 independent crowns. The final 1600x900 composition retained legible aiming, tanks, terrain, instruments, and actions while converting top/bottom gutters into intentional dusk/ember framing. No remaining correctness, rendering, accessibility, performance, security, or coverage findings. Confidence high.
+- Fresh deterministic/typecheck checks passed. Client coverage passed 74 files / 542 tests at 86.33% statements, 75.41% branches, 72.97% functions, and 89.42% lines. All 159 Edge tests passed. The Vite 6.4.3 production build passed at 238.50 kB / 64.27 kB gzip for the main bundle.
+- The full production-browser matrix passed 40 tests with 8 expected project skips across desktop, pixel-touch, and small-window. Runtime audit found zero vulnerabilities; all 145 auditable packages had verified registry signatures and 57 verified attestations; diff hygiene and changed-file secret scan were clean. No dependency, engine, physics, replay, action-log, database, migration, Edge Function, Supabase, or deterministic behavior changed. Confidence high.
+
+
+### Atmospheric battlefield frame behavior commit
+
+- Governed behavior commit 46f2563 (eat(renderer): deepen battlefield atmosphere) was created on final-green PR #200 head 10694d6. Fresh deterministic checks, 542 client tests, coverage, 159 Edge tests, production build, 40-case browser matrix with 8 expected skips, zero-vulnerability audit, visual review, staged diff hygiene, and staged secret scan passed. Confidence high.
+
+
+### Atmospheric battlefield frame ready PR opened
+
+- Behavior commit 46f2563 and governance commit 46a069 were pushed as codex/atmospheric-battlefield-frame.
+- Ready stacked PR #201: https://github.com/SUaDtL/singedTerra/pull/201
+- Base is codex/turn-handoff-beacon (#200) at final-green head 10694d6, so review isolates only the atmosphere slice. Exact-head hosted CI and CodeQL are pending; per the standing goal, the PR remains open and no merge or deployment was performed. Confidence high.
+
+
+### Atmospheric battlefield frame hosted gate receipt
+
+- Ready PR #201 was MERGEABLE on exact implementation/governance head 08f41981070d139b0bc985443f766f247abeac0.
+- Exact-head CI run 30457986920 passed typecheck, deterministic harnesses, client tests, production build, 159 Edge tests, and the 40-case browser matrix with 8 expected skips.
+- Exact-head CodeQL run 30457986882 passed. Supabase Preview was expectedly skipped because no backend source changed. This receipt and the completed plan checkbox form the final governance-only delta; the pushed governance head must independently clear CI and CodeQL before the PR is called final-green. Per the standing goal, PR #201 remains open and no deployment or merge was performed. Confidence high.

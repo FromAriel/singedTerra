@@ -32,6 +32,8 @@ Combat UI tokens live in `client/src/style.css`:
 - Type roles: `--ui-type-micro`, `--ui-type-label`, `--ui-type-body`,
   `--ui-type-title`.
 - Keyboard focus: `--ui-focus`.
+- Viewport atmosphere: `--ambient-zenith`, `--ambient-mid`,
+  `--ambient-horizon`, `--ambient-ember`, and `--ambient-star`.
 
 Use the semantic role, not a visually similar raw color. Team colors are a
 functional identity exception. The ballistic computer may retain its deeper
@@ -57,6 +59,9 @@ bezel and authored gauge treatment because it is the rail's focal instrument.
 - The arsenal is a transient in-rail drawer. It starts closed unless the player
   explicitly saved it open, never participates in rail height, and never
   introduces an inner scrollbar.
+- The fitted stage owns gameplay geometry; a static `body::before` backplate
+  extends the authored dusk palette through unavoidable aspect-ratio gutters.
+  It must stay non-interactive, token-driven, and free of scroll or idle motion.
 
 ## Icons and accessibility
 
