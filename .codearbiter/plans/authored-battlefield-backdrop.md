@@ -182,7 +182,7 @@ built-in image generation, local ffmpeg WebP encoding.
   `npm audit --audit-level=moderate`, `git diff --check`, conflict-marker scan,
   and changed-line secret scan.
 
-- [ ] **Step 4: Governed commit and PR**
+- [x] **Step 4: Governed commit and PR**
 
   Stage the exact reviewed manifest, commit through the codeArbiter gate, push,
   and open a ready PR against `codex/reflective-sidewalls`.

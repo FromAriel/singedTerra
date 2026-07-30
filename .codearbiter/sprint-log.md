@@ -1754,3 +1754,9 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Rendering E2E: PASS, 55 passed / 8 expected project skips. Focused root and `/singedTerra/` backdrop matrices each passed 9/9 across all viewport profiles.
 - Runtime and full audit: PASS, 0 vulnerabilities. Cached diff hygiene, conflict-marker scan, exact staged manifest, and state-free secret scan: PASS (`[]`).
 - No dependency, lockfile, engine, action-log, Supabase, migration, layout, merge, deployment, or spend beyond tokens.
+### 2026-07-30 — Authored backdrop PR receipt
+- Governed behavior commit: `95a5fcd` (`feat(rendering): add authored battlefield backdrop`).
+- Ready stacked PR opened: https://github.com/SUaDtL/singedTerra/pull/206
+- Base: `codex/reflective-sidewalls` at `61cbb955e9fd84a019227fb66099c63634f91ef1`; implementation head at PR creation: `95a5fcdfa36b772f3ccb3d769b13674c4baf054f`.
+- Adversarial rendering review returned no Critical, Important, or Minor finding. Required coverage audit returned no Critical or High finding; its three hardening notes are non-blocking and do not invalidate the current production seams or receipts.
+- Merge and deployment intentionally not performed. The final governance receipt head must clear hosted CI and CodeQL before this cell closes.
