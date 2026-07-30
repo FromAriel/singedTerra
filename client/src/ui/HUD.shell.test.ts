@@ -60,7 +60,9 @@ describe('HUD single-screen combat shell', () => {
     const store = root.querySelector<HTMLButtonElement>('.st-hud__store-btn')!;
     const arsenal = root.querySelector<HTMLElement>('.st-hud__strip-title')!;
     const icons = root.querySelectorAll<SVGSVGElement>('svg.st-ui-icon');
+    const glyphs = root.querySelectorAll<HTMLElement>('.st-ui-glyph');
     const iconNames = [...icons].map((icon) => icon.dataset['icon']);
+    const iconSymbols = [...icons].map((icon) => icon.dataset['symbol']);
     const iconPaths = Object.fromEntries(
       [...icons].map((icon) => [
         icon.dataset['icon'],
@@ -74,22 +76,38 @@ describe('HUD single-screen combat shell', () => {
     expect(store.textContent).toContain('Store');
     expect(arsenal.textContent).toContain('Arsenal');
     expect(iconNames).toEqual(['menu', 'store', 'fire', 'arsenal', 'disclosure']);
+    expect(iconSymbols).toEqual([
+      'menu',
+      'credits',
+      'target',
+      'ordnance',
+      'disclosure',
+    ]);
+    expect([...glyphs].map((glyph) => glyph.dataset['glyph'])).toEqual([
+      'menu',
+      'store',
+      'fire',
+      'arsenal',
+    ]);
     expect(iconPaths).toEqual({
       menu: ['M4 5h16', 'M4 12h16', 'M4 19h16'],
       store: [
-        'M16 10a4 4 0 0 1-8 0',
-        'M3.103 6.034h17.794',
-        'M3.4 5.467a2 2 0 0 0-.4 1.2V20a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.667a2 2 0 0 0-.4-1.2l-2-2.667A2 2 0 0 0 17 2H7a2 2 0 0 0-1.6.8z',
+        'M13.744 17.736a6 6 0 1 1-7.48-7.48',
+        'M15 6h1v4',
+        'm6.134 14.768.866-.5 2 3.464',
       ],
       fire: [],
       arsenal: [
-        'M12 22v-9',
-        'M15.17 2.21a1.67 1.67 0 0 1 1.63 0L21 4.57a1.93 1.93 0 0 1 0 3.36L8.82 14.79a1.655 1.655 0 0 1-1.64 0L3 12.43a1.93 1.93 0 0 1 0-3.36z',
-        'M20 13v3.87a2.06 2.06 0 0 1-1.11 1.83l-6 3.08a1.93 1.93 0 0 1-1.78 0l-6-3.08A2.06 2.06 0 0 1 4 16.87V13',
-        'M21 12.43a1.93 1.93 0 0 0 0-3.36L8.83 2.2a1.64 1.64 0 0 0-1.63 0L3 4.57a1.93 1.93 0 0 0 0 3.36l12.18 6.86a1.636 1.636 0 0 0 1.63 0z',
+        'M14.35 4.65 16.3 2.7a2.41 2.41 0 0 1 3.4 0l1.6 1.6a2.4 2.4 0 0 1 0 3.4l-1.95 1.95',
+        'm22 2-1.5 1.5',
       ],
       disclosure: ['m6 9 6 6 6-6'],
     });
+    expect(root.querySelector('[data-icon="store"] circle')?.getAttribute('r')).toBe('6');
+    expect(root.querySelector('[data-icon="arsenal"] circle')?.getAttribute('r')).toBe('9');
+    expect(
+      root.querySelector('[data-icon="disclosure"]')?.closest('.st-ui-glyph'),
+    ).toBeNull();
     for (const icon of icons) {
       expect(icon.getAttribute('aria-hidden')).toBe('true');
       expect(icon.getAttribute('focusable')).toBe('false');
