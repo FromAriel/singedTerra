@@ -320,7 +320,7 @@ body::before {
   box-sizing: border-box;
   width: 100%;
   margin: 0;
-  padding: var(--ui-space-2) 0;
+  padding: var(--ui-section-padding, var(--ui-space-2) 0);
   border: 0;
   border-bottom: 1px solid var(--ui-line);
   border-radius: 0;

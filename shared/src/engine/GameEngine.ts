@@ -51,9 +51,13 @@ import {
   BATTERY_BUNDLE_SIZE,
   BATTERY_POWER_PER_UNIT,
   BATTERY_ARMS_LEVEL,
+  FUEL_TANK_PRICE,
+  FUEL_TANK_FUEL,
+  FUEL_TANK_ARMS_LEVEL,
 } from './WeaponSystem';
 import { createRng } from './Random';
 import { blastReachRadius } from './BlastGeometry';
+import { resolveTankMove } from './Movement';
 
 /**
  * Burial safety valve (#15): the maximum number of turns a tank may stay trapped under
@@ -538,9 +542,10 @@ export class GameEngine {
   }
 
   /**
-   * Apply a player input. Aim changes (set_angle/set_power) are honored only
-   * while aiming (PLAYER_TURN). `fire` is honored only while aiming and with no
-   * projectile in flight; it launches the shot and transitions to FIRING.
+   * Apply a player input. Aim changes (set_angle/set_power) and fuel-limited
+   * movement are honored only while aiming (PLAYER_TURN). `fire` is honored only
+   * while aiming and with no projectile in flight; it launches the shot and
+   * transitions to FIRING.
    * select_weapon sets the active weapon (no ammo gate here — gating happens on
    * `fire`, which rejects a shot when the selected weapon is out of ammo).
    */
@@ -572,6 +577,11 @@ export class GameEngine {
         // Clamp to the tank's per-tank power cap (POWER_MAX baseline, raised by bought
         // Batteries) so a battery-equipped tank can over-power a shot for extra range.
         tank.power = clamp(action.power, POWER_MIN, tank.powerCap);
+        return;
+      case 'move':
+        // Committed but turn-neutral. The movement primitive independently
+        // gates liveness, burial, payload bounds, terrain, tanks, and fuel.
+        resolveTankMove(tank, this.state.tanks, this.terrain, action.delta);
         return;
       case 'select_weapon':
         tank.selectedWeapon = action.weapon;
@@ -682,6 +692,13 @@ export class GameEngine {
       if (target.credits < BATTERY_PRICE) return;      // can't afford
       target.credits -= BATTERY_PRICE;
       target.powerCap += BATTERY_POWER_PER_UNIT * BATTERY_BUNDLE_SIZE;
+      return;
+    }
+    if (action.accessory === 'fuel_tank') {
+      if (FUEL_TANK_ARMS_LEVEL > this.armsLevel) return;
+      if (target.credits < FUEL_TANK_PRICE) return;
+      target.credits -= FUEL_TANK_PRICE;
+      target.fuel += FUEL_TANK_FUEL;
       return;
     }
     if (!action.weapon) return; // neither a weapon nor a recognized accessory — nothing to buy

@@ -449,6 +449,7 @@ function bootstrap(): void {
   hud.onTouchAngle((delta) => { if (localInputAllowed()) input?.stepAngle(delta); });
   hud.onTouchPower((delta) => { if (localInputAllowed()) input?.stepPower(delta); });
   hud.onTouchWeapon(()     => { if (localInputAllowed()) input?.nextWeapon(); });
+  hud.onMove((delta)        => { if (localInputAllowed()) input?.stepMove(delta); });
   hud.onPrimaryAction(()   => { if (localInputAllowed()) input?.triggerFire(); });
 
   // Deterministic E2E entrypoint (rendering-guardrail suite). When the page is

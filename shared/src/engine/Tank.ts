@@ -27,7 +27,8 @@ export const BARREL_PIVOT_HEIGHT = 20;
 const DEFAULT_ANGLE = 45;
 const DEFAULT_POWER = 50;
 const DEFAULT_HEALTH = 100;
-const DEFAULT_FUEL = 0;
+/** Fresh per-round movement fuel. Movement spends one unit per horizontal pixel. */
+export const DEFAULT_FUEL = 100;
 const DEFAULT_WEAPON: WeaponType = 'baby_missile';
 /** Baseline firing-power cap; bought Batteries raise a tank's powerCap above this (SE-parity). */
 export const DEFAULT_POWER_CAP = 100;

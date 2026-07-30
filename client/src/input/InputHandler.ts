@@ -3,6 +3,7 @@ import { WEAPONS } from '@shared/engine/WeaponSystem';
 import type { WeaponType } from '@shared/engine/WeaponSystem';
 import { clamp } from '@shared/engine/math';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@shared/engine/Terrain';
+import { MAX_MOVE_DELTA, isValidMoveDelta } from '@shared/engine/Movement';
 
 /** Optional seed for the handler's tracked aim state. */
 export interface InputHandlerOptions {
@@ -143,6 +144,11 @@ export class InputHandler {
   /** Adjust power by `delta` units (positive = more power). */
   stepPower(delta: number): void { this.adjustPower(delta); }
 
+  /** Emit one bounded, discrete tank movement commitment. */
+  stepMove(delta: number): void {
+    if (isValidMoveDelta(delta)) this.emit({ type: 'move', delta });
+  }
+
   /** Advance weapon selection forward one slot (wrapping). */
   nextWeapon(): void { this.cycleWeapon(); }
 
@@ -201,6 +207,16 @@ export class InputHandler {
       case 'ArrowDown':
         event.preventDefault();
         this.adjustPower(-this.powerStep);
+        break;
+      case 'a':
+      case 'A':
+        event.preventDefault();
+        if (!event.repeat) this.stepMove(-MAX_MOVE_DELTA);
+        break;
+      case 'd':
+      case 'D':
+        event.preventDefault();
+        if (!event.repeat) this.stepMove(MAX_MOVE_DELTA);
         break;
       case ' ':
       case 'Spacebar': // legacy key name

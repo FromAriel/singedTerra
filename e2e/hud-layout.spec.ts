@@ -70,9 +70,9 @@ test.describe('HUD layout guardrails', () => {
     await expect(activeRow).toBeVisible();
     await expect(activeRow.locator('.st-hud__turn-owner')).toHaveText('P1');
     await expect(activeRow.locator('.st-hud__weapon-value')).toHaveText('Baby Missile');
-    await expect(activeRow).toHaveAttribute(
+    await expect(activeRow.locator('.st-hud__turn-status')).toHaveAttribute(
       'aria-label',
-      "P1's turn. Weapon Baby Missile.",
+      "P1's turn. Weapon Baby Missile. 100 fuel remaining.",
     );
     const box = await activeRow.boundingBox();
     expect(box, 'active/weapon row should have a rendered box').not.toBeNull();
@@ -83,6 +83,57 @@ test.describe('HUD layout guardrails', () => {
       scrollHeight: hud.scrollHeight,
     }));
     expect(geometry.scrollHeight).toBeLessThanOrEqual(geometry.clientHeight + 1);
+  });
+
+  test('mobility rocker stays fitted and spends authoritative fuel without ending the turn', async ({
+    page,
+  }) => {
+    const activeRow = page.locator('.st-hud__active-row');
+    const mobility = activeRow.locator('.st-hud__mobility');
+    const left = mobility.locator('[data-move="-8"]');
+    const right = mobility.locator('[data-move="8"]');
+    const fuel = mobility.locator('.st-hud__fuel-value');
+
+    await expect(mobility).toBeVisible();
+    await expect(mobility).toHaveAttribute('role', 'group');
+    await expect(mobility).toHaveAttribute('aria-label', 'Tank movement');
+    await expect(left).toBeEnabled();
+    await expect(right).toBeEnabled();
+    await expect(fuel).toHaveText('100');
+
+    const rowBox = await activeRow.boundingBox();
+    const mobilityBox = await mobility.boundingBox();
+    expect(rowBox).not.toBeNull();
+    expect(mobilityBox).not.toBeNull();
+    expect(mobilityBox!.x).toBeGreaterThanOrEqual(rowBox!.x - 1);
+    expect(mobilityBox!.x + mobilityBox!.width)
+      .toBeLessThanOrEqual(rowBox!.x + rowBox!.width + 1);
+
+    await right.click();
+    let remaining = Number(await fuel.textContent());
+    if (remaining === 100) {
+      await left.click();
+      remaining = Number(await fuel.textContent());
+    }
+    expect(remaining).toBeGreaterThanOrEqual(92);
+    expect(remaining).toBeLessThan(100);
+    await expect(activeRow.locator('.st-hud__turn-owner')).toHaveText('P1');
+    await expect(activeRow.locator('.st-hud__turn-status')).toHaveAttribute(
+      'aria-label',
+      `P1's turn. Weapon Baby Missile. ${remaining} fuel remaining.`,
+    );
+
+    const geometry = await page.evaluate(() => ({
+      hudClient: document.querySelector<HTMLElement>('#hud')!.clientHeight,
+      hudScroll: document.querySelector<HTMLElement>('#hud')!.scrollHeight,
+      pageWidth: document.documentElement.scrollWidth,
+      pageHeight: document.documentElement.scrollHeight,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }));
+    expect(geometry.hudScroll).toBeLessThanOrEqual(geometry.hudClient + 1);
+    expect(geometry.pageWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+    expect(geometry.pageHeight).toBeLessThanOrEqual(geometry.viewportHeight);
   });
 
   test('one primary action stays visible, in-bounds, and drives the live fire path', async ({

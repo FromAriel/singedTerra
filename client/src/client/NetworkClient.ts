@@ -460,8 +460,8 @@ export class NetworkClient implements GameClient {
   /**
    * Submit a player input.
    *
-   * Non-fire actions (set_angle, set_power, select_weapon): applied locally
-   * only — the engine's phase guard silently drops them if phase !== 'PLAYER_TURN'.
+   * Aim actions (set_angle, set_power, select_weapon) are applied locally only.
+   * Canonical movement is submitted and applied from its ordered Realtime echo.
    *
    * Fire actions: read the committed aim state from the engine, then POST to the
    * submit_action Edge Function. The action is NOT applied locally here — the
@@ -529,6 +529,15 @@ export class NetworkClient implements GameClient {
       return;
     }
 
+    // Movement changes canonical tank position, so unlike aim it must be logged
+    // and applied only from the ordered Realtime echo. It remains turn-neutral:
+    // submitAction neither computes nor reports a next seat for `move`.
+    if (action.type === 'move') {
+      if (state.phase !== 'PLAYER_TURN') return;
+      this.submitAction({ type: 'move', delta: action.delta });
+      return;
+    }
+
     // use_shield is a turn-ending COMMITTED action (like fire): it must be logged
     // so all clients replay it. Gate on shield ammo locally (the engine re-gates)
     // to avoid logging a no-op, then submit.
@@ -543,8 +552,8 @@ export class NetworkClient implements GameClient {
     }
 
     if (action.type !== 'fire') {
-      // Aim actions (set_angle/set_power/select_weapon): apply locally only —
-      // they are never logged; only turn-ending actions reach the log.
+      // Aim actions (set_angle/set_power/select_weapon): apply locally only.
+      // Canonical movement and turn-ending actions have already branched above.
       this.engine.applyAction(action);
       this.emitState();
       return;
@@ -805,7 +814,8 @@ export class NetworkClient implements GameClient {
     // a round — if so the server must honor the reported seat unconditionally, because
     // a round resets to the opener (seat 0), which may be the very seat that just fired
     // (the modulo "you can't keep your own turn" guard would otherwise reject it).
-    // Turn-neutral buys / next_round don't move the cursor, so they report neither.
+    // Turn-neutral buys / move and next_round don't move the cursor, so they
+    // report neither.
     const isTurnEnding = networkAction.type === 'fire' || networkAction.type === 'use_shield';
     let nextActiveIndex: number | undefined;
     let endsRound = roundOver; // ROUND_OVER buy / next_round pass this in directly

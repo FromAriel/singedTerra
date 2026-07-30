@@ -36,15 +36,17 @@ describe('HUD turn handoff beacon', () => {
   it('makes the active player primary and weapon secondary in one status row', () => {
     const { root } = mount();
     const row = root.querySelector<HTMLElement>('.st-hud__active-row')!;
+    const status = root.querySelector<HTMLElement>('.st-hud__turn-status')!;
 
     expect(root.querySelector('.st-hud__turn-kicker')?.textContent).toBe('Active turn');
     expect(root.querySelector('.st-hud__turn-owner')?.textContent).toBe('Alice');
     expect(root.querySelector('.st-hud__weapon-value')?.textContent).toBe('Baby Missile');
-    expect(row.getAttribute('role')).toBe('status');
-    expect(row.getAttribute('aria-live')).toBe('polite');
-    expect(row.getAttribute('aria-atomic')).toBe('true');
-    expect(row.getAttribute('aria-label')).toBe(
-      "Alice's turn. Weapon Baby Missile.",
+    expect(row.getAttribute('role')).toBeNull();
+    expect(status.getAttribute('role')).toBe('status');
+    expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(status.getAttribute('aria-atomic')).toBe('true');
+    expect(status.getAttribute('aria-label')).toBe(
+      "Alice's turn. Weapon Baby Missile. 100 fuel remaining.",
     );
     expect(row.style.getPropertyValue('--st-turn-color')).toBe('#e84d4d');
     expect(row.classList.contains('st-hud__active-row--handoff')).toBe(true);
@@ -98,8 +100,8 @@ describe('HUD turn handoff beacon', () => {
     hud.update(state);
 
     expect(root.querySelector('.st-hud__turn-owner')?.textContent).toBe('🤖 Bob');
-    expect(root.querySelector('.st-hud__active-row')?.getAttribute('aria-label'))
-      .toBe("🤖 Bob's turn. Weapon Baby Missile.");
+    expect(root.querySelector('.st-hud__turn-status')?.getAttribute('aria-label'))
+      .toBe("🤖 Bob's turn. Weapon Baby Missile. 100 fuel remaining.");
     expect(
       root.querySelector<HTMLElement>('.st-hud__active-row')
         ?.style.getPropertyValue('--st-turn-color'),
@@ -146,12 +148,13 @@ describe('HUD turn handoff beacon', () => {
   it('clears stale identity for terminal, dead-active, and missing-active states', () => {
     const { root, hud, state } = mount();
     const row = root.querySelector<HTMLElement>('.st-hud__active-row')!;
+    const status = root.querySelector<HTMLElement>('.st-hud__turn-status')!;
 
     state.phase = 'GAME_OVER';
     hud.update(state);
     expect(row.classList.contains('st-hud__active-row--hidden')).toBe(true);
     expect(root.querySelector('.st-hud__turn-owner')?.textContent).toBe('');
-    expect(row.getAttribute('aria-label')).toBe('No active turn.');
+    expect(status.getAttribute('aria-label')).toBe('No active turn.');
 
     state.phase = 'ROUND_OVER';
     hud.update(state);
@@ -170,7 +173,7 @@ describe('HUD turn handoff beacon', () => {
     hud.update(state);
     expect(row.classList.contains('st-hud__active-row--hidden')).toBe(true);
     expect(root.querySelector('.st-hud__turn-owner')?.textContent).toBe('');
-    expect(row.getAttribute('aria-label')).toBe('No active turn.');
+    expect(status.getAttribute('aria-label')).toBe('No active turn.');
   });
 
   it('does not rewrite the owner live region on an unchanged animation frame', () => {
