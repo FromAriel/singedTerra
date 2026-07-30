@@ -20,4 +20,4 @@
   Chromium across all viewport profiles.
 - [x] Complete one adversarial review and correct every Critical/High finding.
 - [x] Run the complete local gate.
-- [ ] Commit, open a ready PR, and require exact-head hosted green.
+- [x] Commit, open a ready PR, and require exact-head hosted green.
