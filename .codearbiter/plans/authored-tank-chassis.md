@@ -141,7 +141,7 @@ built-in image generation, local ffmpeg WebP encoding.
   Run deterministic, client coverage, Edge, production build, full E2E, audit,
   diff hygiene, conflict-marker, and changed-file secret checks.
 
-- [ ] **Step 4: Governed commit and ready stacked PR**
+- [x] **Step 4: Governed commit and ready stacked PR**
 
   Commit through codeArbiter, push, and open against
   `codex/authored-terrain-material`. Do not merge or deploy.

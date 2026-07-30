@@ -1845,3 +1845,12 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Live browser QA and E2E prove localized red/blue authored variants against a forced procedural fallback, a real fire/turn cycle, P2's 45-degree left-facing gauge, and zero viewport overflow across desktop, touch landscape, and small-window profiles.
 - Exact candidate gates: npm run check PASS; client coverage PASS at 89 files / 613 tests, 87.27% statements, 77.24% branches, 74.90% functions, 90.26% lines; Edge PASS at 170 tests; production build PASS; E2E PASS at 67 plus 8 expected profile skips; npm audit PASS at 0 vulnerabilities.
 - Diff hygiene, conflict-marker scan, and changed-file secret scan PASS. No dependency, lockfile, engine, Supabase, migration, action-log, collision, merge, deployment, or monetary spend.
+
+
+### 2026-07-28 - Authored tank chassis PR receipt
+
+- Governed implementation commit: fd2bdb2 (feat(rendering): add authored tank chassis).
+- Ready stacked PR opened: https://github.com/SUaDtL/singedTerra/pull/208
+- Base: codex/authored-terrain-material at da96f08e737194da5aeeacb7bd7b049521a99cc3; implementation head at PR creation: fd2bdb2.
+- Single adversarial reviewer follow-up returned 0 Critical, 0 High, 0 Medium, and 0 Low findings.
+- Standing merge authority applies only after the final governance receipt head independently clears every required hosted check; no merge or deployment has occurred yet.
