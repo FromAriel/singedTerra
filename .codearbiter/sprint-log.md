@@ -1610,3 +1610,12 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Reviewer path matrix: coverage auditor required and clear; no dependency, migration, auth, crypto, or backend path triggered.
 - Babysitter resolver: disabled; sprint will poll exact-head hosted checks directly.
 - Merge and deployment intentionally not performed.
+
+### 2026-07-28 — Opening salvo hosted gate receipt
+- PR #203 head `205362c7abac0cc237c3ef9363f9b270707eedaf`: MERGEABLE.
+- CI `typecheck · harnesses · build`: SUCCESS.
+- CI `edge function tests (deno)`: SUCCESS.
+- CI `e2e · rendering guardrails`: SUCCESS.
+- CodeQL `analyze (javascript-typescript)`: SUCCESS; repository CodeQL check: SUCCESS.
+- Supabase Preview: expected SKIPPED (no backend preview branch required).
+- No merge or deployment performed. A receipt-only governance commit will become the final head and must independently clear the same hosted gates.
