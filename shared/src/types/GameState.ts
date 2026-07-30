@@ -119,6 +119,8 @@ export interface FireCell {
 
 /** Visual style of an explosion — drives the client's burst rendering. */
 export type ExplosionStyle = 'blast' | 'cluster';
+/** Authoritative surface struck by the projectile that produced an explosion. */
+export type ExplosionImpactType = 'ground' | 'tank';
 
 /**
  * Authoritative explosion record surfaced in {@link GameState.lastExplosion}
@@ -138,6 +140,11 @@ export interface ExplosionEvent {
   cy: number;
   /** Blast radius (px). */
   radius: number;
+  /**
+   * Surface struck by the projectile, when the explosion came from a swept
+   * collision. Air/flight-cap explosions intentionally omit this field.
+   */
+  impactType?: ExplosionImpactType;
   /** Visual style of the burst (e.g. single 'blast' vs 'cluster' bomblet). */
   style: ExplosionStyle;
   /** CSS color string for the burst (from the weapon definition). */

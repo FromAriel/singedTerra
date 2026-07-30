@@ -1619,3 +1619,36 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - CodeQL `analyze (javascript-typescript)`: SUCCESS; repository CodeQL check: SUCCESS.
 - Supabase Preview: expected SKIPPED (no backend preview branch required).
 - No merge or deployment performed. A receipt-only governance commit will become the final head and must independently clear the same hosted gates.
+
+### 2026-07-28 — Next slice: material impact signatures
+- Closed prior cell: PR #203 is open, MERGEABLE, and exact-final-head green at `ae42485042fcd854fa7ef243cfd80316875ab4f6`; no merge or deployment performed.
+- Live visual audit showed the battlefield/HUD are now coherent; stale backlog items for trails, camera recoil, collapse, and base UI polish are already implemented.
+- SMARTS criteria: visible/game-feel payoff 30%, combat clarity 25%, effort/reversibility 20%, architecture/determinism 15%, novelty/replay 10%.
+- Options scored: material impact signatures 8.55; reflective wall mode 7.70; tank-art enlargement 7.15; AI personalities 6.85.
+- Decision: distinguish direct armor from terrain impacts because it strengthens the core hit-reward loop with a small additive event field and bounded client presentation. Confidence 0.94.
+- Dependency SMARTS: native Canvas/Web Audio 9.4 vs new particle/audio dependency 4.5. Dependencies remain allowed, but none adds value for this bounded procedural effect. Confidence 0.98.
+- Spec gate auto-approved under the maintainer standing passion-project sprint authority: choose the next valuable slice without another approval stop.
+- Hard boundaries: no damage/physics/replay-action/Supabase change, no merge, no deployment, no spend beyond tokens.
+
+### 2026-07-28 — Material impact TDD and implementation
+- TDD RED engine harness: 6 passed / 4 failed; real swept missile, napalm, and bouncing-mine contacts produced events without material provenance.
+- TDD RED client focus: missing pure material-profile module; armor impacts still emitted terrain debris, reduced motion lost the direct-hit readout, and renderer audio received no material batch.
+- Decision: keep `impactType` optional and collision-derived; flight-cap air bursts omit the property rather than serializing an invented default. Confidence 0.98.
+- Decision: armor wins material-audio batch arbitration while each authoritative event retains its own visual signature. Confidence 0.95.
+- TDD GREEN: impact harness 10/10; material/profile/effects/renderer focus 17/17; shared + client typecheck green.
+- Dependency decision unchanged: procedural Canvas/Web Audio implementation is sufficient; no package install or third-party code introduced.
+### 2026-07-28 — Material impact review finding
+- Adversarial review verdict: no Critical, High, or Important blockers.
+- MEDIUM caught: the initial material layer could add up to 0.40 commanded gain under an already dense explosion, risking clipping and masking the distinction.
+- Review-fix RED: new combined material-gain assertion failed at 0.248 for a radius-30 profile against the 0.12 ceiling.
+- Fix: reduced the material layer below 0.12 combined gain at every clamped radius and added a fast final-stage compressor/limiter before the Web Audio destination.
+- Review-fix GREEN: focused material suite 17/17 and typecheck green; follow-up review requested.
+### 2026-07-28 — Material impact final local gate
+- Follow-up adversarial review: headroom finding resolved; no remaining Critical, High, Important, or Medium blocker. Worst-case material gain is pinned at radius 120.
+- One concurrent-matrix coverage attempt timed out in a pre-existing opening-salvo test under CPU contention. No code changed; immediate isolated rerun passed 79 files / 571 tests in 9.99s, confirming scheduling rather than product failure.
+- `npm run check`: PASS, including 10/10 impact-material assertions, engine purity, clone parity, and replay determinism.
+- Client coverage: PASS, 79 files / 571 tests; 86.89% statements, 76.75% branches, 73.92% functions, 89.93% lines; impactMaterial 95.23% statements / 95% branches / 100% functions / 100% lines.
+- Edge: PASS, 166 passed / 0 failed. Production build: PASS, 1,876 modules; main 248.77 kB / 67.32 kB gzip.
+- Rendering E2E: PASS, 46 passed / 8 expected project skips. Runtime audit: PASS, 0 vulnerabilities.
+- Diff hygiene and conflict-marker check: PASS. State-free changed-file secret scan: PASS (`[]`).
+- No dependency, lockfile, migration, action-log, Supabase, damage, physics, merge, or deployment change.

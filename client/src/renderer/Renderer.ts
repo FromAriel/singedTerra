@@ -46,6 +46,10 @@ import {
   getAimGuideMode,
   OpeningSalvoCache,
 } from './openingSalvo';
+import {
+  coalesceImpactMaterial,
+  type ImpactMaterialBatch,
+} from '../feel/impactMaterial';
 
 /** Shared barrel geometry keeps muzzle FX at the visual tip. */
 /**
@@ -79,7 +83,7 @@ export interface RenderEventSink {
   /** A shot just launched (a turn transitioned into FIRING). */
   onLaunch(): void;
   /** One or more new detonations appeared this frame; `radius` is the largest. */
-  onExplosion(radius: number): void;
+  onExplosion(radius: number, impact: ImpactMaterialBatch | null): void;
   /**
    * A bouncing-betty projectile hopped off terrain this frame.
    * Called once per bounce tick (i.e. once when `bounces` decrements by 1).
@@ -718,9 +722,11 @@ export class Renderer {
     let maxNewRadius = 0;
     let anyNew = false;
     let strongestNewKick = { x: 0, y: 0 };
+    const newEvents: ExplosionEvent[] = [];
     for (const ex of events) {
       if (ex.id > this.lastSeenExplosionId) {
         this.lastSeenExplosionId = ex.id;
+        newEvents.push(ex);
         // Parse the burst color ONCE here (not per draw frame): a cluster/MIRV puts
         // many bursts on-screen simultaneously, each re-drawn every frame of its life.
         const rgb = parseColor(ex.color);
@@ -757,7 +763,13 @@ export class Renderer {
           }
         }
         // Ejecta: terrain debris + dust + sparks at the blast (reduced-motion = none).
-        this.effects.spawnExplosion(ex.cx, ex.cy, ex.radius, ex.color);
+        this.effects.spawnExplosion(
+          ex.cx,
+          ex.cy,
+          ex.radius,
+          ex.color,
+          ex.impactType,
+        );
         // Remember the latest blast centre for the last-shot ranging marker.
         this.lastImpact = { x: ex.cx, y: ex.cy };
         // Crater scorch decal: a darkened ring that lingers at the impact point,
@@ -783,7 +795,10 @@ export class Renderer {
         this.kickX = strongestNewKick.x;
         this.kickY = strongestNewKick.y;
       }
-      this.events?.onExplosion(maxNewRadius);
+      this.events?.onExplosion(
+        maxNewRadius,
+        coalesceImpactMaterial(newEvents),
+      );
       // Ejecta particles (debris/smoke/sparks) outlive the burst itself, so keep the
       // idle-skip gate redrawing until they can no longer be on-screen.
       this.effectsBusy = EFFECTS_BUSY_FRAMES;

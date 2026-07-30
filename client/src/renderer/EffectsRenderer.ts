@@ -3,6 +3,7 @@ import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/engine/Terrain';
 import { advanceDebris, type DebrisMotion } from './debrisMotion';
 import type { MuzzleVisualProfile } from './muzzleVisuals';
 import { getArmorHitVisualProfile } from './armorHitVisuals';
+import type { ExplosionImpactType } from '@shared/types/GameState';
 
 /**
  * EffectsRenderer — transient client-only "juice": terrain debris + dust on
@@ -75,11 +76,34 @@ export class EffectsRenderer {
     return a + Math.random() * (b - a);
   }
 
-  /** Blast ejecta: a brown debris fountain + ground dust + bright sparks. */
-  spawnExplosion(cx: number, cy: number, radius: number, _color: string): void {
+  /** Blast ejecta whose material follows the authoritative collision surface. */
+  spawnExplosion(
+    cx: number,
+    cy: number,
+    radius: number,
+    color: string,
+    impactType?: ExplosionImpactType,
+  ): void {
+    if (impactType === 'tank') {
+      this.texts.push({
+        x: cx,
+        y: cy - Math.min(18, radius * 0.35),
+        vy: this.reduce ? 0 : -0.4,
+        text: 'DIRECT HIT',
+        color: BOOM.core,
+        size: 13 + Math.min(5, radius * 0.06),
+        age: 0,
+        life: 42,
+      });
+    }
     if (this.reduce) return;
-    const palette = [TERRAIN.top, TERRAIN.mid, TERRAIN.rim, TERRAIN.deep];
-    const chunks = Math.round(Math.min(16, Math.max(5, radius / 3.5)));
+    const armor = impactType === 'tank';
+    const palette = armor
+      ? ['#f1eadc', '#aca79d', '#746f67', color]
+      : [TERRAIN.top, TERRAIN.mid, TERRAIN.rim, TERRAIN.deep];
+    const chunks = armor
+      ? Math.round(Math.min(8, Math.max(3, radius / 7)))
+      : Math.round(Math.min(16, Math.max(5, radius / 3.5)));
     for (let i = 0; i < chunks; i++) {
       const a = this.rand(-Math.PI, 0); // upward hemisphere (screen up = -y)
       const speed = this.rand(1.5, 3 + radius * 0.05);
@@ -87,14 +111,16 @@ export class EffectsRenderer {
         x: cx, y: cy,
         vx: Math.cos(a) * speed,
         vy: Math.sin(a) * speed - this.rand(0.5, 2), // extra upward kick
-        size: this.rand(1.5, 3.5),
+        size: armor ? this.rand(1, 2.5) : this.rand(1.5, 3.5),
         color: palette[i % palette.length],
         rot: this.rand(0, Math.PI), vr: this.rand(-0.3, 0.3),
         landed: false,
         age: 0, life: this.rand(28, 56),
       });
     }
-    const sparkCount = Math.round(Math.min(20, radius / 2.5));
+    const sparkCount = armor
+      ? Math.round(Math.min(22, Math.max(8, radius / 2)))
+      : Math.round(Math.min(20, radius / 2.5));
     for (let i = 0; i < sparkCount; i++) {
       const a = this.rand(0, Math.PI * 2);
       const speed = this.rand(2, 5);

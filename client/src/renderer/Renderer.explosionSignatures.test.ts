@@ -29,7 +29,7 @@ interface RendererExplosionSeam {
   kickY: number;
   effectsBusy: number;
   reduceMotion: boolean;
-  events: null;
+  events: { onExplosion: ReturnType<typeof vi.fn> } | null;
   prevHealth: Map<string, number>;
   prevShieldHp: Map<string, number>;
   smokeThrottle: Map<string, number>;
@@ -154,7 +154,10 @@ function event(
   };
 }
 
-function drawEvents(sources: ExplosionEvent[]) {
+function drawEvents(
+  sources: ExplosionEvent[],
+  events: RendererExplosionSeam['events'] = null,
+) {
   const { ctx, ops } = recordingContext();
   const renderer = Object.create(Renderer.prototype) as RendererExplosionSeam;
   Object.assign(renderer, {
@@ -168,7 +171,7 @@ function drawEvents(sources: ExplosionEvent[]) {
     kickY: 0,
     effectsBusy: 0,
     reduceMotion: true,
-    events: null,
+    events,
     prevHealth: new Map(),
     prevShieldHp: new Map(),
     smokeThrottle: new Map(),
@@ -328,6 +331,35 @@ describe('Renderer weapon-signature detonations', () => {
     renderer.bursts[0].age = renderer.bursts[0].lifeFrames - 1;
     renderer.drawExplosions();
     expect(renderer.bursts).toHaveLength(0);
+  });
+
+  it('routes material to particles and coalesces armor-priority audio', () => {
+    const events = { onExplosion: vi.fn() };
+    const ground = event('nuke', { id: 1, radius: 80, impactType: 'ground' });
+    const armor = event('missile', { id: 2, radius: 34, impactType: 'tank' });
+    const { renderer } = drawEvents([ground, armor], events);
+
+    expect(renderer.effects.spawnExplosion).toHaveBeenNthCalledWith(
+      1,
+      ground.cx,
+      ground.cy,
+      ground.radius,
+      ground.color,
+      'ground',
+    );
+    expect(renderer.effects.spawnExplosion).toHaveBeenNthCalledWith(
+      2,
+      armor.cx,
+      armor.cy,
+      armor.radius,
+      armor.color,
+      'tank',
+    );
+    expect(events.onExplosion).toHaveBeenCalledOnce();
+    expect(events.onExplosion).toHaveBeenCalledWith(80, {
+      impactType: 'tank',
+      radius: 34,
+    });
   });
 
   it('isolates simultaneous family alpha before drawing the next burst', () => {

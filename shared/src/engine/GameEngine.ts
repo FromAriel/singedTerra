@@ -1,5 +1,6 @@
 import type {
   ExplosionEvent,
+  ExplosionImpactType,
   GameState,
   ProjectileState,
   TankState,
@@ -859,9 +860,9 @@ export class GameEngine {
       if (hit.type === 'tank') {
         const napalm = getWeapon(p.weaponType).behavior?.napalm;
         if (napalm !== undefined) {
-          this.igniteNapalm(hit.x, hit.y, napalm, p.weaponType); // splashes burning fuel, no blast
+          this.igniteNapalm(hit.x, hit.y, napalm, p.weaponType, 'tank'); // splashes burning fuel, no blast
         } else {
-          this.detonate(hit.x, hit.y, p.weaponType); // direct tank hit always detonates
+          this.detonate(hit.x, hit.y, p.weaponType, 'tank'); // direct tank hit always detonates
         }
       } else if (hit.type === 'ground') {
         if (p.bounces > 0) {
@@ -887,14 +888,16 @@ export class GameEngine {
           // BOUNDING-MINE CHAIN: detonate a full blast at this contact (damage +
           // crater + explosion event) so betty lays a line of blasts as it skips,
           // instead of bouncing silently. Done AFTER reflecting/nudging above.
-          if (bounce?.detonateEachBounce) this.detonate(hit.x, hit.y, p.weaponType);
+          if (bounce?.detonateEachBounce) {
+            this.detonate(hit.x, hit.y, p.weaponType, 'ground');
+          }
           survivors.push(p); // still in flight
         } else {
           const napalm = getWeapon(p.weaponType).behavior?.napalm;
           if (napalm !== undefined) {
-            this.igniteNapalm(hit.x, hit.y, napalm, p.weaponType); // splashes burning fuel, no blast
+            this.igniteNapalm(hit.x, hit.y, napalm, p.weaponType, 'ground'); // splashes burning fuel, no blast
           } else {
-            this.detonate(hit.x, hit.y, p.weaponType); // bounces spent -> detonate
+            this.detonate(hit.x, hit.y, p.weaponType, 'ground'); // bounces spent -> detonate
           }
         }
       }
@@ -1347,7 +1350,12 @@ export class GameEngine {
     return moved;
   }
 
-  private detonate(cx: number, cy: number, weaponType: WeaponType): void {
+  private detonate(
+    cx: number,
+    cy: number,
+    weaponType: WeaponType,
+    impactType?: ExplosionImpactType,
+  ): void {
     const { radius, maxDamage, raisesTerrain, style, color, durationFrames } =
       getWeapon(weaponType).detonation;
     const raise = raisesTerrain === true;
@@ -1397,6 +1405,7 @@ export class GameEngine {
       cx,
       cy: clamp(cy, 0, CANVAS_HEIGHT),
       radius,
+      ...(impactType === undefined ? {} : { impactType }),
       style,
       color,
       durationFrames,
@@ -1417,7 +1426,13 @@ export class GameEngine {
    * Determinism: ignite writes are pure arithmetic on the integer impact column;
    * the flash id comes from the same monotonic explosionSeq as every other blast.
    */
-  private igniteNapalm(cx: number, cy: number, def: NapalmDef, weaponType: WeaponType): void {
+  private igniteNapalm(
+    cx: number,
+    cy: number,
+    def: NapalmDef,
+    weaponType: WeaponType,
+    impactType?: ExplosionImpactType,
+  ): void {
     const center = Math.round(cx);
     this.fireDef = def;
     this.fireCenter = center;
@@ -1439,6 +1454,7 @@ export class GameEngine {
       cx,
       cy: clamp(cy, 0, CANVAS_HEIGHT),
       radius: det.radius,
+      ...(impactType === undefined ? {} : { impactType }),
       style: det.style,
       color: det.color,
       durationFrames: det.durationFrames,
