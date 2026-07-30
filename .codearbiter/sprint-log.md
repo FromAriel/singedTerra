@@ -1869,3 +1869,6 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Exact-head CI run `30563960435` passed deterministic harnesses, 613 client tests, production build, 170 Edge tests, and the 67-case browser matrix with 8 expected profile skips.
 - Exact-head CodeQL workflow run `30563960432` and repository CodeQL both passed. Supabase Preview was expectedly skipped because no backend surface changed.
 - The single adversarial follow-up remains 0 Critical, 0 High, 0 Medium, 0 Low. This receipt and completed plan checkbox form the final governance-only delta and must independently clear the same hosted gates before merge under standing authority. Confidence high.
+### 2026-07-30 - Chassis final-head check dispatch retry
+
+- GitHub created only the expected Supabase Preview skip for governance receipt head `20f03a2fed5395c49d594c5b86a9fd99f98dfcd4`; required CI and CodeQL runs were not dispatched, leaving branch protection BLOCKED. This append-only receipt creates a fresh synchronize event; no hosted gate is waived and merge remains prohibited until every required check is green on the resulting exact head. Confidence high.
