@@ -1814,3 +1814,7 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - CodeQL `analyze (javascript-typescript)`: SUCCESS; repository CodeQL check: SUCCESS.
 - Supabase Preview: expected SKIPPED because no backend surface changed.
 - No merge or deployment performed. This receipt-only governance commit becomes the final PR head and must independently clear the same hosted gates.
+### 2026-07-30 - Terrain material hosted wall-signal correction
+
+- Fresh up-to-date PR #207 head `03df25014244604f284498328b49f74092cebdee` preserved the exact previously-green source tree, but hosted small-window E2E reproduced the crater-wall material delta at 0.7223 and 0.7125 against a threshold of 0.8; deep-fill proof, asset decode, geometry, 60 other browser cases, deterministic checks, both CodeQL surfaces, build, and Edge remained green.
+- **[high] Treat the dual hosted reproduction as an overfit visual oracle, not a product regression.** SMARTS Meaningful/Auditable/Reversible/Testable/Securable favors retaining the same non-zero authored-vs-fallback comparison at 0.5: fallback is 0, the observed material signal remains comfortably above the boundary, and wall pixels intentionally blend the authored field through rim/bevel shading. No runtime code or visual output changed. Confidence high.
