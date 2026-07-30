@@ -44,6 +44,7 @@ export const ACCENT = {
   emberDeep: '#d4562a',
   sun: '#ffb24a',
   sunCore: '#ffe9a8',
+  solution: '#9be8ff',
 } as const;
 
 /** Per-player tank palette (body + top-highlight band) + shared tread. */

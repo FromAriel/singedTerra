@@ -6,8 +6,9 @@ import type { GameState } from '@shared/types/GameState';
 import type { GameClient, RematchInfo } from './client/GameClient';
 import { HotSeatClient } from './client/HotSeatClient';
 import { InputHandler } from './input/InputHandler';
-import { isActiveSeatLocal, shouldAcceptLocalInput } from './input/inputGate';
+import { shouldAcceptLocalInput } from './input/inputGate';
 import { Renderer } from './renderer/Renderer';
+import { resolveAimGuidePresentation } from './renderer/aimGuidePresentation';
 import { AudioEngine } from './audio/AudioEngine';
 import { HUD } from './ui/HUD';
 import { Lobby, type LobbyConfig } from './ui/Lobby';
@@ -271,14 +272,18 @@ function bootstrap(): void {
       // human turn in hot-seat, or (networked) the active tank is THIS client's id.
       // Never for a CPU seat or a remote opponent's turn.
       const activeTank = state.tanks.find((t) => t.id === state.activePlayerId);
-      const localControls = isActiveSeatLocal({
+      const aimGuide = resolveAimGuidePresentation({
         mode: config.mode,
         activePlayerId: state.activePlayerId,
         localPlayerId: config.playerId,
         activeIsAi: !!activeTank?.ai,
+      }, {
+        baseGravity: config.settings?.gravity ?? GRAVITY,
+        turn: state.turn,
+        suddenDeathTurn: config.settings?.suddenDeathTurn ?? 0,
       });
-      activeIsLocal = localControls;
-      renderer.setAimGuide(localControls);
+      activeIsLocal = aimGuide.visible;
+      renderer.setAimGuide(aimGuide.visible, aimGuide.gravity);
       // Feed the active tank's barrel-origin (logical px) so mouse drag-aim can
       // derive angle/power from the drag vector (pivot = body top, y − 16).
       if (activeTank) newInput.setActiveTankScreenPos(activeTank.x, activeTank.y - 20);

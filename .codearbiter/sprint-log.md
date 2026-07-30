@@ -1558,3 +1558,38 @@ Spec/plan: `.codearbiter/specs/fuel-limited-movement.md`, `.codearbiter/plans/fu
 - Ready PR #202 was MERGEABLE on exact implementation/governance head 3e841c4c59f8b110079a1cc68ff538ac40f4a97d.
 - Exact-head CI run 30501673883 passed deterministic harnesses, 553 client tests, production build, 166 Edge tests, and the 43-case browser matrix with 8 intentional skips.
 - Exact-head CodeQL run 30501673891 passed. Supabase Preview was expectedly skipped because the integration did not provision a branch. This receipt and the completed plan checkbox form the final governance-only delta; the pushed governance head must independently clear CI and CodeQL before the PR is called final-green. No merge or deployment was performed. Confidence high.
+
+## 2026-07-29 - Opening salvo assist sprint
+
+- **[high] Correct the stale public-room-browser premise.** Live source already contains the browse sub-view, three-second lifecycle polling, `list_rooms` transport, join flow, and focused client/Edge coverage; rebuilding it would duplicate shipped behavior. The legacy open-task bullet is stale. Confidence high.
+- **[high] Select a bounded opening-salvo solution over a turn timer, teams, parachutes, or another lobby pass.** Live 1280x720 play showed a cohesive single-screen battlefield and control legend, but the first human shot remains ballistic trial-and-error. SMARTS Meaningful/Auditable/Reversible/Testable/Securable favors one first-rotation trajectory lesson because it improves first-match comprehension and graphical richness without widening backend authority. Confidence high.
+- **[high] Preserve long-term aiming skill.** The full collision-accurate solution is limited to the locally controlled human during the opening rotation of each round; later turns retain the existing short launch-only guide. Shield, airburst, and bouncing weapons also retain the short guide so the renderer never promises unmodeled secondary behavior. Confidence high.
+- **[high] Reuse fixed-step physics without changing canonical state.** Prediction reads authoritative wind, terrain, tanks, angle, and power plus the configured effective gravity, then reuses launch, integration, and swept-collision primitives in a bounded pure client helper. It emits no action and mutates no engine or snapshot state. Confidence high.
+- **[high] No dependency is warranted for this slice.** Dependencies remain fully authorized, but existing Canvas 2D, design tokens, and shared physics own the exact required primitives. A graphics or trajectory library would add runtime and supply-chain surface without improving correctness or presentation. Confidence high.
+- **[high] Approve the scoped spec and plan as SUaDtL under standing sprint authority.** The user delegated recurring passion-project decisions and asked the loop not to stop for approval. Hard gates remain enforced. Confidence high.
+
+Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/opening-salvo-assist.md`.
+### Opening salvo assist TDD and visual review
+
+- RED: the focused client suite failed because the opening-salvo module did not exist; the production-browser oracle then observed zero collision-solution pixels from the pre-feature bundle. GREEN now pins fixed-step samples, swept ground/tank collision, wind and configured gravity, bounded misses, invalid inputs, immutability, eligibility/fallback, Canvas drawing, world-pass ordering, and the three-viewport live interaction path. Confidence high.
+- Real-browser review rejected the first rendering as too visually similar to the old faint launch dots. The final presentation adds a restrained continuous gold ribbon, crisp cyan collision bracket, and backed `OPENING SOLUTION` tag while remaining static and inside the existing Canvas world pass. Confidence high.
+- Review corrected the written rule from one opening rotation per round to one opening rotation per match. `GameState.turn` is match-global and the one-time lesson better preserves long-term ranging skill; no new engine state was introduced to prolong assistance. Confidence high.
+- Performance review caught repeated swept traces during the 48-frame opening wind animation. A renderer-local memo now reuses the same solution until aim, power, weapon, wind, configured gravity, terrain version, turn identity, or live tank geometry changes; focused cache invalidation coverage is green. Confidence high.
+### 2026-07-28 — Opening salvo adversarial review follow-up
+- Reviewer verdict: no Critical findings; one Important invalid-input fallback and two Minor oracle/wiring gaps.
+- TDD RED: invalid opening and launch inputs drew 16 false pips at `(0,0)`; the new ownership/gravity seam did not exist.
+- GREEN: opening-mode trace failure now returns without fallback, the launch hint rejects non-finite position/velocity/wind, and 18 focused tests pass.
+- Minor hardening: browser pixels now poll across render frames; a pure integration seam pins remote ownership and engine-effective gravity. Focused production E2E: 3/3 passed.
+- SMARTS auto-decision (confidence 0.98): resolve both Minor findings with the Important correction because each is narrow, deterministic, and directly reduces flaky or unwired acceptance evidence.
+
+### 2026-07-28 — Opening salvo final local verification
+- Harness catch: importing shared engine code into the alias-free input gate broke `scripts/checks/inputgate.mjs`; moved the composed ownership/gravity seam to the renderer boundary and preserved the dependency-free input gate.
+- `npm run check`: PASS (all deterministic/type/harness checks).
+- `npm run check:edge`: PASS (166 passed, 0 failed).
+- `npm run test:client`: PASS (77 files, 563 tests).
+- `npm run coverage:client`: PASS (86.84% statements, 76.51% branches, 73.81% functions, 89.87% lines; openingSalvo 95.65% statements / 87.27% branches / 100% functions / 97.24% lines).
+- `npm run build`: PASS (1,875 modules; main 246.95 kB / 66.70 kB gzip).
+- `npm run test:e2e`: PASS (46 passed, 8 expected project skips; opening-salvo oracle passed desktop, touch, and small-window).
+- `npm audit --audit-level=low`: PASS (0 vulnerabilities).
+- Diff hygiene: PASS (`git diff --check`, no conflict markers). State-free secret scan: PASS (`[]`).
+- No dependency, backend, migration, action-log, canonical engine-state, merge, or deployment change.
