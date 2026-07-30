@@ -41,6 +41,130 @@ async function expectGuideToggleChangesCanvas(page: Page): Promise<void> {
   await expect.poll(() => changedCanvasPixels(page)).toBeGreaterThan(20);
 }
 
+interface ComposedGuideSeam {
+  changedPixels: number;
+  openingCrossError: number;
+  immediateBarrelSamples: number;
+  totalBarrelSamples: number;
+}
+
+async function waitForTwoCanvasFrames(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
+}
+
+/**
+ * Compare guide-on pixels with the fully composed guide-off battlefield. The
+ * guide delta locates the real rendered muzzle; sampling backwards from that
+ * point must find the authored barrel centerline immediately and continuously.
+ */
+async function composedGuideSeam(
+  page: Page,
+  angle: number,
+): Promise<ComposedGuideSeam> {
+  await page.keyboard.press('g'); // guide off
+  await waitForTwoCanvasFrames(page);
+  await storeCanvasFrame(page);
+  await page.keyboard.press('g'); // guide on
+  await expect.poll(() => changedCanvasPixels(page)).toBeGreaterThan(20);
+
+  return page.locator('#game').evaluate((canvas: HTMLCanvasElement, aimAngle) => {
+    const baseline = (
+      globalThis as typeof globalThis & { __aimGuideFrame?: Uint8ClampedArray }
+    ).__aimGuideFrame!;
+    const current = canvas.getContext('2d', { willReadFrequently: true })!
+      .getImageData(0, 0, canvas.width, canvas.height)
+      .data;
+    const radians = aimAngle * Math.PI / 180;
+    const aim = { x: Math.cos(radians), y: -Math.sin(radians) };
+    const normal = { x: -aim.y, y: aim.x };
+    const changed: Array<{ x: number; y: number; delta: number; along: number }> = [];
+
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        const offset = (y * canvas.width + x) * 4;
+        const delta =
+          Math.abs(current[offset]! - baseline[offset]!)
+          + Math.abs(current[offset + 1]! - baseline[offset + 1]!)
+          + Math.abs(current[offset + 2]! - baseline[offset + 2]!);
+        if (delta > 6) {
+          changed.push({
+            x,
+            y,
+            delta,
+            along: x * aim.x + y * aim.y,
+          });
+        }
+      }
+    }
+
+    const firstAlong = Math.min(...changed.map((pixel) => pixel.along));
+    const opening = changed.filter((pixel) => pixel.along <= firstAlong + 13);
+    const start = opening.filter((pixel) => pixel.along <= firstAlong + 3);
+    const startWeight = start.reduce((sum, pixel) => sum + pixel.delta, 0);
+    const muzzle = {
+      x: start.reduce((sum, pixel) => sum + pixel.x * pixel.delta, 0) / startWeight,
+      y: start.reduce((sum, pixel) => sum + pixel.y * pixel.delta, 0) / startWeight,
+    };
+    const crossErrors = opening
+      .map((pixel) => Math.abs(
+        (pixel.x - muzzle.x) * normal.x + (pixel.y - muzzle.y) * normal.y,
+      ))
+      .sort((left, right) => left - right);
+    const openingCrossError = crossErrors[Math.floor(crossErrors.length / 2)] ?? Infinity;
+
+    const colorAt = (x: number, y: number): [number, number, number] => {
+      let red = 0;
+      let green = 0;
+      let blue = 0;
+      let samples = 0;
+      for (let oy = -1; oy <= 1; oy++) {
+        for (let ox = -1; ox <= 1; ox++) {
+          const px = Math.max(0, Math.min(canvas.width - 1, Math.round(x + ox)));
+          const py = Math.max(0, Math.min(canvas.height - 1, Math.round(y + oy)));
+          const offset = (py * canvas.width + px) * 4;
+          red += baseline[offset]!;
+          green += baseline[offset + 1]!;
+          blue += baseline[offset + 2]!;
+          samples++;
+        }
+      }
+      return [red / samples, green / samples, blue / samples];
+    };
+    const distance = (
+      left: [number, number, number],
+      right: [number, number, number],
+    ): number => Math.hypot(
+      left[0] - right[0],
+      left[1] - right[1],
+      left[2] - right[2],
+    );
+    const barrelContrast = Array.from({ length: 19 }, (_, distanceBehind) => {
+      const x = muzzle.x - aim.x * distanceBehind;
+      const y = muzzle.y - aim.y * distanceBehind;
+      const center = colorAt(x, y);
+      const sideA = colorAt(x + normal.x * 6, y + normal.y * 6);
+      const sideB = colorAt(x - normal.x * 6, y - normal.y * 6);
+      const surround: [number, number, number] = [
+        (sideA[0] + sideB[0]) / 2,
+        (sideA[1] + sideB[1]) / 2,
+        (sideA[2] + sideB[2]) / 2,
+      ];
+      return distance(center, surround);
+    });
+
+    return {
+      changedPixels: changed.length,
+      openingCrossError,
+      immediateBarrelSamples: barrelContrast.slice(0, 5)
+        .filter((contrast) => contrast > 18).length,
+      totalBarrelSamples: barrelContrast
+        .filter((contrast) => contrast > 18).length,
+    };
+  }, angle);
+}
+
 test.describe('bounded aim guide', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
@@ -88,5 +212,36 @@ test.describe('bounded aim guide', () => {
     }));
     expect(geometry.width).toBeLessThanOrEqual(geometry.viewportWidth);
     expect(geometry.height).toBeLessThanOrEqual(geometry.viewportHeight);
+  });
+
+  test('composites the guide directly from right- and left-facing authored barrels', async ({
+    page,
+  }) => {
+    const right = await composedGuideSeam(page, 45);
+
+    const action = page.locator('.st-hud__primary-action');
+    await action.click();
+    await expect(action).toBeDisabled();
+    await expect(action).toBeEnabled({ timeout: 15_000 });
+    const left = await composedGuideSeam(page, 135);
+
+    for (const [direction, seam] of Object.entries({ right, left })) {
+      expect(
+        seam.changedPixels,
+        `${direction} guide must paint a causal composed-canvas delta`,
+      ).toBeGreaterThan(20);
+      expect(
+        seam.openingCrossError,
+        `${direction} guide opening must stay on the rendered barrel centerline`,
+      ).toBeLessThan(2.5);
+      expect(
+        seam.immediateBarrelSamples,
+        `${direction} guide start must touch the authored barrel at the muzzle`,
+      ).toBeGreaterThanOrEqual(3);
+      expect(
+        seam.totalBarrelSamples,
+        `${direction} guide must extend the authored barrel rather than a parallel seam`,
+      ).toBeGreaterThanOrEqual(12);
+    }
   });
 });

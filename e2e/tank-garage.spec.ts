@@ -83,6 +83,36 @@ async function installTankPartDrawProbe(page: Page): Promise<void> {
 }
 
 test.describe('tank Garage', () => {
+  test('keeps a maximum-length player identity above fitted tactical controls', async ({
+    page,
+  }) => {
+    await openGarage(page);
+    const playerName = 'Commander Longname X';
+    await page.getByRole('textbox', { name: 'Player 1' }).fill(playerName);
+    await page.evaluate(() => localStorage.setItem('st_arsenal_collapsed', '1'));
+    await page.getByRole('button', { name: 'Start Game' }).click();
+
+    const active = page.locator('.st-hud__active-row');
+    const owner = active.locator('.st-hud__turn-owner');
+    const tactical = active.locator('.st-hud__tactical-row');
+    await expect(active).toBeVisible();
+    await expect(owner).toHaveText(playerName);
+    await expect(owner).toHaveAttribute('title', playerName);
+    await expect(tactical.locator('.st-hud__weapon')).toBeVisible();
+    await expect(tactical.locator('.st-hud__mobility')).toBeVisible();
+
+    const fit = await owner.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      textOverflow: getComputedStyle(element).textOverflow,
+      pageHeight: document.documentElement.scrollHeight,
+      viewportHeight: window.innerHeight,
+    }));
+    expect(fit.scrollWidth).toBeLessThanOrEqual(fit.clientWidth + 1);
+    expect(fit.textOverflow).not.toBe('ellipsis');
+    expect(fit.pageHeight).toBeLessThanOrEqual(fit.viewportHeight + 1);
+  });
+
   test('fits the stage and previews distinct authored kits', async ({ page }, testInfo) => {
     await openGarage(page);
 

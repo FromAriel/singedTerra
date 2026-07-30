@@ -45,6 +45,24 @@ afterEach(() => {
 });
 
 describe('HUD mobility rocker', () => {
+  it('gives full-width identity priority over the tactical controls', () => {
+    const { root, state, hud } = mount();
+    state.tanks[0]!.playerName = 'Commander Longname X';
+    hud.update(state, false, true);
+
+    const activeRow = root.querySelector<HTMLElement>('.st-hud__active-row')!;
+    const identity = activeRow.querySelector<HTMLElement>('.st-hud__turn-status')!;
+    const tactical = activeRow.querySelector<HTMLElement>('.st-hud__tactical-row')!;
+    const owner = identity.querySelector<HTMLElement>('.st-hud__turn-owner')!;
+
+    expect(identity.parentElement).toBe(activeRow);
+    expect(tactical.parentElement).toBe(activeRow);
+    expect(tactical.querySelector('.st-hud__weapon')).not.toBeNull();
+    expect(tactical.querySelector('.st-hud__mobility')).not.toBeNull();
+    expect(owner.textContent).toBe('Commander Longname X');
+    expect(owner.getAttribute('title')).toBe('Commander Longname X');
+  });
+
   it('fits semantic left/fuel/right controls into the active-turn row', () => {
     const { root, left, right, fuel } = mount();
     const mobility = root.querySelector<HTMLElement>('.st-hud__mobility')!;

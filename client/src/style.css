@@ -333,6 +333,10 @@ body::before {
 #hud > .st-ui-section--instrument {
   margin: var(--ui-space-2) 0;
 }
+#app.is-compact #hud > .st-ui-section--instrument {
+  /* Preserve the full-size dials while reclaiming rail height from whitespace. */
+  margin-block: var(--ui-space-1);
+}
 #hud > .st-ui-section--active {
   padding-block: 0 var(--ui-space-2);
 }

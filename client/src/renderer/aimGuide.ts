@@ -7,6 +7,8 @@ import { clamp } from '@shared/engine/math';
  * direction and relative power, but never an authoritative ballistic path.
  */
 export const AIM_GUIDE_TICKS = 14;
+/** Samples 0-3 remain exactly coaxial with the visible barrel. */
+const AIM_GUIDE_STRAIGHT_POINTS = 4;
 
 export interface AimGuidePoint {
   readonly x: number;
@@ -61,9 +63,18 @@ export function buildLaunchGuide(
     // barrel at gameplay scale; later beads open up into the same bounded cue.
     const progress = (index / (AIM_GUIDE_TICKS - 1)) ** 1.45;
     const distance = length * progress;
-    // A small graphic-design lift makes this read as an open-ended vector,
-    // not as the start of the canonical parabola.
-    const flourish = Math.sin(Math.PI * progress) * 6;
+    // Keep the opening run exactly coaxial with the visible barrel. The
+    // decorative lift starts only after the fourth sample, so the cue reads as
+    // leaving the muzzle rather than as a second, bent barrel.
+    const flourishProgress = clamp(
+      (index - (AIM_GUIDE_STRAIGHT_POINTS - 1))
+        / (AIM_GUIDE_TICKS - AIM_GUIDE_STRAIGHT_POINTS),
+      0,
+      1,
+    );
+    // A bounded graphic-design lift makes the far cue read as an open-ended
+    // vector, not as the canonical parabola.
+    const flourish = Math.sin(Math.PI * flourishProgress) * 6;
     points.push({
       x: tip.x + Math.cos(radians) * distance,
       y: tip.y - Math.sin(radians) * distance - flourish,
