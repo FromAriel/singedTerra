@@ -138,10 +138,35 @@ const TANK_KIT_LABELS: Readonly<Record<TankKitId, string>> = {
   bulwark: 'Bulwark',
 };
 const TANK_SLOT_LABELS: Readonly<Record<(typeof TANK_PART_SLOTS)[number], string>> = {
-  treads: 'Treads',
+  treads: 'Mobility',
   hull: 'Hull',
   turret: 'Turret',
   barrel: 'Barrel',
+};
+const TANK_PART_VARIANT_LABELS: Readonly<Record<
+  (typeof TANK_PART_SLOTS)[number],
+  Readonly<Record<TankKitId, string>>
+>> = {
+  treads: {
+    foundry: 'Tracks',
+    ranger: 'Spider Legs',
+    bulwark: 'Hover',
+  },
+  hull: {
+    foundry: 'Foundry Armor',
+    ranger: 'Ranger Scout',
+    bulwark: 'Bulwark Siege',
+  },
+  turret: {
+    foundry: 'Foundry Cupola',
+    ranger: 'Ranger Sensor',
+    bulwark: 'Bulwark Bunker',
+  },
+  barrel: {
+    foundry: 'Foundry Cannon',
+    ranger: 'Ranger Railgun',
+    bulwark: 'Bulwark Siege',
+  },
 };
 
 function presetLoadout(kit: TankKitId): TankLoadout {
@@ -1269,11 +1294,12 @@ export class Lobby {
         loadout[slot].charAt(0).toUpperCase();
       button.setAttribute(
         'aria-label',
-        `Change ${ownerLabel} ${TANK_SLOT_LABELS[slot].toLowerCase()}`,
+        `Change ${ownerLabel} ${TANK_SLOT_LABELS[slot].toLowerCase()}, ` +
+        `currently ${TANK_PART_VARIANT_LABELS[slot][loadout[slot]]}`,
       );
       button.innerHTML =
         `<span>${TANK_SLOT_LABELS[slot]}</span>` +
-        `<strong>${TANK_KIT_LABELS[loadout[slot]]}</strong>`;
+        `<strong>${TANK_PART_VARIANT_LABELS[slot][loadout[slot]]}</strong>`;
       button.addEventListener('click', () => {
         const current = TANK_KIT_IDS.indexOf(loadout[slot]);
         const nextKit = TANK_KIT_IDS[(current + 1) % TANK_KIT_IDS.length]!;
@@ -2711,7 +2737,9 @@ export class Lobby {
     name.type = 'text';
     name.className = 'lobby-name';
     name.value = this.players[index].name;
-    name.maxLength = 16;
+    // Match online-room validators so hot-seat and networked player identity
+    // share one visible contract.
+    name.maxLength = 20;
     name.placeholder = `Player ${index + 1}`;
     name.addEventListener('input', () => {
       this.players[index].name = name.value;

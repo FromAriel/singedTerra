@@ -25,6 +25,42 @@ function tank(overrides: Partial<TankState> = {}): TankState {
 }
 
 describe('skill-preserving aim guide', () => {
+  it.each([20, 45, 90, 135, 160])(
+    'leaves the authored muzzle coaxially for the opening run at %d°',
+    (angle) => {
+      const me = tank({ angle, power: 50 });
+      const points = buildLaunchGuide(me);
+      const tip = barrelTip(me, BARREL_LENGTH);
+      const radians = angle * Math.PI / 180;
+      const aim = { x: Math.cos(radians), y: -Math.sin(radians) };
+
+      expect(points[0]).toEqual(tip);
+      for (const point of points.slice(1, 4)) {
+        const dx = point.x - tip.x;
+        const dy = point.y - tip.y;
+        const cross = dx * aim.y - dy * aim.x;
+        const forward = dx * aim.x + dy * aim.y;
+        expect(Math.abs(cross)).toBeLessThan(1e-8);
+        expect(forward).toBeGreaterThan(0);
+      }
+
+    },
+  );
+
+  it('retains a non-ballistic flourish after the straight opening run', () => {
+    const me = tank({ angle: 45, power: 50 });
+    const points = buildLaunchGuide(me);
+    const tip = barrelTip(me, BARREL_LENGTH);
+    const radians = me.angle * Math.PI / 180;
+    const aim = { x: Math.cos(radians), y: -Math.sin(radians) };
+    const laterCross = (
+      (points[7]!.x - tip.x) * aim.y
+      - (points[7]!.y - tip.y) * aim.x
+    );
+
+    expect(Math.abs(laterCross)).toBeGreaterThan(0.25);
+  });
+
   it('uses the same bounded launch hint on the opening turn and later turns', () => {
     const me = tank();
     const opening = { phase: 'PLAYER_TURN', turn: 0 } as GameState;

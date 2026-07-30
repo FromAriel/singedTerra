@@ -659,10 +659,14 @@ export class HUD {
     fuel.append(fuelLabel, this.fuelValueEl);
     mobility.append(this.moveLeftBtnEl, fuel, this.moveRightBtnEl);
 
-    // Active player row: player name + weapon readout, shown when not firing.
-    // Sits directly below the instrument cluster.
-    this.turnStatusEl.append(owner, weapon);
-    this.activePlayerEl.append(this.turnStatusEl, mobility);
+    const tactical = document.createElement('div');
+    tactical.className = 'st-hud__tactical-row';
+    tactical.append(weapon, mobility);
+
+    // Identity owns the full primary row. Weapon, fuel, and movement share a
+    // separate tactical row instead of competing with and truncating the player.
+    this.turnStatusEl.append(owner);
+    this.activePlayerEl.append(this.turnStatusEl, tactical);
   }
 
   /** Controls legend (bottom-right; built once, never updated). */
@@ -1454,6 +1458,9 @@ export class HUD {
     if (this.turnOwnerEl.textContent !== ownerLabel) {
       this.turnOwnerEl.textContent = ownerLabel;
     }
+    if (this.turnOwnerEl.title !== ownerLabel) {
+      this.turnOwnerEl.title = ownerLabel;
+    }
     if (this.weaponValueEl.textContent !== weaponName) {
       this.weaponValueEl.textContent = weaponName;
     }
@@ -1859,35 +1866,33 @@ export class HUD {
 }
 .st-hud__turn-identity {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  align-items: baseline;
   min-width: 0;
-  gap: 1px;
+  gap: 7px;
 }
 .st-hud__turn-status {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px;
+  display: block;
+  width: 100%;
   min-width: 0;
 }
 .st-hud__turn-kicker {
-  color: var(--ui-muted);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  line-height: 1;
-  letter-spacing: 1.35px;
-  text-transform: uppercase;
+  /* The colored rail and atomic status already communicate turn ownership.
+     Keep this label for DOM/a11y structure without spending the name's width. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .st-hud__turn-owner {
-  overflow: hidden;
+  min-width: 0;
   color: var(--ui-copy);
   font-family: var(--font-display);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: 0.45px;
-  text-overflow: ellipsis;
   text-shadow: 0 0 10px color-mix(in srgb, var(--st-turn-color) 62%, transparent);
   white-space: nowrap;
 }
@@ -1920,7 +1925,7 @@ export class HUD {
 }
 .st-hud__weapon-value {
   overflow: hidden;
-  max-width: 104px;
+  max-width: 128px;
   font-family: var(--font-display);
   font-weight: bold;
   font-size: 11px;
@@ -2812,15 +2817,15 @@ export class HUD {
   .st-hud__turn-actions,
   .st-hud__strip { order: 1; }
 }
-/* Active player + weapon row (below the cluster). */
+/* Active player module (below the cluster): identity first, tactics second. */
 .st-hud__active-row {
-  --ui-section-padding: 3px 2px 3px 11px;
+  --ui-section-padding: 5px 3px 5px 11px;
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  min-height: 31px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-height: 47px;
   overflow: hidden;
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--st-turn-color) 12%, transparent), transparent 58%);
@@ -2829,9 +2834,22 @@ export class HUD {
    * next element squeezed to zero when the panel content overflows on touch. */
   flex-shrink: 0;
 }
+.st-hud__tactical-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.st-hud__tactical-row .st-hud__weapon {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
 .st-hud__mobility {
   display: grid;
-  grid-template-columns: 26px 34px 26px;
+  grid-template-columns: 28px 36px 28px;
   align-items: stretch;
   gap: 2px;
   min-width: 0;
@@ -2839,7 +2857,7 @@ export class HUD {
 }
 .st-hud__move-btn {
   min-width: 0;
-  min-height: 20px;
+  min-height: 24px;
   padding: 0;
   border: 1px solid rgba(122, 215, 255, 0.32);
   border-radius: 4px;
@@ -2900,6 +2918,14 @@ export class HUD {
   border-radius: 999px;
   background: var(--st-turn-color, var(--ui-action));
   box-shadow: 0 0 8px var(--st-turn-color, var(--ui-action));
+}
+#app.is-compact #hud > .st-ui-section.st-hud__active-row {
+  min-height: 38px;
+  gap: 2px;
+  padding-block: 2px;
+}
+#app.is-compact .st-hud__move-btn {
+  min-height: 21px;
 }
 .st-hud__active-row--handoff {
   animation: st-hud-turn-handoff 560ms ease-out;

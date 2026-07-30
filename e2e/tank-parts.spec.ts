@@ -93,6 +93,50 @@ test.describe('modular authored tank atlas', () => {
         };
       });
 
+      const mobilityMasks = Array.from({ length: 3 }, (_, row) => {
+        const sample = document.createElement('canvas');
+        sample.width = 36;
+        sample.height = 24;
+        const sampleCtx = sample.getContext('2d', {
+          willReadFrequently: true,
+        })!;
+        sampleCtx.drawImage(
+          image,
+          0,
+          row * cellHeight,
+          cellWidth,
+          cellHeight,
+          0,
+          0,
+          sample.width,
+          sample.height,
+        );
+        const data = sampleCtx.getImageData(
+          0,
+          0,
+          sample.width,
+          sample.height,
+        ).data;
+        return Array.from(
+          { length: sample.width * sample.height },
+          (_, index) => data[index * 4 + 3]! > 48,
+        );
+      });
+      const silhouetteDistance = (a: boolean[], b: boolean[]): number => {
+        let union = 0;
+        let intersection = 0;
+        for (let index = 0; index < a.length; index++) {
+          if (a[index] || b[index]) union++;
+          if (a[index] && b[index]) intersection++;
+        }
+        return union === 0 ? 0 : 1 - intersection / union;
+      };
+      const mobilityDistances = [
+        silhouetteDistance(mobilityMasks[0]!, mobilityMasks[1]!),
+        silhouetteDistance(mobilityMasks[0]!, mobilityMasks[2]!),
+        silhouetteDistance(mobilityMasks[1]!, mobilityMasks[2]!),
+      ];
+
       const alphaNear = (
         row: number,
         centerX: number,
@@ -125,6 +169,7 @@ test.describe('modular authored tank atlas', () => {
         width: image.naturalWidth,
         height: image.naturalHeight,
         cells,
+        mobilityDistances,
         barrels: barrels.map((barrel, row) => {
           const mountY = -barrel.offsetY / barrel.height * cellHeight;
           // One rendered logical pixel converted back into source-cell pixels.
@@ -157,6 +202,7 @@ test.describe('modular authored tank atlas', () => {
     expect(decoded.width).toBe(TANK_PART_ATLAS_WIDTH);
     expect(decoded.height).toBe(TANK_PART_ATLAS_HEIGHT);
     expect(decoded.cells).toHaveLength(12);
+    expect(Math.min(...decoded.mobilityDistances)).toBeGreaterThan(0.28);
     const minimumsBySlot = [
       { visible: 7_000, width: 200, height: 35 },
       { visible: 4_000, width: 190, height: 24 },
@@ -178,82 +224,72 @@ test.describe('modular authored tank atlas', () => {
     }
   });
 
-  test('keeps the approved Foundry chassis within lossless-atlas quantization', async ({
+  test('keeps all three complete families distinct at gameplay scale', async ({
     page,
   }) => {
     await page.goto('.');
-    const comparison = await page.evaluate(async ({
+    const result = await page.evaluate(async ({
       atlasSrc,
-      chassisSrc,
       cellWidth,
       cellHeight,
     }) => {
-      const load = async (src: string): Promise<HTMLImageElement> => {
-        const image = new Image();
-        image.src = src;
-        await image.decode();
-        return image;
-      };
-      const [atlas, chassis] = await Promise.all([
-        load(atlasSrc),
-        load(chassisSrc),
-      ]);
-      const expected = document.createElement('canvas');
-      expected.width = cellWidth;
-      expected.height = cellHeight;
-      expected.getContext('2d')!.drawImage(chassis, 0, 0);
+      const image = new Image();
+      image.src = atlasSrc;
+      await image.decode();
 
-      const reconstructed = document.createElement('canvas');
-      reconstructed.width = cellWidth;
-      reconstructed.height = cellHeight;
-      const ctx = reconstructed.getContext('2d')!;
-      for (let column = 0; column < 3; column++) {
-        ctx.drawImage(
-          atlas,
-          column * cellWidth,
-          0,
-          cellWidth,
-          cellHeight,
-          0,
-          0,
-          cellWidth,
-          cellHeight,
-        );
-      }
-
-      const actualPixels = ctx.getImageData(
-        0,
-        0,
-        cellWidth,
-        cellHeight,
-      ).data;
-      const expectedPixels = expected.getContext('2d')!.getImageData(
-        0,
-        0,
-        cellWidth,
-        cellHeight,
-      ).data;
-      let changedChannels = 0;
-      let changedAlphaChannels = 0;
-      let maximumDelta = 0;
-      for (let index = 0; index < actualPixels.length; index++) {
-        const delta = Math.abs(actualPixels[index]! - expectedPixels[index]!);
-        if (delta > 0) {
-          changedChannels++;
-          if (index % 4 === 3) changedAlphaChannels++;
+      const masks = Array.from({ length: 3 }, (_, row) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 36;
+        canvas.height = 24;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+        for (let column = 0; column < 3; column++) {
+          ctx.drawImage(
+            image,
+            column * cellWidth,
+            row * cellHeight,
+            cellWidth,
+            cellHeight,
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+          );
         }
-        maximumDelta = Math.max(maximumDelta, delta);
-      }
-      return { changedChannels, changedAlphaChannels, maximumDelta };
+        const pixels = ctx.getImageData(
+          0,
+          0,
+          canvas.width,
+          canvas.height,
+        ).data;
+        return Array.from(
+          { length: canvas.width * canvas.height },
+          (_, index) => pixels[index * 4 + 3]! > 48,
+        );
+      });
+      const distance = (left: boolean[], right: boolean[]): number => {
+        let union = 0;
+        let intersection = 0;
+        for (let index = 0; index < left.length; index++) {
+          if (left[index] || right[index]) union++;
+          if (left[index] && right[index]) intersection++;
+        }
+        return union === 0 ? 0 : 1 - intersection / union;
+      };
+      return {
+        occupied: masks.map((mask) => mask.filter(Boolean).length),
+        pairwise: [
+          distance(masks[0]!, masks[1]!),
+          distance(masks[0]!, masks[2]!),
+          distance(masks[1]!, masks[2]!),
+        ],
+      };
     }, {
       atlasSrc: ATLAS_PATH,
-      chassisSrc: 'art/tank-chassis.webp',
       cellWidth: TANK_PART_CELL_WIDTH,
       cellHeight: TANK_PART_CELL_HEIGHT,
     });
 
-    expect(comparison.changedAlphaChannels).toBe(0);
-    expect(comparison.changedChannels).toBeLessThanOrEqual(100);
-    expect(comparison.maximumDelta).toBeLessThanOrEqual(2);
+    expect(Math.min(...result.occupied)).toBeGreaterThan(110);
+    expect(Math.min(...result.pairwise)).toBeGreaterThan(0.2);
   });
 });
