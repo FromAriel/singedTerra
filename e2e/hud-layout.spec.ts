@@ -33,6 +33,57 @@ test.describe('HUD layout guardrails', () => {
     ).toEqual([]);
   });
 
+  test('combat command glyphs stay semantic, framed, and fitted', async ({
+    page,
+  }) => {
+    const icons = page.locator('svg.st-ui-icon');
+    const glyphs = page.locator('.st-ui-glyph');
+
+    await expect(icons).toHaveCount(5);
+    await expect(glyphs).toHaveCount(4);
+    expect(await icons.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('data-symbol')),
+    )).toEqual(['menu', 'credits', 'target', 'ordnance', 'disclosure']);
+    expect(await glyphs.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('data-glyph')),
+    )).toEqual(['menu', 'store', 'fire', 'arsenal']);
+
+    const arsenal = page.locator('[data-icon="arsenal"]');
+    const store = page.locator('[data-icon="store"]');
+    await expect(arsenal.locator('circle[r="9"]')).toHaveCount(1);
+    await expect(store.locator('circle[r="6"]')).toHaveCount(1);
+    await expect(page.getByText('Arsenal', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Store/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Fire/ })).toBeVisible();
+
+    const geometry = await page.evaluate(() => ({
+      glyphSizes: [...document.querySelectorAll<HTMLElement>('.st-ui-glyph')].map(
+        (glyph) => {
+          const glyphRect = glyph.getBoundingClientRect();
+          const iconRect = glyph.querySelector('svg')!.getBoundingClientRect();
+          return {
+            frameWidth: glyphRect.width,
+            frameHeight: glyphRect.height,
+            iconWidth: iconRect.width,
+            iconHeight: iconRect.height,
+          };
+        },
+      ),
+      scrollWidth: document.documentElement.scrollWidth,
+      scrollHeight: document.documentElement.scrollHeight,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }));
+    for (const size of geometry.glyphSizes) {
+      expect(size.frameWidth).toBeGreaterThanOrEqual(15);
+      expect(size.frameHeight).toBeGreaterThanOrEqual(15);
+      expect(size.iconWidth).toBeGreaterThanOrEqual(12);
+      expect(size.iconHeight).toBeGreaterThanOrEqual(12);
+    }
+    expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+    expect(geometry.scrollHeight).toBeLessThanOrEqual(geometry.viewportHeight);
+  });
+
   test('the analog console is visible, boxed, and inside #hud at every scale', async ({ page }) => {
     const dials = page.locator('.st-hud__gauge-row');
     const nums = page.locator('.st-hud__gauge-nums');

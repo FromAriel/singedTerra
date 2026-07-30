@@ -14,7 +14,7 @@ import {
   windDirectionSymbol,
 } from './gaugeMath';
 import { resolveInitialArsenalCollapsed } from './arsenalPreference';
-import { makeHudIcon } from './hudIcons';
+import { makeHudGlyph, makeHudIcon } from './hudIcons';
 
 /**
  * What a store Buy click requests: exactly one of a weapon bundle or an accessory, mirroring the
@@ -695,7 +695,7 @@ export class HUD {
     stripTitle.className = 'st-hud__strip-title';
     const stripTitleText = document.createElement('span');
     stripTitleText.textContent = 'Arsenal';
-    stripTitle.append(makeHudIcon('arsenal', 15), stripTitleText);
+    stripTitle.append(makeHudGlyph('arsenal', 15), stripTitleText);
     const stripToggle = document.createElement('button');
     stripToggle.type = 'button';
     stripToggle.className = 'st-hud__strip-toggle st-ui-icon-action';
@@ -752,7 +752,7 @@ export class HUD {
     this.storeBtnEl.className = 'st-hud__store-btn st-ui-action';
     this.storeBtnLabelEl = document.createElement('span');
     this.storeBtnLabelEl.className = 'st-hud__store-btn-label';
-    this.storeBtnEl.append(makeHudIcon('store', 16), this.storeBtnLabelEl);
+    this.storeBtnEl.append(makeHudGlyph('store', 15), this.storeBtnLabelEl);
     this.storeBtnEl.addEventListener('click', () => this.toggleStore());
 
     this.storeEl = document.createElement('div');
@@ -860,7 +860,7 @@ export class HUD {
     this.primaryActionLabelEl = document.createElement('span');
     this.primaryActionLabelEl.className = 'st-hud__primary-action-label';
     this.primaryActionBtnEl.append(
-      makeHudIcon('fire', 18),
+      makeHudGlyph('fire', 17),
       this.primaryActionLabelEl,
     );
     // Click deliberately owns every activation. Pointerdown would double-dispatch
@@ -1018,7 +1018,7 @@ export class HUD {
     menu.setAttribute('aria-label', 'Menu');
     const label = document.createElement('span');
     label.textContent = 'Menu';
-    menu.append(makeHudIcon('menu', 16), label);
+    menu.append(makeHudGlyph('menu', 14), label);
     // Opens the non-destructive PAUSE overlay (Resume / Quit), NOT a direct quit —
     // so the player can get back into the live game (review #5).
     menu.addEventListener('click', () => this.togglePause(true));

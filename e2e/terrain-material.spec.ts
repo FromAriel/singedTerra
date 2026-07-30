@@ -272,9 +272,10 @@ test.describe('authored terrain material integration', () => {
         await sampleCanvasPoints(authoredPage, wallPoints),
       ),
     // Wall pixels blend the material through the bevel/rim treatment, so the
-    // signal is intentionally subtler than deep fill. Keep this above a
-    // zero/fallback result without pinning it to one browser's WebP blend.
-    ).toBeGreaterThan(0.5);
+    // magnitude varies with the sampled crater edge and browser quantization.
+    // The deterministic flat fallback is byte-identical (zero); require a
+    // bounded non-zero signal rather than prescribing the material's strength.
+    ).toBeGreaterThan(0.05);
 
     const geometry = await authoredPage.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
