@@ -1997,3 +1997,7 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 ### Combat readability fidelity PR handoff
 
 - Ready PR #216 opened from commit `e3958ab` after the clean adversarial verdict and exact final local matrix. The final full Playwright rerun passed 91 tests with 8 intentional project-conditional skips, including the new composed barrel/guide seam oracle in every viewport project. Hosted exact-head CI and CodeQL remain the merge gate. Confidence high.
+### Combat readability hosted E2E correction
+
+- Hosted E2E on exact head `e87cdbc` exposed a test-oracle race: the left-facing composed-canvas sample could begin during the bounded new-turn wind/handoff animation, contaminating the guide-only pixel delta; its first desktop retry passed. The oracle now waits the same one-second flourish interval used at initial load and computes its minimum projection iteratively to avoid a large-array spread hazard. Product rendering was unchanged. Confidence high.
+- The focused adversarial follow-up returned 0 Critical / 0 High / 0 Medium / 0 Low and PASS. Hosted-profile stress verification passed 30/30 repeated seam tests with two workers across all three projects, followed by the full two-worker matrix at 91 passed / 8 intentional skips. Confidence high.

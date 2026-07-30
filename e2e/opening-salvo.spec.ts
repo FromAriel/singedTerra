@@ -99,7 +99,10 @@ async function composedGuideSeam(
       }
     }
 
-    const firstAlong = Math.min(...changed.map((pixel) => pixel.along));
+    // Avoid argument-spread limits if an unrelated animation ever contaminates
+    // the frame delta; the assertion below will still reject that noisy frame.
+    let firstAlong = Infinity;
+    for (const pixel of changed) firstAlong = Math.min(firstAlong, pixel.along);
     const opening = changed.filter((pixel) => pixel.along <= firstAlong + 13);
     const start = opening.filter((pixel) => pixel.along <= firstAlong + 3);
     const startWeight = start.reduce((sum, pixel) => sum + pixel.delta, 0);
@@ -223,6 +226,9 @@ test.describe('bounded aim guide', () => {
     await action.click();
     await expect(action).toBeDisabled();
     await expect(action).toBeEnabled({ timeout: 15_000 });
+    // The new turn has the same bounded wind/turn-handoff flourishes as initial
+    // load. Let them expire before isolating a guide-only frame delta.
+    await page.waitForTimeout(1_000);
     const left = await composedGuideSeam(page, 135);
 
     for (const [direction, seam] of Object.entries({ right, left })) {
