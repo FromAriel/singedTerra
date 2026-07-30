@@ -1806,4 +1806,11 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Ready stacked PR opened: https://github.com/SUaDtL/singedTerra/pull/207
 - Base: `codex/authored-battlefield-backdrop` at `49f9f0854aa4e1c2b1ac69a4e7289fdef8bb916b`; implementation head at PR creation: `dd969eb4bedea119796ad717dae636b8bd86547c`.
 - Adversarial rendering review and required coverage audit each returned zero findings at every reported severity.
-- Merge and deployment intentionally not performed. The final governance receipt head must clear hosted CI and CodeQL.
+- Merge and deployment intentionally not performed. The final governance receipt head must clear hosted CI and CodeQL.### 2026-07-30 — Authored terrain material hosted gate receipt
+- PR #207 governance head `17ef516098459a825106f518d11e8b460a8c0069`: OPEN and MERGEABLE.
+- CI `typecheck · harnesses · build`: SUCCESS.
+- CI `edge function tests (deno)`: SUCCESS.
+- CI `e2e · rendering guardrails`: SUCCESS.
+- CodeQL `analyze (javascript-typescript)`: SUCCESS; repository CodeQL check: SUCCESS.
+- Supabase Preview: expected SKIPPED because no backend surface changed.
+- No merge or deployment performed. This receipt-only governance commit becomes the final PR head and must independently clear the same hosted gates.

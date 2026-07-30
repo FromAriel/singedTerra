@@ -161,7 +161,7 @@ built-in image generation, local ffmpeg WebP encoding.
   Commit through codeArbiter, push, and open against
   `codex/authored-battlefield-backdrop`. Do not merge or deploy.
 
-- [ ] **Step 5: Exact-head hosted proof**
+- [x] **Step 5: Exact-head hosted proof**
 
   Require CI, Edge, rendering E2E, CodeQL workflow, and repository CodeQL on
   the final governance receipt head. Supabase Preview may skip.
