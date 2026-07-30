@@ -46,6 +46,7 @@ import {
   drawReflectiveSidewalls,
   type WallContactVisual,
 } from './sidewallVisuals';
+import { BattlefieldBackdrop } from './BattlefieldBackdrop';
 
 /** Shared barrel geometry keeps muzzle FX at the visual tip. */
 /**
@@ -227,6 +228,8 @@ export class Renderer {
   private readonly tanks = new TankRenderer();
   private readonly projectile = new ProjectileRenderer();
   private readonly hud = new HUDRenderer();
+  /** One project-bound panorama; procedural sky art remains its full fallback. */
+  private readonly battlefieldBackdrop = new BattlefieldBackdrop();
   /** Cached static far-sky art; impact parallax moves the completed layer. */
   private readonly atmosphereClouds = new AtmosphereCloudLayer();
 
@@ -583,6 +586,10 @@ export class Renderer {
    */
   isAnimating(state: GameState): boolean {
     if (state.phase === 'FIRING' || state.phase === 'RESOLVING') return true;
+    // State snapshots keep arriving while idle. Redraw them until the one
+    // asynchronous image load settles so a cached/static turn cannot freeze on
+    // the procedural fallback forever. Failed and ready loads both release idle.
+    if (this.battlefieldBackdrop?.isSettled === false) return true;
     if (this.bursts.length > 0) return true;
     if (this.scorches.length > 0) return true;
     if ((this.wallContacts?.length ?? 0) > 0) return true;
@@ -1521,16 +1528,19 @@ export class Renderer {
     // Oversized by the composed shake + kick bound so no backdrop strip is exposed.
     const m = WORLD_TRANSLATION_MARGIN;
     ctx.fillRect(-m, -m, CANVAS_WIDTH + 2 * m, CANVAS_HEIGHT + 2 * m);
+    const backdropDrawn = this.battlefieldBackdrop?.draw(ctx, m) ?? false;
     this.drawStars();
-    this.drawCloudBanks();
+    if (!backdropDrawn) this.drawCloudBanks();
     this.drawSun();
     this.drawHorizonHaze();
     ctx.restore();
 
-    ctx.save();
-    ctx.translate(depth.middle.x, depth.middle.y);
-    this.drawDistantRidges();
-    ctx.restore();
+    if (!backdropDrawn) {
+      ctx.save();
+      ctx.translate(depth.middle.x, depth.middle.y);
+      this.drawDistantRidges();
+      ctx.restore();
+    }
   }
 
   /** Pixel stars in the upper indigo band (crisp little squares). */

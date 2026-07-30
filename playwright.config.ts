@@ -20,7 +20,10 @@ import { defineConfig, devices } from '@playwright/test';
  */
 const liveURL = process.env['E2E_LIVE_URL'];
 const PORT = 4173;
-const localBaseURL = `http://localhost:${PORT}`;
+const requestedBase = process.env['VITE_BASE'] ?? '/';
+const trimmedBase = requestedBase.replace(/^\/+|\/+$/g, '');
+const localBasePath = trimmedBase === '' ? '/' : `/${trimmedBase}/`;
+const localBaseURL = `http://localhost:${PORT}${localBasePath}`;
 
 export default defineConfig({
   testDir: 'e2e',
