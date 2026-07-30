@@ -28,5 +28,5 @@ Playwright.
 - [x] Run one adversarial subagent review and correct every Critical/High
   finding.
 - [x] Run the complete applicable local gate.
-- [ ] Commit, open a ready PR, require exact-head hosted CI/CodeQL, and merge
+- [x] Commit, open a ready PR, require exact-head hosted CI/CodeQL, and merge
   under standing authority.

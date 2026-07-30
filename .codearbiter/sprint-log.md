@@ -1889,3 +1889,9 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Adversarial follow-up: 0 Critical, 0 High, 0 Medium, 0 Low. The reviewer measured 15.625 rendered frame pixels and 12.5 rendered mark pixels at worst-case touch zoom, accepted the post-zoom oracle, and accepted the terrain nonzero sentinel.
 - `npm run check` PASS; client coverage PASS at 89 files / 614 tests, 87.29% statements, 77.25% branches, 74.95% functions, and 90.28% lines; Edge PASS at 170 tests; production build PASS at 1,880 modules and 256.63 kB / 69.46 kB gzip main bundle.
 - Full production-browser matrix PASS at 70 tests plus 8 expected profile skips. `npm audit --audit-level=high` PASS at 0 vulnerabilities; diff hygiene and conflict-marker checks PASS. No dependency, lockfile, engine, Supabase, migration, action-log, input, or deterministic behavior changed. Confidence high.
+### Combat iconography hosted gate receipt
+
+- Ready PR #211 was CLEAN and MERGEABLE on exact implementation/governance head `714a40e3a5bd5a78c9c96b6ee23b58bbb7b70f0f`.
+- Exact-head CI run `30565375041` passed deterministic harnesses, 614 client tests, production build, 170 Edge tests, and the 70-case browser matrix with 8 expected profile skips.
+- Exact-head CodeQL workflow run `30565375018` and repository CodeQL both passed. Supabase Preview was expectedly skipped because no backend surface changed.
+- The single adversarial follow-up remains 0 Critical, 0 High, 0 Medium, 0 Low. This receipt and completed plan checkbox form the final governance-only delta and must independently clear the same hosted gates before merge under standing authority. Confidence high.
