@@ -1854,3 +1854,12 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Base: codex/authored-terrain-material at da96f08e737194da5aeeacb7bd7b049521a99cc3; implementation head at PR creation: fd2bdb2.
 - Single adversarial reviewer follow-up returned 0 Critical, 0 High, 0 Medium, and 0 Low findings.
 - Standing merge authority applies only after the final governance receipt head independently clears every required hosted check; no merge or deployment has occurred yet.
+
+### 2026-07-30 - Terrain material hosted wall-signal correction
+
+- Fresh up-to-date PR #207 head `03df25014244604f284498328b49f74092cebdee` preserved the exact previously-green source tree, but hosted small-window E2E reproduced the crater-wall material delta at 0.7223 and 0.7125 against a threshold of 0.8; deep-fill proof, asset decode, geometry, 60 other browser cases, deterministic checks, both CodeQL surfaces, build, and Edge remained green.
+- **[high] Treat the dual hosted reproduction as an overfit visual oracle, not a product regression.** SMARTS Meaningful/Auditable/Reversible/Testable/Securable favors retaining the same non-zero authored-vs-fallback comparison at 0.5: fallback is 0, the observed material signal remains comfortably above the boundary, and wall pixels intentionally blend the authored field through rim/bevel shading. No runtime code or visual output changed. Confidence high.
+
+### 2026-07-30 - Authored tank chassis merge-conflict resolution
+
+- GitHub could not update PR #208 after #207 merged because both branches had append-only sprint-log receipts. The resolution retained the complete chassis-side audit history, appended the terrain wall-signal correction verbatim, and accepted the runtime-neutral E2E threshold fix from `main`; no product source or asset conflict existed. Confidence high.
