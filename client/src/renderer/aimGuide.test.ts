@@ -40,7 +40,11 @@ describe('skill-preserving aim guide', () => {
     const tip = barrelTip(me, BARREL_LENGTH);
 
     expect(points).toHaveLength(AIM_GUIDE_TICKS);
-    expect(points[0]).not.toEqual(tip);
+    expect(points[0]).toEqual(tip);
+    expect(Math.hypot(
+      points[1].x - points[0].x,
+      points[1].y - points[0].y,
+    )).toBeLessThan(5);
     expect(Math.hypot(
       points.at(-1)!.x - tip.x,
       points.at(-1)!.y - tip.y,
@@ -69,7 +73,8 @@ describe('skill-preserving aim guide', () => {
       bounces: 0,
     };
 
-    for (let tick = 0; tick < cue.length; tick++) {
+    expect(cue[0]).toEqual({ x: exact.x, y: exact.y });
+    for (let tick = 1; tick < cue.length; tick++) {
       stepProjectile(exact, 0, 0.15);
       expect(cue[tick]).not.toEqual({ x: exact.x, y: exact.y });
     }
