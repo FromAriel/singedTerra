@@ -48,7 +48,9 @@ describe('HUD single-screen combat shell', () => {
     expect(root.querySelector('.st-hud__players')?.classList.contains('st-ui-section')).toBe(true);
     expect(root.querySelector('.st-hud__instruments')?.classList.contains('st-ui-section')).toBe(true);
     expect(root.querySelector('.st-hud__active-row')?.classList.contains('st-ui-section')).toBe(true);
+    expect(root.querySelector('.st-hud__turn-actions')?.classList.contains('st-ui-section')).toBe(true);
     expect(root.querySelector('.st-hud__store-btn')?.classList.contains('st-ui-action')).toBe(true);
+    expect(root.querySelector('.st-hud__primary-action')?.classList.contains('st-ui-action')).toBe(true);
     expect(root.querySelector('.st-hud__strip')?.classList.contains('st-ui-section')).toBe(true);
   });
 
@@ -71,7 +73,7 @@ describe('HUD single-screen combat shell', () => {
     expect(store.getAttribute('aria-label')).toMatch(/Store/);
     expect(store.textContent).toContain('Store');
     expect(arsenal.textContent).toContain('Arsenal');
-    expect(iconNames).toEqual(['menu', 'store', 'arsenal', 'disclosure']);
+    expect(iconNames).toEqual(['menu', 'store', 'fire', 'arsenal', 'disclosure']);
     expect(iconPaths).toEqual({
       menu: ['M4 5h16', 'M4 12h16', 'M4 19h16'],
       store: [
@@ -79,6 +81,7 @@ describe('HUD single-screen combat shell', () => {
         'M3.103 6.034h17.794',
         'M3.4 5.467a2 2 0 0 0-.4 1.2V20a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.667a2 2 0 0 0-.4-1.2l-2-2.667A2 2 0 0 0 17 2H7a2 2 0 0 0-1.6.8z',
       ],
+      fire: [],
       arsenal: [
         'M12 22v-9',
         'M15.17 2.21a1.67 1.67 0 0 1 1.63 0L21 4.57a1.93 1.93 0 0 1 0 3.36L8.82 14.79a1.655 1.655 0 0 1-1.64 0L3 12.43a1.93 1.93 0 0 1 0-3.36z',

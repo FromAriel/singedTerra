@@ -46,6 +46,10 @@ bezel and authored gauge treatment because it is the rail's focal instrument.
 - Top-level regions use separators instead of independent card frames.
 - Gold and ember are reserved for current state, focus, and action. Muted
   lavender carries passive labels and navigation.
+- Turn commitment is one persistent rail action across pointer types. It shares
+  a bounded row with the Store, names the selected behavior (`Fire` or
+  `Activate shield`), and communicates unavailable ownership/phase state with
+  native disabled semantics.
 - The arsenal is a transient in-rail drawer. It starts closed unless the player
   explicitly saved it open, never participates in rail height, and never
   introduces an inner scrollbar.

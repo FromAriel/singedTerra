@@ -1,5 +1,6 @@
 import {
   ChevronDown,
+  Crosshair,
   Menu,
   PackageOpen,
   ShoppingBag,
@@ -8,7 +9,7 @@ import {
 
 /**
  * The combat-shell icon seam. Keep this map explicit: importing Lucide's
- * all-icons registry would ship the complete catalog instead of these four
+ * all-icons registry would ship the complete catalog instead of these five
  * small SVG nodes.
  */
 const HUD_ICONS = {
@@ -16,6 +17,7 @@ const HUD_ICONS = {
   store: ShoppingBag,
   arsenal: PackageOpen,
   disclosure: ChevronDown,
+  fire: Crosshair,
 } as const;
 
 export type HudIconName = keyof typeof HUD_ICONS;

@@ -74,6 +74,41 @@ test.describe('HUD layout guardrails', () => {
     expect(box!.height).toBeGreaterThan(4);
   });
 
+  test('one primary action stays visible, in-bounds, and drives the live fire path', async ({
+    page,
+  }, testInfo) => {
+    const action = page.locator('.st-hud__primary-action');
+    await expect(action).toHaveCount(1);
+    await expect(action).toBeVisible();
+    await expect(action).toBeEnabled();
+    await expect(action).toContainText('Fire');
+    await expect(page.locator('.st-hud__touch-fire')).toHaveCount(0);
+
+    const hudBox = await page.locator('#hud').boundingBox();
+    const actionBox = await action.boundingBox();
+    expect(hudBox).not.toBeNull();
+    expect(actionBox).not.toBeNull();
+    expect(actionBox!.x).toBeGreaterThanOrEqual(hudBox!.x - 1);
+    expect(actionBox!.x + actionBox!.width)
+      .toBeLessThanOrEqual(hudBox!.x + hudBox!.width + 1);
+    expect(actionBox!.y).toBeGreaterThanOrEqual(hudBox!.y - 1);
+    expect(actionBox!.y + actionBox!.height)
+      .toBeLessThanOrEqual(hudBox!.y + hudBox!.height + 1);
+    if (testInfo.project.name === 'pixel-touch') {
+      expect(actionBox!.height).toBeGreaterThanOrEqual(44);
+    }
+
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    let reachedAction = false;
+    for (let index = 0; index < 20 && !reachedAction; index++) {
+      await page.keyboard.press('Tab');
+      reachedAction = await action.evaluate((element) => document.activeElement === element);
+    }
+    expect(reachedAction, 'Tab should reach the primary action').toBe(true);
+    await page.keyboard.press('Enter');
+    await expect(action).toBeDisabled();
+  });
+
   test('compact touch starts fitted with arsenal collapsed', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'pixel-touch');
     const strip = page.locator('.st-hud__strip');
