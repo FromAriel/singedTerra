@@ -110,6 +110,12 @@ function callAt(fetchMock: Mock, i = fetchMock.mock.calls.length - 1): { url: st
 }
 
 const fnUrl = (name: string): string => `https://example.supabase.co/functions/v1/${name}`;
+const MIXED_LOADOUT: TankLoadout = {
+  treads: 'ranger',
+  hull: 'bulwark',
+  turret: 'foundry',
+  barrel: 'ranger',
+};
 
 /** Let the void-ed subscribeWaitingRoom()'s dynamic import + chain settle. */
 async function flush(): Promise<void> {
@@ -188,6 +194,7 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       const fetchMock = stubFetch({ json: () => ({ error: 'stop-here' }) });
       // All optional inputs left at their blank defaults; 0 bots.
       internals(lobby).onlineName = 'Alice';
+      internals(lobby).onlineLoadout = MIXED_LOADOUT;
       // onlineColor default = Red, onlineMaxPlayers default = 2, visibility default = public.
 
       await internals(lobby).handleCreateRoom();
@@ -198,7 +205,7 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       expect(body).toEqual({
         playerName: 'Alice',
         color: '#e84d4d',
-        loadout: DEFAULT_TANK_LOADOUT,
+        loadout: MIXED_LOADOUT,
         options: { maxPlayers: 2, visibility: 'public', walls: 'open' },
       });
       // No conditional keys leaked into the body.
@@ -421,6 +428,7 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
         joinCode: 'wxyz',
         onlineName: 'Bob',
         joinColor: '#4d8ce8',
+        onlineLoadout: MIXED_LOADOUT,
       });
 
       await internals(lobby).handleJoinRoom();
@@ -432,7 +440,7 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
         code: 'WXYZ',
         playerName: 'Bob',
         color: '#4d8ce8',
-        loadout: DEFAULT_TANK_LOADOUT,
+        loadout: MIXED_LOADOUT,
       });
     });
 
@@ -671,8 +679,25 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
 
     it('SUCCESS (started): emits a network LobbyConfig built from waiting state', async () => {
       const players = [
-        { id: 'p-1', name: 'Alice', color: '#e84d4d', ready: true },
-        { id: 'p-2', name: 'Bob', color: '#4d8ce8', ready: true },
+        {
+          id: 'p-1',
+          name: 'Alice',
+          color: '#e84d4d',
+          ready: true,
+          loadout: MIXED_LOADOUT,
+        },
+        {
+          id: 'p-2',
+          name: 'Bob',
+          color: '#4d8ce8',
+          ready: true,
+          loadout: {
+            treads: 'bulwark',
+            hull: 'foundry',
+            turret: 'ranger',
+            barrel: 'bulwark',
+          },
+        },
       ];
       stubFetch({ json: () => ({ started: true, players }) });
       seedWaiting();
@@ -689,13 +714,18 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
             id: 'p-1',
             name: 'Alice',
             color: '#e84d4d',
-            loadout: DEFAULT_TANK_LOADOUT,
+            loadout: MIXED_LOADOUT,
           },
           {
             id: 'p-2',
             name: 'Bob',
             color: '#4d8ce8',
-            loadout: DEFAULT_TANK_LOADOUT,
+            loadout: {
+              treads: 'bulwark',
+              hull: 'foundry',
+              turret: 'ranger',
+              barrel: 'bulwark',
+            },
           },
         ],
         playerNames: ['Alice', 'Bob'],

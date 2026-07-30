@@ -30,6 +30,58 @@ async function closeCompactGarage(page: Page): Promise<void> {
   if (await done.isVisible()) await done.click();
 }
 
+async function installTankPartDrawProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const state = window as typeof window & {
+      __tankPartDraws?: Array<{ target: string; hash: number }>;
+      __tankPartProbeInstalled?: boolean;
+    };
+    state.__tankPartDraws = [];
+    if (state.__tankPartProbeInstalled) return;
+    state.__tankPartProbeInstalled = true;
+
+    const prototype = CanvasRenderingContext2D.prototype;
+    const original = prototype.drawImage;
+    prototype.drawImage = (function (
+      this: CanvasRenderingContext2D,
+      image: CanvasImageSource,
+      ...args: number[]
+    ): void {
+      const targetCanvas = this.canvas;
+      const target = targetCanvas.id === 'game'
+        ? 'game'
+        : targetCanvas.classList.contains('lobby-preview__canvas')
+          ? 'preview'
+          : '';
+
+      if (
+        target
+        && image instanceof HTMLCanvasElement
+        && (
+          (image.width === 36 && image.height === 24)
+          || (image.width === 30 && image.height === 14)
+        )
+      ) {
+        const source = image.getContext('2d', { willReadFrequently: true });
+        if (source) {
+          const pixels = source.getImageData(
+            0,
+            0,
+            image.width,
+            image.height,
+          ).data;
+          let hash = 2166136261;
+          for (const byte of pixels) {
+            hash = Math.imul(hash ^ byte, 16777619);
+          }
+          state.__tankPartDraws!.push({ target, hash: hash >>> 0 });
+        }
+      }
+      Reflect.apply(original, this, [image, ...args]);
+    }) as typeof prototype.drawImage;
+  });
+}
+
 test.describe('tank Garage', () => {
   test('fits the stage and previews distinct authored kits', async ({ page }, testInfo) => {
     await openGarage(page);
@@ -153,6 +205,7 @@ test.describe('tank Garage', () => {
     page,
   }) => {
     await openGarage(page);
+    await installTankPartDrawProbe(page);
 
     await openCompactGarage(page, 'Player 1');
     await page.getByRole('button', {
@@ -165,10 +218,36 @@ test.describe('tank Garage', () => {
     await expect(page.getByRole('button', {
       name: 'Change Player 1 turret',
     })).toContainText('Bulwark');
+    const expectedPartHashes = await page.evaluate(() => {
+      const records = (window as typeof window & {
+        __tankPartDraws?: Array<{ target: string; hash: number }>;
+      }).__tankPartDraws ?? [];
+      return records
+        .filter(({ target }) => target === 'preview')
+        .slice(-8, -4)
+        .map(({ hash }) => hash);
+    });
+    expect(new Set(expectedPartHashes).size).toBe(4);
+    await page.evaluate(() => {
+      (window as typeof window & {
+        __tankPartDraws?: Array<{ target: string; hash: number }>;
+      }).__tankPartDraws = [];
+    });
     await closeCompactGarage(page);
     await page.getByRole('button', { name: 'Start Game' }).click();
 
     await expect(page.locator('#game')).toBeVisible();
     await expect(page.locator('#hud.st-hud')).toBeVisible();
+    await expect.poll(async () => page.evaluate((expected) => {
+      const records = (window as typeof window & {
+        __tankPartDraws?: Array<{ target: string; hash: number }>;
+      }).__tankPartDraws ?? [];
+      const gameHashes = new Set(
+        records
+          .filter(({ target }) => target === 'game')
+          .map(({ hash }) => hash),
+      );
+      return expected.every((hash) => gameHashes.has(hash));
+    }, expectedPartHashes)).toBe(true);
   });
 });

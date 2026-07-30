@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 import { Lobby } from './Lobby';
 import type { NetworkPlayer, RoomOptions } from '../client/LobbyTransport';
-import { DEFAULT_TANK_LOADOUT } from '@shared/types/TankLoadout';
+import type { TankLoadout } from '@shared/types/TankLoadout';
 
 interface CapturedChannel {
   name: string;
@@ -84,6 +84,20 @@ const waitingPlayers = [
 ];
 
 const waitingOptions = { maxPlayers: 3, maxWind: 7, gravity: 0.2, rounds: 3 };
+const activeLoadouts: TankLoadout[] = [
+  {
+    treads: 'ranger',
+    hull: 'bulwark',
+    turret: 'foundry',
+    barrel: 'ranger',
+  },
+  {
+    treads: 'bulwark',
+    hull: 'foundry',
+    turret: 'ranger',
+    barrel: 'bulwark',
+  },
+];
 
 function waitingRow(lastSeen = 100): Record<string, unknown> {
   return {
@@ -104,7 +118,10 @@ function activeRow(): Record<string, unknown> {
       suddenDeathTurn: 12,
       armsLevel: 3,
     },
-    players: waitingPlayers,
+    players: waitingPlayers.map((player, index) => ({
+      ...player,
+      loadout: activeLoadouts[index],
+    })),
   };
 }
 
@@ -250,14 +267,14 @@ describe('Lobby waiting-room session lifecycle (characterization)', () => {
           id: 'p-1',
           name: 'Alice',
           color: '#e84d4d',
-          loadout: DEFAULT_TANK_LOADOUT,
+          loadout: activeLoadouts[0],
         },
         {
           id: 'p-2',
           name: 'CPU',
           color: '#4d8ce8',
           ai: 'medium',
-          loadout: DEFAULT_TANK_LOADOUT,
+          loadout: activeLoadouts[1],
         },
       ],
       playerNames: ['Alice', 'CPU'],

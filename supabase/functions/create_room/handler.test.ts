@@ -3,7 +3,7 @@
 // guard). Asserts the no-DB validation-rejection path is reachable through the
 // exported function.
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts'
-import { handleCreateRoom } from './index.ts'
+import { createRoomHandler, handleCreateRoom } from './index.ts'
 
 Deno.test('handleCreateRoom: missing playerName returns 400 (no DB)', async () => {
   const res = await handleCreateRoom({})
@@ -24,4 +24,44 @@ Deno.test('handleCreateRoom: rejects an unknown tank loadout before DB access', 
   })
   assertEquals(res.status, 400)
   assertEquals(await res.json(), { error: 'Invalid input: loadout' })
+})
+
+Deno.test('handleCreateRoom: stores the exact bounded creator loadout', async () => {
+  const loadout = {
+    treads: 'ranger',
+    hull: 'bulwark',
+    turret: 'foundry',
+    barrel: 'ranger',
+  } as const
+  let insertedRoom: Record<string, unknown> | undefined
+  const rooms = {
+    select: () => rooms,
+    eq: () => rooms,
+    neq: () => rooms,
+    maybeSingle: () => Promise.resolve({ data: null }),
+    insert: (value: Record<string, unknown>) => {
+      insertedRoom = value
+      return rooms
+    },
+    single: () => Promise.resolve({ data: { id: 'room-1' }, error: null }),
+  }
+  const roomSeats = {
+    insert: () => Promise.resolve({ error: null }),
+  }
+  const serviceClient = {
+    from: (table: string) => table === 'rooms' ? rooms : roomSeats,
+  }
+
+  const res = await createRoomHandler({
+    serviceClient: serviceClient as never,
+  })({
+    playerName: 'Ana',
+    color: '#e84d4d',
+    loadout,
+    options: { maxPlayers: 2 },
+  })
+
+  assertEquals(res.status, 200)
+  const players = insertedRoom?.players as Array<{ loadout: unknown }>
+  assertEquals(players[0].loadout, loadout)
 })

@@ -13,7 +13,14 @@ import {
 } from '../_shared/mod.ts'
 import { coerceEconomyOptions, coerceGravity, coerceMaxWind, coerceWallMode } from './validate.ts'
 
-export async function handleCreateRoom(body: unknown): Promise<Response> {
+interface CreateRoomDependencies {
+  serviceClient?: ReturnType<typeof getServiceClient>
+}
+
+async function handleCreateRoomWithDependencies(
+  body: unknown,
+  dependencies: CreateRoomDependencies,
+): Promise<Response> {
   const { playerName, color, loadout, options, bots } = body as {
     playerName?: unknown
     color?: unknown
@@ -69,7 +76,7 @@ export async function handleCreateRoom(body: unknown): Promise<Response> {
     visibility = options.visibility
   }
 
-  const supabase = getServiceClient()
+  const supabase = dependencies.serviceClient ?? getServiceClient()
 
   // Generate playerId
   const playerId = crypto.randomUUID()
@@ -217,6 +224,16 @@ export async function handleCreateRoom(body: unknown): Promise<Response> {
   // Return the full players array so the client has the generated CPU seat ids
   // (and renders them in the waiting room) without waiting for a Realtime update.
   return json({ roomId: room.id, code, playerId, token, players }, 200)
+}
+
+export function createRoomHandler(
+  dependencies: CreateRoomDependencies,
+): (body: unknown) => Promise<Response> {
+  return (body) => handleCreateRoomWithDependencies(body, dependencies)
+}
+
+export async function handleCreateRoom(body: unknown): Promise<Response> {
+  return handleCreateRoomWithDependencies(body, {})
 }
 
 if (import.meta.main) {
