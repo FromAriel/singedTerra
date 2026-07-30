@@ -8,7 +8,7 @@
  * call), mirroring the fake-transport seam already used elsewhere in the
  * Lobby test suite.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Lobby, type LobbyConfig } from './Lobby';
 import { LobbyTransport, type FetchedRoom } from '../client/LobbyTransport';
@@ -183,7 +183,7 @@ function makeFakeSupabase(actionsLog: unknown[]): { supabase: SupabaseClient } {
 describe('Lobby.handleRejoin (T-10, AC-06)', () => {
   let root: HTMLDivElement;
   let lobby: Lobby;
-  let onReady: ReturnType<typeof vi.fn>;
+  let onReady: Mock<(config: LobbyConfig) => void>;
 
   beforeEach(() => {
     try {
@@ -310,7 +310,7 @@ describe('Lobby.handleRejoin (T-10, AC-06)', () => {
 describe('Lobby.handleRejoin stale-session handling (T-11, AC-07)', () => {
   let root: HTMLDivElement;
   let lobby: Lobby;
-  let onReady: ReturnType<typeof vi.fn>;
+  let onReady: Mock<(config: LobbyConfig) => void>;
 
   const candidateDescriptor: SessionDescriptor = { roomId: 'room-1', roomCode: 'ABCD', playerId: 'p-1' };
 
