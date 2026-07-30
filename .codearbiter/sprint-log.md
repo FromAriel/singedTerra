@@ -1706,4 +1706,7 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Production build: PASS, 1,877 modules; main 251.17 kB / 67.80 kB gzip.
 - Rendering E2E: PASS, 46 passed / 8 expected project skips, including the bounded aim guide across three viewport profiles and Player 2's left-facing default after rotation.
 - Runtime audit: PASS, 0 vulnerabilities. Diff hygiene, conflict-marker scan, and state-free changed-line secret scan: PASS (`[]`).
-- No dependency, lockfile, migration, merge, deployment, or spend beyond tokens.
+- No dependency, lockfile, migration, merge, deployment, or spend beyond tokens.### 2026-07-30 — Reflective sidewall governed commit
+- Governed behavior commit: `aafe7b6` (`feat(gameplay): add reflective sidewalls`).
+- Commit gate evidence: explicit 41-file staged manifest, complete deterministic/client/Edge/build/E2E matrix, resolved adversarial review, zero-vulnerability audit, clean cached diff, no unstaged drift, and empty staged secret scan.
+- Stacked PR target remains `codex/material-impact-signatures`; merge and deployment remain intentionally excluded.
