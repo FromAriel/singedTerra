@@ -1709,4 +1709,8 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - No dependency, lockfile, migration, merge, deployment, or spend beyond tokens.### 2026-07-30 — Reflective sidewall governed commit
 - Governed behavior commit: `aafe7b6` (`feat(gameplay): add reflective sidewalls`).
 - Commit gate evidence: explicit 41-file staged manifest, complete deterministic/client/Edge/build/E2E matrix, resolved adversarial review, zero-vulnerability audit, clean cached diff, no unstaged drift, and empty staged secret scan.
-- Stacked PR target remains `codex/material-impact-signatures`; merge and deployment remain intentionally excluded.
+- Stacked PR target remains `codex/material-impact-signatures`; merge and deployment remain intentionally excluded.### 2026-07-30 — Reflective sidewall PR receipt
+- Ready stacked PR opened: https://github.com/SUaDtL/singedTerra/pull/205
+- Base: `codex/material-impact-signatures` at `d2b609405b6442c8905d742f8084fab7d882af4c`; head at PR creation: `ac932bb`.
+- Reviewer follow-up confirmed both rematch response paths are independently pinned and no actionable blocker remains.
+- Merge and deployment intentionally not performed. Exact receipt head must clear hosted CI and CodeQL.
