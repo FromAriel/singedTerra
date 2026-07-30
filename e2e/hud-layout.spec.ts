@@ -65,13 +65,24 @@ test.describe('HUD layout guardrails', () => {
     expect(windBox!.width).toBeGreaterThan(elevationBox!.width * 1.8);
   });
 
-  test('active player + weapon row has a non-zero visible box', async ({ page }) => {
+  test('active player + weapon row is explicit, visible, and fitted', async ({ page }) => {
     const activeRow = page.locator('.st-hud__active-row');
     await expect(activeRow).toBeVisible();
+    await expect(activeRow.locator('.st-hud__turn-owner')).toHaveText('P1');
+    await expect(activeRow.locator('.st-hud__weapon-value')).toHaveText('Baby Missile');
+    await expect(activeRow).toHaveAttribute(
+      'aria-label',
+      "P1's turn. Weapon Baby Missile.",
+    );
     const box = await activeRow.boundingBox();
     expect(box, 'active/weapon row should have a rendered box').not.toBeNull();
     expect(box!.width).toBeGreaterThan(0);
     expect(box!.height).toBeGreaterThan(4);
+    const geometry = await page.locator('#hud').evaluate((hud) => ({
+      clientHeight: hud.clientHeight,
+      scrollHeight: hud.scrollHeight,
+    }));
+    expect(geometry.scrollHeight).toBeLessThanOrEqual(geometry.clientHeight + 1);
   });
 
   test('one primary action stays visible, in-bounds, and drives the live fire path', async ({

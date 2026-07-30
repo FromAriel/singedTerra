@@ -50,6 +50,10 @@ bezel and authored gauge treatment because it is the rail's focal instrument.
   a bounded row with the Store, names the selected behavior (`Fire` or
   `Activate shield`), and communicates unavailable ownership/phase state with
   native disabled semantics.
+- Turn ownership is the primary readout below the ballistic computer. The
+  active player's canonical label and team accent lead; the selected weapon is
+  secondary context. Handoffs may use one reduced-motion-safe event emphasis,
+  never an idle loop.
 - The arsenal is a transient in-rail drawer. It starts closed unless the player
   explicitly saved it open, never participates in rail height, and never
   introduces an inner scrollbar.

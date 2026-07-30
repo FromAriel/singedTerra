@@ -1447,3 +1447,42 @@ Spec/plan: `.codearbiter/specs/mobile-hud-overflow.md`, `.codearbiter/plans/mobi
 - Ready PR #199 was MERGEABLE on exact implementation head `f51cb5685e28ad0c3387ccf31f7dc21e0b1da3fe`.
 - Exact-head CI run `30419308867` passed typecheck, deterministic harnesses, client tests, production build, 159 Edge tests, and the 37-case browser matrix with 8 expected skips.
 - Exact-head CodeQL run `30419308885` passed. Supabase Preview was expectedly skipped because no backend source changed. This receipt and the completed plan checkbox form the final governance-only delta; the pushed governance head must independently clear CI and CodeQL before the PR is called green. Per the standing goal, PR #199 remains open and no deployment or merge was performed. Confidence high.
+
+## 2026-07-28 - Turn handoff beacon sprint
+
+- **[high] Select explicit turn ownership over another ornamental effect.** Live Chromium inspection showed the persistent row renders only `Weapon · Baby Missile`; the implementation comment promises player identity but appends no player node, leaving a subtle roster border as the sole turn cue. SMARTS Meaningful/Auditable/Reversible/Testable/Securable favors restoring that missing identity because it reduces hot-seat handoff ambiguity and first-turn hesitation without touching deterministic play. Confidence high.
+- **[high] Reuse the fitted row instead of adding an overlay or panel.** The active player becomes the primary text, the weapon becomes secondary context, and one event-driven emphasis retriggers only when the authoritative active seat changes. This preserves the single-screen rail, avoids continuous motion, and remains reversible presentation state. Confidence high.
+- **[high] Proceed under standing passion-project sprint authority.** The user explicitly delegated recurring spec/plan decisions and asked the loop not to stop for approval. The scoped spec and plan are accepted as written; hard gates remain enforced. Confidence high.
+
+Spec/plan: `.codearbiter/specs/turn-handoff-beacon.md`, `.codearbiter/plans/turn-handoff-beacon.md`.
+### 2026-07-28 - Turn handoff beacon TDD and live inspection
+
+- RED: the focused HUD suite failed 4/4 because no owner/kicker nodes, status semantics, team accent, handoff class, or reduced-motion rule existed; the firing row still said transport-specific `Sending...`. The production-browser oracle failed in all three viewport projects because `.st-hud__turn-owner` did not exist.
+- GREEN: the focused HUD suite passed 4/4 and the production-browser ownership/fit oracle passed desktop, compact touch, and small-window 3/3. The bounded row now leads with canonical player identity, retains weapon context, exposes one atomic polite status, clears invalid ownership, and uses reduced-motion-safe event emphasis.
+- Live Chromium inspection confirmed the ballistic computer remains primary, `P1` is visibly named with team accent, the collapsed rail remains fitted, and firing through the shared action advances the authoritative live label to `P2` with `P2's turn. Weapon Baby Missile.` Confidence high.
+
+
+### Turn handoff beacon independent review and final matrix
+
+- Correctness/coverage review accepted the authoritative phase/owner model and eight focused tests with no remaining findings. Rendering/accessibility review accepted the fitted team-accent hierarchy, roster handoff cue, polite status semantics, and reduced-motion path with no remaining findings. Confidence high.
+- Fresh stacked proof on Vite 6.4.3 and Vitest 4.1.10: deterministic/typecheck checks passed; 73 client files / 540 tests passed; coverage reached 86.21% statements, 75.36% branches, 72.84% functions, and 89.31% lines; all 159 Edge tests passed; production build passed at 237.05 kB / 63.62 kB gzip for the main bundle.
+- The full production-browser matrix passed 37 tests with 8 expected project skips across desktop, pixel-touch, and small-window. Runtime audit found zero vulnerabilities; all 145 auditable packages had verified registry signatures and 57 verified attestations; diff hygiene, conflict-marker check, and changed-file secret scan were clean. No engine, physics, replay, action-log, database, migration, Edge Function, Supabase, or deterministic behavior changed. Confidence high.
+
+
+### Turn handoff beacon behavior commit
+
+- Governed behavior commit 8129637 (eat(hud): clarify turn handoffs) is linearly based on the final PR #199 governance head 9df7d36. The append-only sprint-log conflict was resolved by retaining the complete toolchain receipt and appending the complete turn-handoff history; all application, test, spec, plan, and UI-system content is unchanged from the fully verified pre-rebase tree. Confidence high.
+
+
+### Turn handoff beacon ready PR opened
+
+- Behavior commit 8129637 and governance commit bb3339 were pushed as codex/turn-handoff-beacon.
+- Ready stacked PR #200: https://github.com/SUaDtL/singedTerra/pull/200
+- Base is codex/toolchain-security-refresh (#199) at final-green head 9df7d36, so review isolates only the turn-handoff slice. Exact-head hosted CI and CodeQL are pending; per the standing goal, the PR remains open and no merge or deployment was performed. Confidence high.
+
+
+### Turn handoff beacon hosted gate receipt
+
+- Ready PR #200 was CLEAN and MERGEABLE on exact implementation/governance head 1b69ed657a1e56e6ef1c599b678e43ea764e442.
+- Exact-head CI run 30445016736 passed typecheck, deterministic harnesses, client tests, production build, 159 Edge tests, and the 37-case browser matrix with 8 expected skips.
+- Exact-head CodeQL run 30445015795 passed. Supabase Preview was expectedly skipped because no backend source changed. This receipt and the completed plan checkbox form the final governance-only delta; the pushed governance head must independently clear CI and CodeQL before the PR is called final-green. Per the standing goal, PR #200 remains open and no deployment or merge was performed. Confidence high.
