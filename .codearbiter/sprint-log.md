@@ -1541,3 +1541,13 @@ Spec/plan: `.codearbiter/specs/fuel-limited-movement.md`, `.codearbiter/plans/fu
 - Inline correctness/security review found no remaining BLOCK findings. Move payloads are bounded identically in engine and referee, retain seat-token/membership/active-seat/bot-proxy/rate-limit/atomic-sequence controls, never advance the cursor, and apply in networked play only from ordered echo. Rendering review caught the compact rail overflowing by seven logical pixels; a component-owned `--ui-section-padding` token repaired the shell/component cascade without hiding overflow. Fresh desktop and Pixel-landscape visual inspection retained the one-page composition. Confidence high.
 - Fresh `npm run check` passed all deterministic harnesses. Isolated client coverage passed 75 files / 552 tests at 86.55% statements, 76.11% branches, 73.31% functions, and 89.61% lines. All 166 Edge tests passed. The Vite 6.4.3 production build passed at 243.06 kB / 65.39 kB gzip for the main bundle. The full production-browser matrix passed 43 tests with 8 intentional project skips across desktop, pixel-touch, and small-window. `npm audit --audit-level=high` found zero vulnerabilities. Confidence high.
 - `npm audit signatures` could not audit the local private workspace link because npm 11.16.0 attempted to resolve `@singedterra/shared@0.0.0` from the public registry and returned 404; no dependency changed in this slice, so the prior dependency-vetted lock remains untouched. The sanctioned `$ca-task` writer likewise could not parse the legacy plain-bullet movement entry and wrote nothing; the audit board was not hand-edited, while README and `docs/TASKS.md` now reflect the shipped behavior. Confidence high.- **Verification receipt correction:** the final store-readout oracle raised the client total to 553 passing tests; final production output is 243.18 kB / 65.41 kB gzip for the main bundle. Coverage percentages are unchanged. Confidence high.
+### Fuel-limited movement ready PR opened
+
+- Governed behavior commit `0137eb9` was pushed as `codex/fuel-limited-movement`.
+- Ready stacked PR #202: https://github.com/SUaDtL/singedTerra/pull/202
+- Base is exact final-green atmosphere head `4711a0bd` on `codex/atmospheric-battlefield-frame`, so review isolates the movement slice. Exact-head hosted CI and CodeQL are pending; per the standing goal, the PR remains open and no merge or deployment was performed. Confidence high.
+
+### Fuel-limited movement authoritative local receipt
+
+- Final client coverage: 75 files and 553 tests passed; 86.55% statements, 76.11% branches, 73.31% functions, and 89.61% lines.
+- Final production build: 243.18 kB / 65.41 kB gzip main bundle. All deterministic, Edge, browser, audit, diff, and secret gates remain green.

@@ -33,7 +33,7 @@
   accessibility, performance, security, and coverage findings.
 - [x] Run focused tests, deterministic checks, client coverage, Edge tests,
   production build, full E2E, runtime audit, diff hygiene, and secret scan.
-- [ ] Commit through the governed gate.
-- [ ] Open a ready stacked PR against
+- [x] Commit through the governed gate.
+- [x] Open a ready stacked PR against
   `codex/atmospheric-battlefield-frame`.
 - [ ] Prove exact-head hosted CI and CodeQL green; do not merge or deploy.
