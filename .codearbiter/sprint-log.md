@@ -1656,3 +1656,8 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Governed behavior commit: `ea2d145` (`feat(rendering): distinguish armor and ground impacts`).
 - Commit gate evidence: exact-path staged set, focused TDD, full deterministic/client/Edge/build/E2E matrix, resolved adversarial review, zero-vulnerability audit, clean cached diff, and empty staged secret scan.
 - Stacked PR target remains `codex/opening-salvo-assist`; merge and deployment remain intentionally excluded.
+### 2026-07-28 — Material impact PR receipt
+- Ready stacked PR opened: https://github.com/SUaDtL/singedTerra/pull/204
+- Base: `codex/opening-salvo-assist` at `ae42485042fcd854fa7ef243cfd80316875ab4f6`; head at PR creation: `48dbd98`.
+- Reviewer follow-up accepted the headroom fix with no remaining Critical, High, Important, or Medium finding.
+- Merge and deployment intentionally not performed. Exact receipt head must clear hosted CI and CodeQL.
