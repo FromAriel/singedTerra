@@ -2,6 +2,10 @@ import type { TankState } from '@shared/types/GameState';
 import { BARREL_LENGTH, BARREL_PIVOT_HEIGHT, barrelTip } from '@shared/engine/Tank';
 import { TANK, ACCENT, lightenHex, darkenHex } from '../ui/theme';
 import { damageTier } from './tankFx';
+import {
+  TankChassisArt,
+  type TankChassisPainter,
+} from './TankChassisArt';
 
 export interface TankRenderPose {
   readonly tankId: string;
@@ -29,6 +33,14 @@ const BARREL_WIDTH = 4;
  * (cos θ, -sin θ) (−sin because screen up is −y).
  */
 export class TankRenderer {
+  constructor(
+    private readonly chassisArt: TankChassisPainter = new TankChassisArt(),
+  ) {}
+
+  get isChassisArtSettled(): boolean {
+    return this.chassisArt.isSettled;
+  }
+
   draw(ctx: CanvasRenderingContext2D, tank: TankState, active = false): void {
     const { x, y, color, angle } = tank;
 
@@ -69,51 +81,9 @@ export class TankRenderer {
     ctx.fill();
     ctx.restore();
 
-    // --- Tread: trapezoid wider at the bottom for a tank-like stance. ---
-    ctx.beginPath();
-    ctx.moveTo(x - BODY_WIDTH / 2 - TREAD_OVERHANG, treadBottom);
-    ctx.lineTo(x + BODY_WIDTH / 2 + TREAD_OVERHANG, treadBottom);
-    ctx.lineTo(x + BODY_WIDTH / 2, treadTop);
-    ctx.lineTo(x - BODY_WIDTH / 2, treadTop);
-    ctx.closePath();
-    ctx.fillStyle = darkenHex(color, 0.72);
-    ctx.fill();
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = '#120a08';
-    ctx.stroke();
-
-    ctx.fillStyle = TANK.tread;
-    for (let i = -2; i <= 2; i++) {
-      ctx.beginPath();
-      ctx.arc(x + i * 6, treadTop + 3.4, 2.2, 0, Math.PI * 2);
-      ctx.fill();
+    if (!this.chassisArt.draw(ctx, x, y, color)) {
+      this.drawProceduralChassis(ctx, x, y, color);
     }
-    ctx.fillStyle = darkenHex(color, 0.52);
-    for (let px = left - 2; px <= left + BODY_WIDTH + 2; px += 6) {
-      ctx.fillRect(px, treadBottom - 1.6, 4, 1.2);
-    }
-
-    // --- Body: base colour, a darker grounding line at the bottom, and a
-    // lighter highlight band across the top (the banner's lit-edge look). ---
-    ctx.fillStyle = '#12080a';
-    ctx.fillRect(left - 1, bodyTop - 1, BODY_WIDTH + 2, BODY_HEIGHT + 2);
-    ctx.fillStyle = darkenHex(color, 0.34);
-    ctx.fillRect(left, bodyTop + 1, BODY_WIDTH, BODY_HEIGHT - 1);
-    ctx.fillStyle = color;
-    ctx.fillRect(left + 1, bodyTop, BODY_WIDTH - 2, BODY_HEIGHT - 3);
-    ctx.fillStyle = lightenHex(color, 0.4);
-    ctx.fillRect(left + 2, bodyTop, BODY_WIDTH - 4, HIGHLIGHT_HEIGHT);
-    ctx.fillStyle = darkenHex(color, 0.46);
-    ctx.fillRect(left + 2, bodyBottom - 3, BODY_WIDTH - 4, 2);
-
-    const turretW = 13;
-    const turretH = 6;
-    ctx.fillStyle = '#12080a';
-    ctx.fillRect(x - turretW / 2 - 1, bodyTop - turretH + 1, turretW + 2, turretH + 1);
-    ctx.fillStyle = darkenHex(color, 0.18);
-    ctx.fillRect(x - turretW / 2, bodyTop - turretH + 1, turretW, turretH);
-    ctx.fillStyle = lightenHex(color, 0.34);
-    ctx.fillRect(x - turretW / 2 + 2, bodyTop - turretH + 1, turretW - 4, 2);
 
     // --- Barrel: rotatable line from the body's top-center along the aim
     // vector (cos θ, -sin θ), in a lightened shade so it reads off the body. ---
@@ -197,6 +167,66 @@ export class TankRenderer {
       ctx.closePath();
       ctx.fill();
     }
+  }
+
+  /** Existing live-tank geometry retained as the exact loading/error fallback. */
+  private drawProceduralChassis(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    color: string,
+  ): void {
+    const treadBottom = y;
+    const treadTop = treadBottom - TREAD_HEIGHT;
+    const bodyBottom = treadTop;
+    const bodyTop = bodyBottom - BODY_HEIGHT;
+    const left = x - BODY_WIDTH / 2;
+
+    // --- Tread: trapezoid wider at the bottom for a tank-like stance. ---
+    ctx.beginPath();
+    ctx.moveTo(x - BODY_WIDTH / 2 - TREAD_OVERHANG, treadBottom);
+    ctx.lineTo(x + BODY_WIDTH / 2 + TREAD_OVERHANG, treadBottom);
+    ctx.lineTo(x + BODY_WIDTH / 2, treadTop);
+    ctx.lineTo(x - BODY_WIDTH / 2, treadTop);
+    ctx.closePath();
+    ctx.fillStyle = darkenHex(color, 0.72);
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#120a08';
+    ctx.stroke();
+
+    ctx.fillStyle = TANK.tread;
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.arc(x + i * 6, treadTop + 3.4, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = darkenHex(color, 0.52);
+    for (let px = left - 2; px <= left + BODY_WIDTH + 2; px += 6) {
+      ctx.fillRect(px, treadBottom - 1.6, 4, 1.2);
+    }
+
+    // --- Body: base colour, a darker grounding line at the bottom, and a
+    // lighter highlight band across the top (the banner's lit-edge look). ---
+    ctx.fillStyle = '#12080a';
+    ctx.fillRect(left - 1, bodyTop - 1, BODY_WIDTH + 2, BODY_HEIGHT + 2);
+    ctx.fillStyle = darkenHex(color, 0.34);
+    ctx.fillRect(left, bodyTop + 1, BODY_WIDTH, BODY_HEIGHT - 1);
+    ctx.fillStyle = color;
+    ctx.fillRect(left + 1, bodyTop, BODY_WIDTH - 2, BODY_HEIGHT - 3);
+    ctx.fillStyle = lightenHex(color, 0.4);
+    ctx.fillRect(left + 2, bodyTop, BODY_WIDTH - 4, HIGHLIGHT_HEIGHT);
+    ctx.fillStyle = darkenHex(color, 0.46);
+    ctx.fillRect(left + 2, bodyBottom - 3, BODY_WIDTH - 4, 2);
+
+    const turretW = 13;
+    const turretH = 6;
+    ctx.fillStyle = '#12080a';
+    ctx.fillRect(x - turretW / 2 - 1, bodyTop - turretH + 1, turretW + 2, turretH + 1);
+    ctx.fillStyle = darkenHex(color, 0.18);
+    ctx.fillRect(x - turretW / 2, bodyTop - turretH + 1, turretW, turretH);
+    ctx.fillStyle = lightenHex(color, 0.34);
+    ctx.fillRect(x - turretW / 2 + 2, bodyTop - turretH + 1, turretW - 4, 2);
   }
 
   /**
