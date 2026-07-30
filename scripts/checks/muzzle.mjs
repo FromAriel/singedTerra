@@ -49,6 +49,8 @@ const SHARED_TANK_MODULE = '@shared/engine/Tank';
 const rendererSourcePaths = [
   'client/src/renderer/TankRenderer.ts',
   'client/src/renderer/Renderer.ts',
+  'client/src/renderer/TankPartArt.ts',
+  'client/src/renderer/tankPartCatalog.ts',
 ];
 const clientConfig = ts.readConfigFile('client/tsconfig.json', ts.sys.readFile);
 if (clientConfig.error)
@@ -95,12 +97,12 @@ function resolvedSymbolAt(node) {
     : symbol;
 }
 
-function resolvedSharedTankImports(source) {
+function resolvedNamedImports(source, moduleSpecifierText) {
   const resolved = new Map();
   for (const statement of source.statements) {
     if (
       !ts.isImportDeclaration(statement) ||
-      statement.moduleSpecifier.text !== SHARED_TANK_MODULE ||
+      statement.moduleSpecifier.text !== moduleSpecifierText ||
       statement.importClause?.isTypeOnly
     ) continue;
     const bindings = statement.importClause?.namedBindings;
@@ -120,6 +122,10 @@ function resolvedSharedTankImports(source) {
     }
   }
   return resolved;
+}
+
+function resolvedSharedTankImports(source) {
+  return resolvedNamedImports(source, SHARED_TANK_MODULE);
 }
 
 function methodHasDirectSharedTipCall(method, imports) {
@@ -328,16 +334,45 @@ console.log('[4] GUARD: renderers own shared barrel geometry (issue #153)');
 {
   const tankRenderer = parseSource('client/src/renderer/TankRenderer.ts');
   const renderer = parseSource('client/src/renderer/Renderer.ts');
+  const tankPartArt = parseSource('client/src/renderer/TankPartArt.ts');
+  const tankPartCatalog = parseSource(
+    'client/src/renderer/tankPartCatalog.ts',
+  );
   const aimGuideSource = parseSource('client/src/renderer/aimGuide.ts');
   const tankImports = resolvedSharedTankImports(tankRenderer);
   const rendererImports = resolvedSharedTankImports(renderer);
+  const partCatalogImports = resolvedSharedTankImports(tankPartCatalog);
+  const partArtCatalogImports = resolvedNamedImports(
+    tankPartArt,
+    './tankPartCatalog',
+  );
   const aimGuideImports = resolvedSharedTankImports(aimGuideSource);
   const tankDraw = uniqueProductionMethod(tankRenderer, 'TankRenderer', 'draw');
+  const proceduralBarrel = uniqueProductionMethod(
+    tankRenderer,
+    'TankRenderer',
+    'drawProceduralBarrel',
+  );
+  const authoredBarrel = uniqueProductionMethod(
+    tankPartArt,
+    'TankPartArt',
+    'drawBarrel',
+  );
+  const tankBarrelMount = uniqueTopLevelFunction(
+    tankPartCatalog,
+    'tankBarrelMount',
+  );
   const muzzleFlash = uniqueProductionMethod(renderer, 'Renderer', 'spawnMuzzleFlash');
   const aimGuide = uniqueProductionMethod(renderer, 'Renderer', 'drawAimGuide');
   const buildLaunchGuide = uniqueTopLevelFunction(aimGuideSource, 'buildLaunchGuide');
 
   ok(Boolean(tankDraw), 'TankRenderer has exactly one production draw method');
+  ok(Boolean(proceduralBarrel),
+    'TankRenderer has exactly one procedural fallback barrel method');
+  ok(Boolean(authoredBarrel),
+    'TankPartArt has exactly one authored drawBarrel method');
+  ok(Boolean(tankBarrelMount),
+    'tankPartCatalog has exactly one tankBarrelMount function');
   ok(Boolean(muzzleFlash), 'Renderer has exactly one production spawnMuzzleFlash method');
   ok(Boolean(aimGuide), 'Renderer has exactly one production drawAimGuide method');
   ok(Boolean(buildLaunchGuide), 'aimGuide has exactly one buildLaunchGuide function');
@@ -345,14 +380,37 @@ console.log('[4] GUARD: renderers own shared barrel geometry (issue #153)');
   for (const name of ['BARREL_LENGTH', 'BARREL_PIVOT_HEIGHT', 'barrelTip']) {
     ok(tankImports.has(name), `TankRenderer resolves shared Tank export ${name}`);
   }
-  ok(methodHasSharedPivotExpression(tankDraw, tankImports),
-    'TankRenderer draw references imported BARREL_PIVOT_HEIGHT in its pivot expression');
-  ok(methodHasDirectSharedTipCall(tankDraw, tankImports),
-    'TankRenderer draw directly calls imported barrelTip with imported BARREL_LENGTH');
-  const tankMirrors = topLevelMirrorViolations(tankRenderer, [tankDraw]);
+  ok(methodHasSharedPivotExpression(proceduralBarrel, tankImports),
+    'TankRenderer fallback references imported BARREL_PIVOT_HEIGHT');
+  ok(methodHasDirectSharedTipCall(proceduralBarrel, tankImports),
+    'TankRenderer fallback calls imported barrelTip with imported BARREL_LENGTH');
+  const tankMirrors = topLevelMirrorViolations(
+    tankRenderer,
+    [tankDraw, proceduralBarrel],
+  );
   ok(tankMirrors.length === 0,
     'TankRenderer declares no legacy or referenced 20/22 geometry mirror',
     tankMirrors.join(', '));
+
+  for (const name of ['BARREL_LENGTH', 'BARREL_PIVOT_HEIGHT', 'barrelTip']) {
+    ok(partCatalogImports.has(name),
+      `tankPartCatalog resolves shared Tank export ${name}`);
+  }
+  ok(methodHasSharedPivotExpression(tankBarrelMount, partCatalogImports),
+    'tankBarrelMount references imported BARREL_PIVOT_HEIGHT');
+  ok(methodHasDirectSharedTipCall(tankBarrelMount, partCatalogImports),
+    'tankBarrelMount calls imported barrelTip with imported BARREL_LENGTH');
+  ok(methodCallsSymbol(
+    authoredBarrel,
+    partArtCatalogImports.get('tankBarrelMount'),
+  ), 'TankPartArt drawBarrel calls the shared tankBarrelMount adapter');
+  const partCatalogMirrors = topLevelMirrorViolations(
+    tankPartCatalog,
+    [tankBarrelMount],
+  );
+  ok(partCatalogMirrors.length === 0,
+    'tankPartCatalog declares no legacy or referenced 20/22 geometry mirror',
+    partCatalogMirrors.join(', '));
 
   for (const name of ['BARREL_LENGTH', 'barrelTip']) {
     ok(rendererImports.has(name), `Renderer resolves shared Tank export ${name}`);
@@ -373,6 +431,23 @@ console.log('[4] GUARD: renderers own shared barrel geometry (issue #153)');
   ok(aimGuideMirrors.length === 0,
     'aimGuide declares no legacy or referenced 20/22 geometry mirror',
     aimGuideMirrors.join(', '));
+}
+
+function methodCallsSymbol(method, declarationSymbol) {
+  if (!method || !declarationSymbol) return false;
+  let called = false;
+  const visit = (node) => {
+    if (
+      ts.isCallExpression(node)
+      && resolvedSymbolAt(node.expression) === declarationSymbol
+    ) {
+      called = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(method, visit);
+  return called;
 }
 
 // ---------------------------------------------------------------------------

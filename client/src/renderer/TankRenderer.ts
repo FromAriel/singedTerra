@@ -6,6 +6,10 @@ import {
   TankChassisArt,
   type TankChassisPainter,
 } from './TankChassisArt';
+import {
+  TankPartArt,
+  type TankPartPainter,
+} from './TankPartArt';
 
 export interface TankRenderPose {
   readonly tankId: string;
@@ -35,9 +39,12 @@ const BARREL_WIDTH = 4;
 export class TankRenderer {
   constructor(
     private readonly chassisArt: TankChassisPainter = new TankChassisArt(),
+    private readonly partArt: TankPartPainter = new TankPartArt(),
   ) {}
 
   get isChassisArtSettled(): boolean {
+    if (this.partArt.state === 'ready') return this.partArt.isSettled;
+    if (this.partArt.state === 'loading') return false;
     return this.chassisArt.isSettled;
   }
 
@@ -81,43 +88,16 @@ export class TankRenderer {
     ctx.fill();
     ctx.restore();
 
-    if (!this.chassisArt.draw(ctx, x, y, color)) {
+    const modularChassis = this.partArt.drawStatic(ctx, tank);
+    if (!modularChassis && !this.chassisArt.draw(ctx, x, y, color)) {
       this.drawProceduralChassis(ctx, x, y, color);
     }
 
     // --- Barrel: rotatable line from the body's top-center along the aim
     // vector (cos θ, -sin θ), in a lightened shade so it reads off the body. ---
-    const pivotX = x;
-    const pivotY = y - BARREL_PIVOT_HEIGHT;
-    const tip = barrelTip(tank, BARREL_LENGTH);
-    const tipX = tip.x;
-    const tipY = tip.y;
-    const barrelNormalX = (tipY - pivotY) / BARREL_LENGTH;
-    const barrelNormalY = (pivotX - tipX) / BARREL_LENGTH;
-
-    ctx.beginPath();
-    ctx.moveTo(pivotX, pivotY);
-    ctx.lineTo(tipX, tipY);
-    ctx.lineWidth = BARREL_WIDTH + 2;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#130809';
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(pivotX, pivotY);
-    ctx.lineTo(tipX, tipY);
-    ctx.lineWidth = BARREL_WIDTH;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = lightenHex(color, 0.48);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(pivotX + barrelNormalX, pivotY + barrelNormalY);
-    ctx.lineTo(tipX + barrelNormalX, tipY + barrelNormalY);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = lightenHex(color, 0.72);
-    ctx.stroke();
-    // Reset to avoid leaking line state to subsequent draws.
-    ctx.lineWidth = 1;
-    ctx.lineCap = 'butt';
+    if (!modularChassis || !this.partArt.drawBarrel(ctx, tank)) {
+      this.drawProceduralBarrel(ctx, tank);
+    }
 
     // --- Damage-state scorch overlay (render-only; keyed on authoritative health). ---
     // When the tank is alive and below the damage threshold, overlay the body with
@@ -150,7 +130,9 @@ export class TankRenderer {
 
     // --- Active-player chevron above the body (gold). ---
     if (active) {
-      const cy = bodyTop - 18;
+      // Keep the active marker above the modular turret/barrel silhouette so it
+      // never reads as a disconnected joint in the aiming assembly.
+      const cy = bodyTop - 26;
       ctx.save();
       ctx.globalAlpha = 0.28;
       ctx.strokeStyle = ACCENT.gold;
@@ -167,6 +149,44 @@ export class TankRenderer {
       ctx.closePath();
       ctx.fill();
     }
+  }
+
+  /** Procedural barrel retained for loading/error fallback parity. */
+  private drawProceduralBarrel(
+    ctx: CanvasRenderingContext2D,
+    tank: TankState,
+  ): void {
+    const { x, y, color } = tank;
+    const pivotX = x;
+    const pivotY = y - BARREL_PIVOT_HEIGHT;
+    const tip = barrelTip(tank, BARREL_LENGTH);
+    const tipX = tip.x;
+    const tipY = tip.y;
+    const barrelNormalX = (tipY - pivotY) / BARREL_LENGTH;
+    const barrelNormalY = (pivotX - tipX) / BARREL_LENGTH;
+
+    ctx.beginPath();
+    ctx.moveTo(pivotX, pivotY);
+    ctx.lineTo(tipX, tipY);
+    ctx.lineWidth = BARREL_WIDTH + 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#130809';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pivotX, pivotY);
+    ctx.lineTo(tipX, tipY);
+    ctx.lineWidth = BARREL_WIDTH;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = lightenHex(color, 0.48);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pivotX + barrelNormalX, pivotY + barrelNormalY);
+    ctx.lineTo(tipX + barrelNormalX, tipY + barrelNormalY);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = lightenHex(color, 0.72);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.lineCap = 'butt';
   }
 
   /** Existing live-tank geometry retained as the exact loading/error fallback. */

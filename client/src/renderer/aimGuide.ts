@@ -52,9 +52,14 @@ export function buildLaunchGuide(
   const radians = tank.angle * Math.PI / 180;
   const powerRatio = Math.sqrt(clamp(tank.power / 100, 0, 1));
   const length = 48 + powerRatio * 78;
-  const points: AimGuidePoint[] = [];
-  for (let index = 0; index < AIM_GUIDE_TICKS; index++) {
-    const progress = (index + 1) / AIM_GUIDE_TICKS;
+  // The first point is the exact shared muzzle. This keeps the visible barrel
+  // and launch cue continuous while the later points retain the deliberately
+  // non-ballistic flourish.
+  const points: AimGuidePoint[] = [tip];
+  for (let index = 1; index < AIM_GUIDE_TICKS; index++) {
+    // Ease out of the muzzle so the first visible bead stays connected to the
+    // barrel at gameplay scale; later beads open up into the same bounded cue.
+    const progress = (index / (AIM_GUIDE_TICKS - 1)) ** 1.45;
     const distance = length * progress;
     // A small graphic-design lift makes this read as an open-ended vector,
     // not as the start of the canonical parabola.

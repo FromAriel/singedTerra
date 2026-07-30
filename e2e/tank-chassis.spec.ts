@@ -173,7 +173,7 @@ test.describe('authored tank chassis integration', () => {
 
     const fallbackPage = await context.newPage();
     await fallbackPage.route(
-      '**/art/tank-chassis.webp',
+      '**/art/tank-parts.webp',
       (route) => route.abort(),
     );
     await gotoRunningGame(fallbackPage);
