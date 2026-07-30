@@ -1,12 +1,12 @@
 import { withCors, json, getServiceClient, generateCode, isValidColor, mintSeatToken, DEFAULT_GRAVITY, DEFAULT_MAX_WIND } from '../_shared/mod.ts'
-import { coerceEconomyOptions, coerceGravity, coerceMaxWind } from './validate.ts'
+import { coerceEconomyOptions, coerceGravity, coerceMaxWind, coerceWallMode } from './validate.ts'
 
 export async function handleCreateRoom(body: unknown): Promise<Response> {
   const { playerName, color, options, bots } = body as {
     playerName?: unknown
     color?: unknown
     options?: {
-      maxPlayers?: unknown; maxWind?: unknown; gravity?: unknown; visibility?: unknown; rounds?: unknown
+      maxPlayers?: unknown; maxWind?: unknown; gravity?: unknown; visibility?: unknown; rounds?: unknown; walls?: unknown
       // SE-parity economy (optional, additive). Coerced by coerceEconomyOptions.
       interestRate?: unknown; suddenDeathTurn?: unknown; armsLevel?: unknown
     }
@@ -138,6 +138,7 @@ export async function handleCreateRoom(body: unknown): Promise<Response> {
     maxPlayers,
     maxWind: coerceMaxWind(options.maxWind, DEFAULT_MAX_WIND),
     gravity: coerceGravity(options.gravity, DEFAULT_GRAVITY),
+    walls: coerceWallMode(options.walls),
     visibility,
     ...(rounds !== undefined ? { rounds } : {}),
     // SE-parity economy — coerced + omitted-when-absent so every client builds an identical engine.

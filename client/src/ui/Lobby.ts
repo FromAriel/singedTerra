@@ -139,6 +139,8 @@ const SUDDEN_DEATH_DEFAULT = 0;
 interface SettingsState {
   maxWind: string;
   gravity: string;
+  /** Horizontal arena boundary behavior (blank = open). */
+  walls: string;
   seed: string;
   rounds: string;
   interestRate: string;
@@ -178,7 +180,7 @@ export class Lobby {
   private players: PlayerRowState[] = [];
 
   /** Raw working state for the advanced-settings inputs (blank = use default). */
-  private settings: SettingsState = { maxWind: '', gravity: '', seed: '', rounds: '', interestRate: '', suddenDeathTurn: '', armsLevel: '' };
+  private settings: SettingsState = { maxWind: '', gravity: '', walls: '', seed: '', rounds: '', interestRate: '', suddenDeathTurn: '', armsLevel: '' };
 
   /** Whether the advanced-settings <details> is open (persist across renders). */
   private settingsOpen = false;
@@ -193,6 +195,8 @@ export class Lobby {
   private onlineMaxPlayers = 2;
   private onlineMaxWind = '';
   private onlineGravity = '';
+  /** Horizontal arena boundary behavior (blank = open). */
+  private onlineWalls = '';
   private onlineRounds = '';
   private onlineInterestRate = '';
   private onlineSuddenDeath = '';
@@ -973,6 +977,7 @@ export class Lobby {
         seed: liveRoom.seed,
         maxWind: liveRoom.options.maxWind,
         gravity: liveRoom.options.gravity,
+        ...(liveRoom.options.walls === 'reflective' ? { walls: 'reflective' as const } : {}),
         ...(liveRoom.options.rounds !== undefined ? { rounds: liveRoom.options.rounds } : {}),
         ...(liveRoom.options.interestRate !== undefined ? { interestRate: liveRoom.options.interestRate } : {}),
         ...(liveRoom.options.suddenDeathTurn !== undefined ? { suddenDeathTurn: liveRoom.options.suddenDeathTurn } : {}),
@@ -1209,6 +1214,16 @@ export class Lobby {
         min: GRAVITY_MIN, max: GRAVITY_MAX, step: GRAVITY_STEP, placeholder: String(GRAVITY_DEFAULT),
         hint: `${GRAVITY_MIN}–${GRAVITY_MAX}`,
       }),
+      this.onlineChoiceField(
+        'Side walls',
+        this.onlineWalls,
+        (v) => { this.onlineWalls = v; },
+        [
+          { value: '', label: 'Open' },
+          { value: 'reflective', label: 'Reflective' },
+        ],
+        'bank shots rebound from the arena edges',
+      ),
       this.onlineNumberField('Rounds', this.onlineRounds, (v) => { this.onlineRounds = v; }, {
         min: ROUNDS_MIN, max: ROUNDS_MAX, step: 2, placeholder: String(ROUNDS_DEFAULT),
         hint: 'best-of-N, odd',
@@ -1297,6 +1312,7 @@ export class Lobby {
         visibility: this.onlineVisibility,
         maxWind: this.onlineMaxWind,
         gravity: this.onlineGravity,
+        walls: this.onlineWalls,
         rounds: this.onlineRounds,
         interestRate: this.onlineInterestRate,
         suddenDeath: this.onlineSuddenDeath,
@@ -1342,6 +1358,7 @@ export class Lobby {
         gravity: parseNumber(this.onlineGravity) !== undefined
           ? clamp(parseNumber(this.onlineGravity)!, GRAVITY_MIN, GRAVITY_MAX)
           : GRAVITY_DEFAULT,
+        walls: this.onlineWalls === 'reflective' ? 'reflective' : 'open',
         ...(rounds !== undefined ? { rounds } : {}),
         ...economy,
       };
@@ -1485,7 +1502,7 @@ export class Lobby {
       writeSeatToken(data.playerId, data.token);
       writeSession({ roomId: this.waitingRoomId, roomCode: this.waitingRoomCode, playerId: this.waitingPlayerId });
       this.waitingSeed = data.seed ?? 0;
-      this.waitingOptions = data.options ?? { maxPlayers: 2, maxWind: 10, gravity: 0.15 };
+      this.waitingOptions = data.options ?? { maxPlayers: 2, maxWind: 10, gravity: 0.15, walls: 'open' };
       this.waitingPlayers = data.players ?? [];
       this.waitingThisPlayerReady = false;
       this.onlineSubView = 'waiting';
@@ -1857,6 +1874,7 @@ export class Lobby {
         seed: room.seed,
         maxWind: room.options.maxWind,
         gravity: room.options.gravity,
+        ...(room.options.walls === 'reflective' ? { walls: 'reflective' as const } : {}),
         // Best-of-N comes from the SYNCED room row so every client's engine agrees
         // (a per-client value would desync the deterministic lockstep). Absent on
         // pre-feature rooms => engine defaults to a single round.
@@ -2280,6 +2298,15 @@ export class Lobby {
         placeholder: String(GRAVITY_DEFAULT),
         hint: `${GRAVITY_MIN}–${GRAVITY_MAX}`,
       }),
+      this.settingsChoiceField(
+        'Side walls',
+        'walls',
+        [
+          { value: '', label: 'Open' },
+          { value: 'reflective', label: 'Reflective' },
+        ],
+        'bank shots rebound from the arena edges',
+      ),
       this.numberField('Seed', 'seed', {
         step: 1,
         placeholder: 'default',
@@ -2346,6 +2373,66 @@ export class Lobby {
     hint.textContent = opts.hint;
 
     field.append(lab, input, hint);
+    return field;
+  }
+
+  /** Build one labelled select bound to a hot-seat SettingsState key. */
+  private settingsChoiceField(
+    label: string,
+    key: keyof SettingsState,
+    choices: ReadonlyArray<{ value: string; label: string }>,
+    hintText: string,
+  ): HTMLElement {
+    return this.choiceField(`lobby-hotseat-${key}`, label, this.settings[key], (value) => {
+      this.settings[key] = value;
+    }, choices, hintText);
+  }
+
+  /** Build one labelled select for an online advanced setting. */
+  private onlineChoiceField(
+    label: string,
+    value: string,
+    onChange: (value: string) => void,
+    choices: ReadonlyArray<{ value: string; label: string }>,
+    hintText: string,
+  ): HTMLElement {
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    return this.choiceField(`lobby-online-${slug}`, label, value, onChange, choices, hintText);
+  }
+
+  private choiceField(
+    controlId: string,
+    label: string,
+    value: string,
+    onChange: (value: string) => void,
+    choices: ReadonlyArray<{ value: string; label: string }>,
+    hintText: string,
+  ): HTMLElement {
+    const field = document.createElement('div');
+    field.className = 'lobby-field';
+
+    const lab = document.createElement('label');
+    lab.textContent = label;
+    lab.htmlFor = controlId;
+
+    const select = document.createElement('select');
+    select.id = controlId;
+    for (const choice of choices) {
+      const option = document.createElement('option');
+      option.value = choice.value;
+      option.textContent = choice.label;
+      option.selected = choice.value === value;
+      select.append(option);
+    }
+    select.addEventListener('change', () => onChange(select.value));
+
+    const hint = document.createElement('span');
+    hint.className = 'lobby-hint';
+    hint.id = `${controlId}-hint`;
+    hint.textContent = hintText;
+    select.setAttribute('aria-describedby', hint.id);
+
+    field.append(lab, select, hint);
     return field;
   }
 

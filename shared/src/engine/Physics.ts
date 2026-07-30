@@ -1,4 +1,5 @@
 import type { ProjectileState, TankState } from '../types/GameState';
+import type { WallMode } from '../types/GameOptions';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, pixelAt, surfaceAt } from './Terrain';
 import { TANK_WIDTH, TANK_HEIGHT } from './Tank';
 
@@ -43,6 +44,8 @@ export const MAX_DAMAGE = 100;
  * flights also give wind more influence, so games run more turns (playtest note).
  */
 export const POWER_SCALE = 0.165;
+/** Shared live/AI airborne lifetime cap. Cap expiry detonates at the current point. */
+export const MAX_FLIGHT_TICKS = 240;
 
 /** Degrees → radians. */
 const DEG_TO_RAD = Math.PI / 180;
@@ -52,6 +55,7 @@ export type CollisionResult =
   | { type: 'none' }
   | { type: 'ground'; x: number; y: number }
   | { type: 'tank'; tankId: string; x: number; y: number }
+  | { type: 'wall'; side: 'left' | 'right'; x: number; y: number }
   | { type: 'oob' };
 
 /** Authoritative explosion event payload emitted into GameState (SPEC §7). */
@@ -118,6 +122,7 @@ export function sweepCollide(
   prevY: number,
   terrain: Uint8Array,
   tanks: readonly TankState[],
+  walls: WallMode = 'open',
 ): CollisionResult {
   const endX = p.x;
   const endY = p.y;
@@ -143,7 +148,7 @@ export function sweepCollide(
     const t = i / steps;
     probe.x = prevX + dx * t;
     probe.y = prevY + dy * t;
-    const hit = collide(probe, terrain, tanks);
+    const hit = collide(probe, terrain, tanks, walls);
     if (hit.type !== 'none') {
       // Report the impact at the interpolated point where it was detected,
       // and snap the projectile back to that point so downstream consumers
@@ -177,10 +182,21 @@ export function collide(
   p: ProjectileState,
   terrain: Uint8Array,
   tanks: readonly TankState[],
+  walls: WallMode = 'open',
 ): CollisionResult {
   // Out of bounds (horizontal). A miss — handled before terrain/tank so an
   // off-screen projectile never indexes terrain out of range.
   if (p.x < 0 || p.x >= CANVAS_WIDTH) {
+    if (walls === 'reflective') {
+      return p.x < 0
+        ? { type: 'wall', side: 'left', x: WALL_INSET, y: p.y }
+        : {
+            type: 'wall',
+            side: 'right',
+            x: CANVAS_WIDTH - WALL_INSET,
+            y: p.y,
+          };
+    }
     return { type: 'oob' };
   }
 
@@ -207,6 +223,20 @@ export function collide(
   }
 
   return { type: 'none' };
+}
+
+/** Keep a reflected shell safely inside the next collision probe. */
+export const WALL_INSET = 0.01;
+
+/** Reflect one exact horizontal-wall contact without changing vertical motion. */
+export function reflectSideWall(
+  p: ProjectileState,
+  hit: Extract<CollisionResult, { type: 'wall' }>,
+): ProjectileState {
+  p.x = hit.x;
+  p.y = hit.y;
+  p.vx = hit.side === 'left' ? Math.abs(p.vx) : -Math.abs(p.vx);
+  return p;
 }
 
 /** Bounce tuning (named constants, not magic numbers). */

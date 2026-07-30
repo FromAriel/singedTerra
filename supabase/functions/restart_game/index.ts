@@ -17,8 +17,63 @@ interface RematchInfo {
   roomId: string
   code: string
   seed: number
-  options: { maxPlayers: number; maxWind: number; gravity: number }
+  options: {
+    maxPlayers: number
+    maxWind: number
+    gravity: number
+    walls: 'open' | 'reflective'
+  }
   players: Array<{ id: string; name: string; color: string }>
+}
+
+interface ExistingRematchRecord {
+  id: string
+  code: string
+  seed: number
+  options?: StoredOptions | null
+  players?: StoredPlayer[] | null
+}
+
+/** Normalize the opaque stored room JSON into the rematch wire contract. */
+export function normalizeRematchOptions(
+  options: StoredOptions,
+  playerCount: number,
+): RematchInfo['options'] {
+  return {
+    maxPlayers: options.maxPlayers ?? playerCount,
+    maxWind: typeof options.maxWind === 'number' ? options.maxWind : DEFAULT_MAX_WIND,
+    gravity: typeof options.gravity === 'number' ? options.gravity : DEFAULT_GRAVITY,
+    walls: options.walls === 'reflective' ? 'reflective' : 'open',
+  }
+}
+
+/** Project the room read by a caller that lost the atomic rematch claim. */
+export function projectExistingRematchInfo(room: ExistingRematchRecord): RematchInfo {
+  const players = room.players ?? []
+  return {
+    roomId: room.id,
+    code: room.code,
+    seed: Number(room.seed),
+    options: normalizeRematchOptions((room.options ?? {}) as StoredOptions, players.length),
+    players: players.map(p => ({ id: p.id, name: p.name, color: p.color })),
+  }
+}
+
+/** Project the newly inserted room returned by the winning rematch caller. */
+export function projectCreatedRematchInfo(
+  roomId: string,
+  code: string,
+  seed: number,
+  options: StoredOptions,
+  players: StoredPlayer[],
+): RematchInfo {
+  return {
+    roomId,
+    code,
+    seed,
+    options: normalizeRematchOptions(options, players.length),
+    players: players.map(p => ({ id: p.id, name: p.name, color: p.color })),
+  }
 }
 
 /**
@@ -47,19 +102,13 @@ async function fetchRematchInfo(supabase: ServiceClient, id: string): Promise<Re
     .eq('id', id)
     .maybeSingle()
   if (!data) return null
-  const opts = (data.options ?? {}) as StoredOptions
-  const players = (data.players ?? []) as StoredPlayer[]
-  return {
-    roomId: data.id as string,
+  return projectExistingRematchInfo({
+    id: data.id as string,
     code: data.code as string,
     seed: Number(data.seed),
-    options: {
-      maxPlayers: opts.maxPlayers ?? players.length,
-      maxWind: typeof opts.maxWind === 'number' ? opts.maxWind : DEFAULT_MAX_WIND,
-      gravity: typeof opts.gravity === 'number' ? opts.gravity : DEFAULT_GRAVITY,
-    },
-    players: players.map(p => ({ id: p.id, name: p.name, color: p.color })),
-  }
+    options: (data.options ?? {}) as StoredOptions,
+    players: (data.players ?? []) as StoredPlayer[],
+  })
 }
 
 // Guard Deno.serve so importing this module in tests does not start the HTTP
@@ -221,17 +270,7 @@ export async function handleRestartGame(body: unknown): Promise<Response> {
     }
   }
 
-  const info: RematchInfo = {
-    roomId: newRoomId,
-    code,
-    seed,
-    options: {
-      maxPlayers: oldOptions.maxPlayers ?? newPlayers.length,
-      maxWind: typeof oldOptions.maxWind === 'number' ? oldOptions.maxWind : DEFAULT_MAX_WIND,
-      gravity: typeof oldOptions.gravity === 'number' ? oldOptions.gravity : DEFAULT_GRAVITY,
-    },
-    players: newPlayers.map(p => ({ id: p.id, name: p.name, color: p.color })),
-  }
+  const info = projectCreatedRematchInfo(newRoomId, code, seed, oldOptions, newPlayers)
 
   return json({ ok: true, ...info }, 200)
 }

@@ -160,10 +160,10 @@ export function placeTwoTanks(
   void opts;
   const leftX = Math.round(CANVAS_WIDTH * LEFT_TANK_FRACTION);
   const rightX = Math.round(CANVAS_WIDTH * RIGHT_TANK_FRACTION);
-  return [
+  return orientTanksTowardNearestOpponent([
     createTank('p1', 'Player 1', leftX, terrain, TANK_COLORS[0]),
     createTank('p2', 'Player 2', rightX, terrain, TANK_COLORS[1]),
-  ];
+  ]);
 }
 
 /**
@@ -196,6 +196,28 @@ export function placeTanks(
     const player = players[i];
     const color = player.color ?? MULTI_TANK_COLORS[i % MULTI_TANK_COLORS.length];
     tanks.push(createTank(`p${i + 1}`, player.name, x, terrain, color, player.ai ?? null));
+  }
+  return orientTanksTowardNearestOpponent(tanks);
+}
+
+/**
+ * Point each fresh tank toward its nearest opponent. Array order is the
+ * deterministic tie-break, so a centered tank aims left when neighbors are
+ * equidistant. Placement and every round reset share this path.
+ */
+function orientTanksTowardNearestOpponent(tanks: TankState[]): TankState[] {
+  for (const tank of tanks) {
+    let nearest: TankState | undefined;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const candidate of tanks) {
+      if (candidate.id === tank.id) continue;
+      const distance = Math.abs(candidate.x - tank.x);
+      if (distance < nearestDistance) {
+        nearest = candidate;
+        nearestDistance = distance;
+      }
+    }
+    if (nearest) tank.angle = nearest.x < tank.x ? 135 : 45;
   }
   return tanks;
 }

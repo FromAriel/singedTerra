@@ -13,6 +13,7 @@ function makeState(phase: GameState['phase']): GameState {
     totalRounds: 1,
     lastRoundWinnerId: null,
     wind: 0,
+    walls: 'open',
     terrain: new Uint8Array(),
     terrainVersion: 0,
     tanks: [],
@@ -20,6 +21,7 @@ function makeState(phase: GameState['phase']): GameState {
     projectile: null,
     lastExplosion: null,
     explosions: [],
+    wallImpacts: [],
     fire: [],
     winner: null,
   };

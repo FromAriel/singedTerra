@@ -75,6 +75,12 @@ function uniqueProductionMethod(source, className, methodName) {
   return methods.length === 1 ? methods[0] : undefined;
 }
 
+function uniqueTopLevelFunction(source, functionName) {
+  const matches = source.statements.filter((statement) =>
+    ts.isFunctionDeclaration(statement) && statement.name?.text === functionName);
+  return matches.length === 1 ? matches[0] : null;
+}
+
 function unwrapExpression(expression) {
   return expression ? ts.skipOuterExpressions(expression, ts.OuterExpressionKinds.All) : expression;
 }
@@ -322,15 +328,19 @@ console.log('[4] GUARD: renderers own shared barrel geometry (issue #153)');
 {
   const tankRenderer = parseSource('client/src/renderer/TankRenderer.ts');
   const renderer = parseSource('client/src/renderer/Renderer.ts');
+  const aimGuideSource = parseSource('client/src/renderer/aimGuide.ts');
   const tankImports = resolvedSharedTankImports(tankRenderer);
   const rendererImports = resolvedSharedTankImports(renderer);
+  const aimGuideImports = resolvedSharedTankImports(aimGuideSource);
   const tankDraw = uniqueProductionMethod(tankRenderer, 'TankRenderer', 'draw');
   const muzzleFlash = uniqueProductionMethod(renderer, 'Renderer', 'spawnMuzzleFlash');
   const aimGuide = uniqueProductionMethod(renderer, 'Renderer', 'drawAimGuide');
+  const buildLaunchGuide = uniqueTopLevelFunction(aimGuideSource, 'buildLaunchGuide');
 
   ok(Boolean(tankDraw), 'TankRenderer has exactly one production draw method');
   ok(Boolean(muzzleFlash), 'Renderer has exactly one production spawnMuzzleFlash method');
   ok(Boolean(aimGuide), 'Renderer has exactly one production drawAimGuide method');
+  ok(Boolean(buildLaunchGuide), 'aimGuide has exactly one buildLaunchGuide function');
 
   for (const name of ['BARREL_LENGTH', 'BARREL_PIVOT_HEIGHT', 'barrelTip']) {
     ok(tankImports.has(name), `TankRenderer resolves shared Tank export ${name}`);
@@ -349,12 +359,20 @@ console.log('[4] GUARD: renderers own shared barrel geometry (issue #153)');
   }
   ok(methodHasDirectSharedTipCall(muzzleFlash, rendererImports),
     'Renderer spawnMuzzleFlash directly calls imported barrelTip with imported BARREL_LENGTH');
-  ok(methodHasDirectSharedTipCall(aimGuide, rendererImports),
-    'Renderer drawAimGuide directly calls imported barrelTip with imported BARREL_LENGTH');
   const rendererMirrors = topLevelMirrorViolations(renderer, [muzzleFlash, aimGuide]);
   ok(rendererMirrors.length === 0,
     'Renderer declares no legacy or referenced 20/22 geometry mirror',
     rendererMirrors.join(', '));
+
+  for (const name of ['BARREL_LENGTH', 'barrelTip']) {
+    ok(aimGuideImports.has(name), `aimGuide resolves shared Tank export ${name}`);
+  }
+  ok(methodHasDirectSharedTipCall(buildLaunchGuide, aimGuideImports),
+    'aimGuide buildLaunchGuide directly calls imported barrelTip with imported BARREL_LENGTH');
+  const aimGuideMirrors = topLevelMirrorViolations(aimGuideSource, [buildLaunchGuide]);
+  ok(aimGuideMirrors.length === 0,
+    'aimGuide declares no legacy or referenced 20/22 geometry mirror',
+    aimGuideMirrors.join(', '));
 }
 
 // ---------------------------------------------------------------------------

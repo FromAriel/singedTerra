@@ -217,7 +217,7 @@ describe('Lobby.handleRejoin (T-10, AC-06)', () => {
 
     const room = activeRoom({
       seed: 7,
-      options: { maxPlayers: 2, maxWind: 12, gravity: 0.2, rounds: 3 },
+      options: { maxPlayers: 2, maxWind: 12, gravity: 0.2, walls: 'reflective', rounds: 3 },
       players: [
         { id: 'p-1', name: 'Alice', color: '#e84d4d', ready: true },
         { id: 'p-2', name: 'Bob', color: '#4d8ce8', ready: true },
@@ -244,7 +244,13 @@ describe('Lobby.handleRejoin (T-10, AC-06)', () => {
       { id: 'p-1', name: 'Alice', color: '#e84d4d' },
       { id: 'p-2', name: 'Bob', color: '#4d8ce8' },
     ]);
-    expect(config.settings).toMatchObject({ seed: 7, maxWind: 12, gravity: 0.2, rounds: 3 });
+    expect(config.settings).toMatchObject({
+      seed: 7,
+      maxWind: 12,
+      gravity: 0.2,
+      walls: 'reflective',
+      rounds: 3,
+    });
   });
 
   it('the emitted config, fed into a NetworkClient against a fake Supabase with a committed action, restores the engine to the room\'s current (turn, activePlayerId, phase)', async () => {

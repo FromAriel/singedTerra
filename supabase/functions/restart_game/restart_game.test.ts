@@ -5,7 +5,12 @@
 // successor whose bot seats looked human, so no client drove them and the game
 // froze on bot turns. buildRematchPlayers must preserve `ai`.
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts'
-import { buildRematchPlayers } from './index.ts'
+import {
+  buildRematchPlayers,
+  normalizeRematchOptions,
+  projectCreatedRematchInfo,
+  projectExistingRematchInfo,
+} from './index.ts'
 import type { StoredPlayer } from '../_shared/mod.ts'
 
 const NOW = 1_700_000_000_000
@@ -40,4 +45,84 @@ Deno.test('buildRematchPlayers marks everyone ready and stamps lastSeen', () => 
   assertEquals(out[0].lastSeen, NOW)
   assertEquals(out[0].id, 'uid-a')
   assertEquals(out[0].ai, 'hard')
+})
+
+Deno.test('normalizeRematchOptions preserves reflective walls and rejects invalid values', () => {
+  assertEquals(
+    normalizeRematchOptions({
+      maxPlayers: 2,
+      maxWind: 7,
+      gravity: 0.2,
+      walls: 'reflective',
+    }, 2),
+    {
+      maxPlayers: 2,
+      maxWind: 7,
+      gravity: 0.2,
+      walls: 'reflective',
+    },
+  )
+  assertEquals(
+    normalizeRematchOptions({
+      maxPlayers: 2,
+      maxWind: 7,
+      gravity: 0.2,
+      walls: 'invalid' as never,
+    }, 2).walls,
+    'open',
+  )
+})
+
+Deno.test('lost-claim response projector preserves reflective walls', () => {
+  const players: StoredPlayer[] = [
+    { id: 'uid-a', name: 'Ana', color: '#f00', ready: true },
+    { id: 'uid-b', name: 'Bo', color: '#00f', ready: true },
+  ]
+
+  const info = projectExistingRematchInfo({
+    id: 'existing-room',
+    code: 'BANK42',
+    seed: 4242,
+    options: {
+      maxPlayers: 2,
+      maxWind: 7,
+      gravity: 0.2,
+      walls: 'reflective',
+    },
+    players,
+  })
+
+  assertEquals(info.roomId, 'existing-room')
+  assertEquals(info.options.walls, 'reflective')
+  assertEquals(info.players, [
+    { id: 'uid-a', name: 'Ana', color: '#f00' },
+    { id: 'uid-b', name: 'Bo', color: '#00f' },
+  ])
+})
+
+Deno.test('winning-create response projector preserves reflective walls', () => {
+  const players: StoredPlayer[] = [
+    { id: 'uid-a', name: 'Ana', color: '#f00', ready: true },
+    { id: 'uid-b', name: 'CPU', color: '#0f0', ready: true, ai: 'medium' },
+  ]
+
+  const info = projectCreatedRematchInfo(
+    'created-room',
+    'RICO42',
+    8181,
+    {
+      maxPlayers: 2,
+      maxWind: 9,
+      gravity: 0.18,
+      walls: 'reflective',
+    },
+    players,
+  )
+
+  assertEquals(info.roomId, 'created-room')
+  assertEquals(info.options.walls, 'reflective')
+  assertEquals(info.players, [
+    { id: 'uid-a', name: 'Ana', color: '#f00' },
+    { id: 'uid-b', name: 'CPU', color: '#0f0' },
+  ])
 })

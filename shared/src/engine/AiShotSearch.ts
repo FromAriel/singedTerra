@@ -1,9 +1,14 @@
 import type { AiDifficulty, GameState, ProjectileState, TankState } from '../types/GameState';
-import { launchVelocity, stepProjectile, sweepCollide } from './Physics';
+import {
+  launchVelocity,
+  MAX_FLIGHT_TICKS,
+  reflectSideWall,
+  stepProjectile,
+  sweepCollide,
+} from './Physics';
 import { BARREL_LENGTH, TANK_HEIGHT, TANK_WIDTH, barrelTip } from './Tank';
 import { clamp } from './math';
 
-const SIM_MAX_TICKS = 1600;
 /** A center-to-impact distance within half the tank's smaller dimension is a
  * reachable direct hit while still requiring contact-quality aim. */
 const DIRECT_HIT_SCORE = Math.min(TANK_WIDTH, TANK_HEIGHT) / 2;
@@ -134,12 +139,29 @@ export function simulateImpact(
     hasSplit: true,
     bounces: 0,
   };
-  for (let tick = 0; tick < SIM_MAX_TICKS; tick++) {
+  for (let tick = 0; tick < MAX_FLIGHT_TICKS; tick++) {
     const previousX = projectile.x;
     const previousY = projectile.y;
     stepProjectile(projectile, state.wind, gravity);
-    const hit = sweepCollide(projectile, previousX, previousY, state.terrain, state.tanks);
+    projectile.age++;
+    // Live execution force-detonates at this exact position before collision
+    // handling. Score the same point so a bot never selects an unreachable bank.
+    if (projectile.age >= MAX_FLIGHT_TICKS) {
+      return { x: projectile.x, y: projectile.y };
+    }
+    const hit = sweepCollide(
+      projectile,
+      previousX,
+      previousY,
+      state.terrain,
+      state.tanks,
+      state.walls ?? 'open',
+    );
     if (hit.type === 'ground' || hit.type === 'tank') return { x: projectile.x, y: projectile.y };
+    if (hit.type === 'wall') {
+      reflectSideWall(projectile, hit);
+      continue;
+    }
     if (hit.type === 'oob') return null;
   }
   return null;

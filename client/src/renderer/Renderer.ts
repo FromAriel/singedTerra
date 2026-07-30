@@ -7,14 +7,9 @@ import type {
 import { CANVAS_WIDTH, CANVAS_HEIGHT, surfaceAt } from '@shared/engine/Terrain';
 import { TANK_WIDTH, TANK_HEIGHT, BARREL_LENGTH, barrelTip } from '@shared/engine/Tank';
 import { getWeapon } from '@shared/engine/WeaponSystem';
-import { launchVelocity, GRAVITY, WIND_FACTOR } from '@shared/engine/Physics';
+import { GRAVITY } from '@shared/engine/Physics';
 import { fireActiveEdge, bettyHopCount, isOobFizzle } from './audioEdges';
 
-/** Normal aim-guide length in ticks. DELIBERATELY SHORT: after the bounded
- *  opening-salvo lesson it shows launch direction + relative power, but stops
- *  before the landing point — so reading wind/gravity over distance stays the
- *  player's skill and the guide can't trivialize aiming (per design constraint). */
-const AIM_GUIDE_TICKS = 16;
 import { TerrainRenderer } from './TerrainRenderer';
 import { TankRenderer, type TankRenderPose } from './TankRenderer';
 import { ProjectileRenderer } from './ProjectileRenderer';
@@ -41,15 +36,16 @@ import {
 } from './impactDepthParallax';
 import { getNapalmFirelightPools } from './napalmFirelight';
 import { AtmosphereCloudLayer } from './atmosphereClouds';
-import {
-  drawOpeningSalvoSolution,
-  getAimGuideMode,
-  OpeningSalvoCache,
-} from './openingSalvo';
+import { buildLaunchGuide, getAimGuideMode } from './aimGuide';
 import {
   coalesceImpactMaterial,
   type ImpactMaterialBatch,
 } from '../feel/impactMaterial';
+import {
+  consumeWallContacts,
+  drawReflectiveSidewalls,
+  type WallContactVisual,
+} from './sidewallVisuals';
 
 /** Shared barrel geometry keeps muzzle FX at the visual tip. */
 /**
@@ -84,6 +80,8 @@ export interface RenderEventSink {
   onLaunch(): void;
   /** One or more new detonations appeared this frame; `radius` is the largest. */
   onExplosion(radius: number, impact: ImpactMaterialBatch | null): void;
+  /** A projectile reflected from one of the configured energy rails. */
+  onWallImpact?(side: 'left' | 'right'): void;
   /**
    * A bouncing-betty projectile hopped off terrain this frame.
    * Called once per bounce tick (i.e. once when `bounces` decrements by 1).
@@ -240,6 +238,8 @@ export class Renderer {
   private bursts: Burst[] = [];
   /** Highest explosion id already turned into a burst (dedupe). */
   private lastSeenExplosionId = 0;
+  private lastSeenWallImpactId = 0;
+  private wallContacts: WallContactVisual[] = [];
   /** Client-side crater scorch decals (render-only; never touch terrain bitmap). */
   private scorches: Scorch[] = [];
   /** Deep-terrain RGB for the scorch ring fill, parsed once (not per frame). */
@@ -315,8 +315,6 @@ export class Renderer {
   private aimGuideEnabled: boolean;
   /** Effective gravity for the current authoritative turn, supplied by main. */
   private aimGuideGravity = GRAVITY;
-  /** Avoid repeated swept traces while cosmetic opening animations redraw. */
-  private readonly openingSalvoCache = new OpeningSalvoCache();
   /** Centre of the most recent detonation, for the last-shot ranging marker. */
   private lastImpact: { x: number; y: number } | null = null;
 
@@ -380,8 +378,10 @@ export class Renderer {
     this.bursts.length = 0;
     this.scorches.length = 0;
     this.lastSeenExplosionId = 0;
+    this.lastSeenWallImpactId = 0;
+    this.wallContacts ??= [];
+    this.wallContacts.length = 0;
     this.lastImpact = null;
-    this.openingSalvoCache?.clear();
     this.prevHealth.clear();
     this.prevShieldHp.clear();
     this.shieldBaselineRound = null;
@@ -412,6 +412,7 @@ export class Renderer {
     const explosionIdBefore = this.lastSeenExplosionId;
 
     this.consumeExplosion(state);
+    this.consumeWallImpacts(state);
 
     // Emit a launch event once per shot when a turn enters FIRING. Cluster shells
     // split mid-flight without re-entering FIRING, so this fires exactly once/shot.
@@ -522,6 +523,14 @@ export class Renderer {
     // 4. Projectiles (no-op when none / not FIRING). May be several at once
     // (an airburst shell splits into multiple submunitions in flight).
     this.projectile.draw(ctx, state.projectiles);
+    drawReflectiveSidewalls(
+      ctx,
+      state.walls ?? 'open',
+      this.wallContacts,
+      this.reduceMotion,
+    );
+    for (const contact of this.wallContacts) contact.age++;
+    this.wallContacts = this.wallContacts.filter((contact) => contact.age < 18);
 
     // 4.5 Napalm fire field — flames licking up off every burning column. Drawn
     // OVER tanks (it engulfs them) but UNDER the explosion flash.
@@ -576,6 +585,7 @@ export class Renderer {
     if (state.phase === 'FIRING' || state.phase === 'RESOLVING') return true;
     if (this.bursts.length > 0) return true;
     if (this.scorches.length > 0) return true;
+    if ((this.wallContacts?.length ?? 0) > 0) return true;
     if (state.fire.length > 0) return true;
     if (state.projectiles.length > 0) return true;
     if (this.shake > 0) return true;
@@ -805,6 +815,21 @@ export class Renderer {
     }
   }
 
+  /** Admit monotonic engine wall contacts once and coalesce their audio edge. */
+  private consumeWallImpacts(state: GameState): void {
+    this.wallContacts ??= [];
+    this.lastSeenWallImpactId ??= 0;
+    const batch = consumeWallContacts(
+      state.wallImpacts ?? [],
+      this.lastSeenWallImpactId,
+    );
+    this.lastSeenWallImpactId = batch.lastSeenId;
+    for (const contact of batch.contacts) {
+      this.wallContacts.push({ ...contact, age: 0 });
+    }
+    if (batch.audio) this.events?.onWallImpact?.(batch.audio.side);
+  }
+
   /**
    * Spawn muzzle sparks at the active shooter's shared barrel tip so the flash sits
    * exactly at the visual barrel end. Purely cosmetic; reduced-motion suppresses it
@@ -935,9 +960,8 @@ export class Renderer {
   }
 
   /**
-   * Opening turns route to a collision-accurate full solution; every later or
-   * secondary-behavior turn uses the faint dotted launch guide. Both are read-only
-   * presentation and never touch deterministic engine state.
+   * Draw a short, collision-unaware launch projection. It communicates direction,
+   * power, wind, and gravity without revealing the landing point or solving a bank.
    */
   private drawAimGuide(state: GameState): void {
     const tank = state.tanks.find((t) => t.id === state.activePlayerId);
@@ -949,30 +973,29 @@ export class Renderer {
       this.aimGuideEnabled,
     );
     if (mode === 'none') return;
-    if (mode === 'opening') {
-      const solution = this.openingSalvoCache.get(state, tank, this.aimGuideGravity);
-      if (!solution) return;
-      drawOpeningSalvoSolution(this.ctx, solution);
-      return;
-    }
 
-    let { x, y } = barrelTip(tank, BARREL_LENGTH);
-    const v = launchVelocity(tank.angle, tank.power);
-    let vx = v.vx;
-    let vy = v.vy;
-    if (![x, y, vx, vy, state.wind].every(Number.isFinite)) return;
+    const points = buildLaunchGuide(tank);
+    if (points.length === 0) return;
+
     const ctx = this.ctx;
     ctx.save();
-    for (let i = 0; i < AIM_GUIDE_TICKS; i++) {
-      // Mirror Physics.stepProjectile's integration exactly (room-gravity override
-      // is ignored — this is a short HINT, not a precise predictor).
-      vy += GRAVITY;
-      vx += state.wind * WIND_FACTOR;
-      x += vx;
-      y += vy;
-      ctx.globalAlpha = 0.55 * (1 - i / AIM_GUIDE_TICKS);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = ACCENT.gold;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.1;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let index = 1; index < points.length; index++) {
+      ctx.lineTo(points[index].x, points[index].y);
+    }
+    ctx.stroke();
+
+    for (let index = 0; index < points.length; index++) {
+      const point = points[index];
+      ctx.globalAlpha = 0.58 * (1 - index / points.length);
       ctx.fillStyle = ACCENT.gold;
-      ctx.fillRect((x - 1.5) | 0, (y - 1.5) | 0, 3, 3);
+      ctx.fillRect((point.x - 1.5) | 0, (point.y - 1.5) | 0, 3, 3);
     }
     ctx.globalAlpha = 1;
     ctx.restore();

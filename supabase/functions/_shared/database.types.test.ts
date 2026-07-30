@@ -37,6 +37,7 @@ type ExpectedStoredOptions = {
   maxPlayers: number;
   maxWind: number;
   gravity: number;
+  walls?: "open" | "reflective";
   visibility?: "public" | "private";
   rounds?: number;
   armsLevel?: number;
