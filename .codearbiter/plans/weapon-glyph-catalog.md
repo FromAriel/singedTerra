@@ -18,5 +18,4 @@
 
 - [x] Complete one adversarial review and correct every Critical/High finding.
 - [x] Run the applicable complete local gate.
-- [ ] Commit, open a ready PR, require exact-head hosted green, and merge under
-  standing authority.
+- [x] Commit, open a ready PR, and require exact-head hosted green.

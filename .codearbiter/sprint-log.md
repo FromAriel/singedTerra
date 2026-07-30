@@ -1911,4 +1911,9 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 
 - Adversarial follow-up: 0 Critical, 0 High, 0 Medium, 0 Low after exact catalog/name assertions, causal silhouette signatures, and the layered terrain-material oracle repair.
 - `npm run check` PASS; client coverage PASS at 90 files / 615 tests, 87.31% statements, 77.26% branches, 75.00% functions, and 90.29% lines; Edge PASS at 170 tests; production build PASS at 1,881 modules and 262.37 kB / 70.88 kB gzip main bundle.
-- Full production-browser matrix PASS at 73 tests plus 8 expected profile skips. `npm audit --audit-level=high` PASS at 0 vulnerabilities; diff hygiene PASS. No dependency, lockfile, engine, Supabase, migration, action-log, input, or deterministic behavior changed. Confidence high.
+- Full production-browser matrix PASS at 73 tests plus 8 expected profile skips. `npm audit --audit-level=high` PASS at 0 vulnerabilities; diff hygiene PASS. No dependency, lockfile, engine, Supabase, migration, action-log, input, or deterministic behavior changed. Confidence high.### Weapon glyph catalog hosted gate receipt
+
+- Ready PR #212 was CLEAN and MERGEABLE on exact implementation head `4a17f1810480455ef6be0b087550e935b927ca93`.
+- CI run `30566812330` passed deterministic harnesses, 615 client tests, production build, 170 Edge tests, and the 73-case browser matrix with 8 expected profile skips. The first Edge attempt reached no tests because `esm.sh` returned HTTP 522 while downloading the pinned Supabase module; an unchanged failed-job rerun passed in 21 seconds. No code bypass or waiver was used.
+- CodeQL workflow run `30566812231` and repository CodeQL both passed. Supabase Preview was expectedly skipped because no backend surface changed.
+- The single adversarial follow-up remains 0 Critical, 0 High, 0 Medium, 0 Low. This receipt and completed plan checkbox form the final governance-only delta and must independently clear the same hosted gates before merge under standing authority. Confidence high.
