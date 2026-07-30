@@ -593,6 +593,12 @@ export class Renderer {
     // The terrain material follows the same first-applied-frame contract. Once
     // ready, TerrainRenderer rebuilds its version cache exactly once.
     if (this.terrain?.isMaterialSettled === false) return true;
+    // Living tanks follow the same first-painted-frame contract. Wreck-only
+    // scenes never spin solely for an asset that has no eligible consumer.
+    if (
+      this.tanks?.isChassisArtSettled === false
+      && state.tanks.some((tank) => tank.alive)
+    ) return true;
     if (this.bursts.length > 0) return true;
     if (this.scorches.length > 0) return true;
     if ((this.wallContacts?.length ?? 0) > 0) return true;

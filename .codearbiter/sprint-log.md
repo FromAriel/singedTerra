@@ -1813,4 +1813,35 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - CI `e2e · rendering guardrails`: SUCCESS.
 - CodeQL `analyze (javascript-typescript)`: SUCCESS; repository CodeQL check: SUCCESS.
 - Supabase Preview: expected SKIPPED because no backend surface changed.
-- No merge or deployment performed. This receipt-only governance commit becomes the final PR head and must independently clear the same hosted gates.
+- No merge or deployment performed. This receipt-only governance commit becomes the final PR head and must independently clear the same hosted gates.### 2026-07-30 — Next slice: authored tank chassis
+- Closed prior cell: PR #207 is OPEN, MERGEABLE, and exact-final-head green at `da96f08e737194da5aeeacb7bd7b049521a99cc3`; no merge or deployment performed.
+- The geometric live tanks are now the clearest persistent art-quality seam against the authored panorama and materialized terrain.
+- SMARTS criteria: player-focus payoff 30%, gameplay/aim readability 25%, authored-art gain 20%, integration reversibility 15%, reusable asset path 10%.
+- Options scored: authored tintable tank chassis 9.10; authored projectile/munition sprites 7.65; HUD commander portraits 7.30; explosion flipbook 6.95.
+- Decision: replace only the living body/turret/tread block with one transparent authored neutral chassis, cached and tinted for the four canonical player colors. Shared barrel, muzzle, hitbox, damage, recoil, burial, wreck, and fallback geometry remain authoritative. Confidence 0.94.
+- Asset/tool decision: built-in image generation + local alpha-preserving WebP optimization 9.3 vs a sprite/rendering dependency 4.0. No repository dependency is justified. Confidence 0.98.
+- Design/spec gate auto-approved under the standing passion-project sprint authority and direct request for higher-quality art worked into successive slices.
+- Hard boundaries: client presentation only; no engine, collision, tank state, action log, Supabase, layout, dependency, lockfile, merge, deployment, or spend beyond tokens.
+### 2026-07-28 - Authored tank chassis asset contract GREEN
+
+- TDD RED: e2e/tank-chassis.spec.ts failed while the asset path returned the app HTML fallback.
+- Image generation produced a grayscale side-view chassis; local ffmpeg matting removed the chroma field, neutralized hidden RGB to grayscale, and encoded a 9,432-byte 256x128 alpha WebP.
+- Visual QA covered the full-size matte, alpha mask, and a 44x24 gameplay-scale preview.
+- TDD GREEN: the focused asset contract passed under both root / and GitHub Pages /singedTerra/ base paths.
+- SMARTS decision: keep the generated art dependency-free and preserve the procedural live chassis as its load/error fallback (confidence: high).
+
+### 2026-07-28 - Standing merge authority expanded
+
+- User granted standing authority to merge PRs after one adversarial subagent review, correction of every Critical/High finding, and exact-head hosted CI green.
+- This replaces the sprint's prior no-merge delivery boundary; force-push and deployment remain outside this authority.
+- Delivery decision confidence: high (explicit user authority).
+
+
+### 2026-07-28 - Authored tank chassis local gate
+
+- TDD integration RED proved the renderer had no authored chassis seam or chassis-load eligibility; focused GREEN now covers 15 loader, tint-cache, renderer, recoil, wreck, and idle-settlement cases.
+- First adversarial review: 0 Critical, 0 High, 2 Medium, 1 Low. The occupied hull was tightened from about 41 to at most 34 logical pixels, and a real production-bundle gameplay oracle was added.
+- Adversarial follow-up: 0 Critical, 0 High, 0 Medium, 0 Low. The reviewer closed the aperture observation at repaired gameplay scale without moving authoritative barrel geometry.
+- Live browser QA and E2E prove localized red/blue authored variants against a forced procedural fallback, a real fire/turn cycle, P2's 45-degree left-facing gauge, and zero viewport overflow across desktop, touch landscape, and small-window profiles.
+- Exact candidate gates: npm run check PASS; client coverage PASS at 89 files / 613 tests, 87.27% statements, 77.24% branches, 74.90% functions, 90.26% lines; Edge PASS at 170 tests; production build PASS; E2E PASS at 67 plus 8 expected profile skips; npm audit PASS at 0 vulnerabilities.
+- Diff hygiene, conflict-marker scan, and changed-file secret scan PASS. No dependency, lockfile, engine, Supabase, migration, action-log, collision, merge, deployment, or monetary spend.
