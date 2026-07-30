@@ -1652,3 +1652,7 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Rendering E2E: PASS, 46 passed / 8 expected project skips. Runtime audit: PASS, 0 vulnerabilities.
 - Diff hygiene and conflict-marker check: PASS. State-free changed-file secret scan: PASS (`[]`).
 - No dependency, lockfile, migration, action-log, Supabase, damage, physics, merge, or deployment change.
+### 2026-07-28 — Material impact governed commit
+- Governed behavior commit: `ea2d145` (`feat(rendering): distinguish armor and ground impacts`).
+- Commit gate evidence: exact-path staged set, focused TDD, full deterministic/client/Edge/build/E2E matrix, resolved adversarial review, zero-vulnerability audit, clean cached diff, and empty staged secret scan.
+- Stacked PR target remains `codex/opening-salvo-assist`; merge and deployment remain intentionally excluded.
