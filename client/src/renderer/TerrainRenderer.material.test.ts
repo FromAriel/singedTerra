@@ -26,6 +26,8 @@ function flatTerrain(surfaceY = 100): Uint8Array {
 
 function rendererWith(
   material: MaterialStub,
+  createBevelSampler: typeof createTerrainBevelSampler =
+    createTerrainBevelSampler,
 ): {
   renderer: TerrainRenderer;
   pixels: Uint8ClampedArray;
@@ -36,7 +38,7 @@ function rendererWith(
   );
   let rebuildCount = 0;
   const renderer = new TerrainRenderer(
-    createTerrainBevelSampler,
+    createBevelSampler,
     material,
   );
   const seam = renderer as unknown as TerrainRendererSeam;
@@ -131,6 +133,12 @@ describe('TerrainRenderer authored material integration', () => {
         texturedInterior[channel]! - plainInterior[channel]!,
       )).toBeLessThanOrEqual(16);
     }
+    const texturedDark = rgbaAt(textured.pixels, 502, 120);
+    const plainDark = rgbaAt(plain.pixels, 502, 120);
+    expect(
+      texturedDark[0]! - plainDark[0]!,
+    ).toBeLessThanOrEqual(-10);
+    expect(texturedDark[3]).toBe(plainDark[3]);
     expect(sampleCalls).toBeGreaterThan(0);
     expect(acknowledgeApplied).toHaveBeenCalledOnce();
     expect(textured.renderer.isMaterialSettled).toBe(true);
@@ -225,5 +233,32 @@ describe('TerrainRenderer authored material integration', () => {
     expect(sampleCalls).toBeGreaterThan(callsBeforeDeformation);
     expect(byteHash(terrain)).toBe(deformedHash);
     expect(textured.rebuilds()).toBe(2);
+  });
+
+  it('applies material before structural bevel lighting', () => {
+    const material: MaterialStub = {
+      isSettled: true,
+      needsApplication: false,
+      sample: () => 1,
+      acknowledgeApplied() {},
+    };
+    const fallback: MaterialStub = {
+      isSettled: true,
+      needsApplication: false,
+      sample: () => 0,
+      acknowledgeApplied() {},
+    };
+    const constantHighlight = () => () => 0.32;
+    const textured = rendererWith(material, constantHighlight);
+    const plain = rendererWith(fallback, constantHighlight);
+    const terrain = flatTerrain();
+
+    expect(textured.renderer.draw(target, terrain, 21)).toBe(true);
+    expect(plain.renderer.draw(target, terrain, 21)).toBe(true);
+
+    const texturedPixel = rgbaAt(textured.pixels, 500, 120);
+    const plainPixel = rgbaAt(plain.pixels, 500, 120);
+    expect(texturedPixel[0]! - plainPixel[0]!).toBe(10);
+    expect(texturedPixel[3]).toBe(plainPixel[3]);
   });
 });

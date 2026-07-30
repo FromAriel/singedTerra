@@ -165,6 +165,27 @@ describe('TerrainMaterial', () => {
     expect(material.sample(0, 0)).toBe(0);
   });
 
+  it('fails closed when a decode canvas has no 2D context', () => {
+    const image = controlledImage();
+    const material = new TerrainMaterial(
+      () => image as unknown as HTMLImageElement,
+      () => ({
+        width: 0,
+        height: 0,
+        getContext: () => null,
+      }) as unknown as HTMLCanvasElement,
+      '/',
+    );
+
+    image.naturalWidth = 256;
+    image.naturalHeight = 256;
+    image.onload?.();
+
+    expect(material.state).toBe('failed');
+    expect(material.isSettled).toBe(true);
+    expect(material.sample(0, 0)).toBe(0);
+  });
+
   it('times out a pending load and ignores a late decode', () => {
     vi.useFakeTimers();
     try {

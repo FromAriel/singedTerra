@@ -1796,4 +1796,8 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Edge: PASS, 170 passed / 0 failed. Production build: PASS, 1,879 modules; main 254.47 kB / 68.98 kB gzip.
 - Rendering E2E: PASS, 61 passed / 8 expected project skips. Focused root and `/singedTerra/` terrain matrices each passed 6/6 across all viewport profiles.
 - Runtime audit: PASS, 0 vulnerabilities. Cached diff hygiene, conflict-marker scan, exact staged manifest, and state-free changed-file secret scan: PASS (`[]`).
-- No dependency, lockfile, engine, action-log, Supabase, migration, layout, merge, deployment, or spend beyond tokens.
+- No dependency, lockfile, engine, action-log, Supabase, migration, layout, merge, deployment, or spend beyond tokens.### 2026-07-30 — Authored terrain material coverage hardening
+- Required PR coverage audit returned no Critical or High blocker and identified two Medium oracle gaps plus two Low branch/order gaps.
+- Negative-path coverage now proves signed luminance darkens terrain rather than merely changing it; a constant-highlight test pins material-before-bevel ordering; the null decode-context failure settles into fallback.
+- Browser coverage now drives the real deterministic fire path on fallback and authored pages, derives newly exposed wall coordinates from pre/post canvas frames, and proves material modulation on those live crater-wall pixels after the engine advances terrain version.
+- Focused unit suite passed 12/12. Root and `/singedTerra/` production Playwright matrices each passed 6/6 across all profiles. Confidence 0.97.
