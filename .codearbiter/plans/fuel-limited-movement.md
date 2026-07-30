@@ -36,4 +36,4 @@
 - [x] Commit through the governed gate.
 - [x] Open a ready stacked PR against
   `codex/atmospheric-battlefield-frame`.
-- [ ] Prove exact-head hosted CI and CodeQL green; do not merge or deploy.
+- [x] Prove exact-head hosted CI and CodeQL green; do not merge or deploy.

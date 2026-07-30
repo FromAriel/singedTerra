@@ -1551,3 +1551,10 @@ Spec/plan: `.codearbiter/specs/fuel-limited-movement.md`, `.codearbiter/plans/fu
 
 - Final client coverage: 75 files and 553 tests passed; 86.55% statements, 76.11% branches, 73.31% functions, and 89.61% lines.
 - Final production build: 243.18 kB / 65.41 kB gzip main bundle. All deterministic, Edge, browser, audit, diff, and secret gates remain green.
+
+
+### Fuel-limited movement hosted gate receipt
+
+- Ready PR #202 was MERGEABLE on exact implementation/governance head 3e841c4c59f8b110079a1cc68ff538ac40f4a97d.
+- Exact-head CI run 30501673883 passed deterministic harnesses, 553 client tests, production build, 166 Edge tests, and the 43-case browser matrix with 8 intentional skips.
+- Exact-head CodeQL run 30501673891 passed. Supabase Preview was expectedly skipped because the integration did not provision a branch. This receipt and the completed plan checkbox form the final governance-only delta; the pushed governance head must independently clear CI and CodeQL before the PR is called final-green. No merge or deployment was performed. Confidence high.
