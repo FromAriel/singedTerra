@@ -1601,3 +1601,12 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 - Re-audit caught the first power assertion also reset angle; corrected it to compare a same-angle baseline against a power-only mutation.
 - Final coverage re-audit: no Critical, High, or Important findings; ready for PR.
 - Verification: focused unit 9/9, focused opening unit 8/8, production opening E2E 3/3, full client 77 files / 563 tests, typecheck green.
+
+### 2026-07-28 — Opening salvo PR receipt
+- Behavior commit: `63d8f3d feat(renderer): teach the opening salvo`.
+- Coverage follow-up: `a360f97 test(renderer): seal opening salvo coverage`.
+- Ready stacked PR opened: https://github.com/SUaDtL/singedTerra/pull/203
+- Base: `codex/fuel-limited-movement` at `7f3f560`; head at PR creation: `a360f97`.
+- Reviewer path matrix: coverage auditor required and clear; no dependency, migration, auth, crypto, or backend path triggered.
+- Babysitter resolver: disabled; sprint will poll exact-head hosted checks directly.
+- Merge and deployment intentionally not performed.
