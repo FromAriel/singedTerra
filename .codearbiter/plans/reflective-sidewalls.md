@@ -29,4 +29,4 @@
   production build, rendering E2E, runtime audit, diff hygiene, and secret scan.
 - [x] Commit through the governed gate.
 - [x] Open a ready stacked PR against `codex/material-impact-signatures`.
-- [ ] Prove exact-head hosted CI and CodeQL green; do not merge or deploy.
+- [x] Prove exact-head hosted CI and CodeQL green; do not merge or deploy.
