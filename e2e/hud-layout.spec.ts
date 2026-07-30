@@ -6,6 +6,26 @@ import {
   assertInstrumentsHeight,
 } from './support';
 
+const ARSENAL_WEAPONS = [
+  ['baby_missile', 'Baby Missile'],
+  ['missile', 'Missile'],
+  ['heavy_missile', 'Heavy Missile'],
+  ['baby_nuke', 'Baby Nuke'],
+  ['nuke', 'Nuke'],
+  ['dirt_bomb', 'Dirt Bomb'],
+  ['bouncing_betty', 'Bouncing Betty'],
+  ['funky_bomb', 'Funky Bomb'],
+  ['napalm', 'Napalm'],
+  ['cluster_bomb', 'Cluster Bomb'],
+  ['mirv', 'MIRV'],
+  ['deaths_head', "Death's Head"],
+  ['riot_bomb', 'Riot Bomb'],
+  ['hot_napalm', 'Hot Napalm'],
+  ['shield', 'Shield'],
+] as const;
+
+const STORE_WEAPONS = ARSENAL_WEAPONS.slice(1);
+
 /**
  * HUD rendering-guardrail suite. Runs across the viewport matrix (desktop-fine,
  * pixel-touch, small-window) defined in playwright.config.ts. Every assertion
@@ -82,6 +102,70 @@ test.describe('HUD layout guardrails', () => {
     }
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.viewportWidth);
     expect(geometry.scrollHeight).toBeLessThanOrEqual(geometry.viewportHeight);
+  });
+
+  test('weapon-family glyphs remain visible inside Arsenal and Store', async ({
+    page,
+  }) => {
+    await page.getByRole('button', { name: 'Expand arsenal' }).click();
+    const arsenalCatalog = await page.locator(
+      '.st-hud__weapon-btn',
+    ).evaluateAll((buttons) => buttons.map((button) => ({
+      weapon: (button as HTMLElement).dataset['weapon'],
+      iconWeapon: button.querySelector('.st-weapon-icon')
+        ?.getAttribute('data-weapon'),
+      name: button.querySelector('.st-hud__weapon-btn-name')?.textContent,
+    })));
+    expect(arsenalCatalog).toEqual(ARSENAL_WEAPONS.map(([weapon, name]) => ({
+      weapon,
+      iconWeapon: weapon,
+      name,
+    })));
+
+    const arsenalIcons = page.locator(
+      '.st-hud__weapon-btn:not(.st-hud__weapon-btn--hidden) .st-weapon-icon',
+    );
+    expect(await arsenalIcons.count()).toBeGreaterThanOrEqual(10);
+    const arsenalSizes = await arsenalIcons.evaluateAll((icons) =>
+      icons.map((icon) => {
+        const rect = icon.getBoundingClientRect();
+        const button = icon.closest('button')!.getBoundingClientRect();
+        return {
+          width: rect.width,
+          height: rect.height,
+          contained:
+            rect.left >= button.left - 1
+            && rect.right <= button.right + 1
+            && rect.top >= button.top - 1
+            && rect.bottom <= button.bottom + 1,
+        };
+      }),
+    );
+    for (const size of arsenalSizes) {
+      expect(size.width).toBeGreaterThanOrEqual(11);
+      expect(size.height).toBeGreaterThanOrEqual(11);
+      expect(size.contained).toBe(true);
+    }
+
+    await page.getByRole('button', { name: 'Collapse arsenal' }).click();
+    await page.getByRole('button', { name: /Store/ }).click();
+    const storeIcons = page.locator('.st-hud__store-name-line .st-weapon-icon');
+    const storeCatalog = await page.locator(
+      '.st-hud__store-name-line',
+    ).evaluateAll((lines) => lines.map((line) => ({
+      weapon: line.querySelector('.st-weapon-icon')
+        ?.getAttribute('data-weapon'),
+      name: line.querySelector('.st-hud__store-name')?.textContent,
+    })));
+    expect(storeCatalog).toEqual(STORE_WEAPONS.map(([weapon, name]) => ({
+      weapon,
+      name,
+    })));
+    await expect(storeIcons).toHaveCount(STORE_WEAPONS.length);
+    const firstStoreIcon = await storeIcons.first().boundingBox();
+    expect(firstStoreIcon).not.toBeNull();
+    expect(firstStoreIcon!.width).toBeGreaterThanOrEqual(11);
+    expect(firstStoreIcon!.height).toBeGreaterThanOrEqual(11);
   });
 
   test('the analog console is visible, boxed, and inside #hud at every scale', async ({ page }) => {

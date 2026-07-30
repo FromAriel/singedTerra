@@ -15,6 +15,7 @@ import {
 } from './gaugeMath';
 import { resolveInitialArsenalCollapsed } from './arsenalPreference';
 import { makeHudGlyph, makeHudIcon } from './hudIcons';
+import { makeWeaponIcon } from './weaponIcons';
 
 /**
  * What a store Buy click requests: exactly one of a weapon bundle or an accessory, mirroring the
@@ -722,7 +723,7 @@ export class HUD {
       nameSpan.textContent = WEAPONS[type].name;
       const ammoSpan = document.createElement('span');
       ammoSpan.className = 'st-hud__weapon-btn-ammo';
-      btn.append(nameSpan, ammoSpan);
+      btn.append(makeWeaponIcon(type, 14), nameSpan, ammoSpan);
       // Capture `type` per-iteration (for-of/const). Listener attached once.
       btn.addEventListener('click', () => this.weaponSelectCb?.(type));
       this.weaponCells.set(type, { el: btn, ammo: ammoSpan });
@@ -780,9 +781,12 @@ export class HUD {
       const nm = document.createElement('span');
       nm.className = 'st-hud__store-name';
       nm.textContent = def.name;
+      const nameLine = document.createElement('div');
+      nameLine.className = 'st-hud__store-name-line';
+      nameLine.append(makeWeaponIcon(type, 16), nm);
       const owned = document.createElement('span');
       owned.className = 'st-hud__store-owned';
-      info.append(nm, owned);
+      info.append(nameLine, owned);
 
       const buyBtn = document.createElement('button');
       buyBtn.type = 'button';
@@ -2115,6 +2119,33 @@ export class HUD {
 }
 .st-hud__weapon-btn--depleted { opacity: 0.4; }
 .st-hud__weapon-btn:disabled { cursor: default; }
+.st-weapon-icon {
+  display: block;
+  flex: 0 0 auto;
+  color: var(--ui-muted);
+  stroke: currentColor;
+  filter: drop-shadow(0 0 3px rgba(255, 233, 168, 0.08));
+}
+.st-hud__weapon-btn .st-weapon-icon,
+.st-hud__store-name-line .st-weapon-icon {
+  width: 18px;
+  height: 18px;
+}
+.st-weapon-icon[data-family='nuclear'],
+.st-weapon-icon[data-family='death'] { color: var(--tank-red-lite); }
+.st-weapon-icon[data-family='fire'],
+.st-weapon-icon[data-family='volatile'] { color: var(--ember); }
+.st-weapon-icon[data-family='defense'] { color: var(--tank-blue-lite); }
+.st-weapon-icon[data-family='terrain'] { color: #c49359; }
+.st-hud__weapon-btn--active .st-weapon-icon {
+  color: var(--gold);
+  filter: drop-shadow(0 0 4px rgba(255, 210, 63, 0.42));
+}
+.st-hud__weapon-btn-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+}
 .st-hud__weapon-btn-ammo {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -2376,6 +2407,12 @@ export class HUD {
   background: rgba(255, 255, 255, 0.03);
 }
 .st-hud__store-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.st-hud__store-name-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
 .st-hud__store-name { color: var(--text-gold); font-size: 13px; }
 .st-hud__store-owned {
   opacity: 0.6;
