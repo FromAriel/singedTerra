@@ -42,6 +42,33 @@
   --crt-vignette-alpha: 0.35;
   /* Functional UI-state accent (online "ready" green) — mirrors theme.ts STATUS.ready. */
   --ready: #6ff09a;
+
+  /* ===== Combat UI system ============================================= */
+  /* Canvas art keeps the authored world palette above. HTML controls consume
+     these semantic roles so later panels share hierarchy instead of inventing
+     another border, glow, radius, or spacing scale. */
+  --ui-rail: #0d0817;
+  --ui-surface: rgba(22, 13, 39, 0.78);
+  --ui-surface-raised: rgba(34, 20, 50, 0.96);
+  --ui-surface-active: rgba(255, 122, 31, 0.13);
+  --ui-line: rgba(255, 233, 168, 0.13);
+  --ui-line-strong: rgba(255, 210, 63, 0.34);
+  --ui-copy: var(--text);
+  --ui-muted: #aa98c2;
+  --ui-action: var(--gold);
+  --ui-action-hot: var(--ember);
+  --ui-focus: 0 0 0 2px var(--ui-rail), 0 0 0 4px var(--gold);
+  --ui-space-1: 4px;
+  --ui-space-2: 8px;
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-radius-sm: 4px;
+  --ui-radius-md: 7px;
+  --ui-radius-lg: 10px;
+  --ui-type-micro: 9px;
+  --ui-type-label: 10px;
+  --ui-type-body: 12px;
+  --ui-type-title: 13px;
 }
 
 html,
@@ -213,8 +240,8 @@ body {
   z-index: 5;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
+  gap: 0;
+  padding: 10px 12px 12px;
   background:
     radial-gradient(100% 45% at 50% 0%, rgba(255, 210, 63, 0.08), rgba(255, 210, 63, 0) 62%),
     radial-gradient(120% 75% at 50% 100%, rgba(255, 122, 31, 0.10), rgba(255, 122, 31, 0) 58%),
@@ -226,23 +253,8 @@ body {
     inset 1px 0 0 rgba(255, 233, 168, 0.10),
     inset 18px 0 28px rgba(255, 122, 31, 0.045),
     -10px 0 24px rgba(12, 7, 22, 0.36);
-  overflow-y: auto;
+  overflow: hidden;
   pointer-events: auto;
-}
-@media (pointer: coarse) and (max-height: 700px) {
-  #hud {
-    overscroll-behavior-y: contain;
-    scrollbar-color: var(--ember) rgba(255, 233, 168, 0.08);
-    scrollbar-width: thin;
-  }
-  #hud::-webkit-scrollbar { width: 6px; }
-  #hud::-webkit-scrollbar-thumb {
-    background: var(--ember);
-    border-radius: 999px;
-  }
-  .st-hud__strip:not(.st-hud__strip--collapsed) .st-hud__strip-scroll-hint {
-    display: inline;
-  }
 }
 #hud::before {
   content: '';
@@ -271,6 +283,69 @@ body {
 #hud > * {
   position: relative;
   z-index: 1;
+}
+
+/* One rail, not a stack of cards. Top-level regions share separator rhythm;
+   the ballistic computer is the deliberate raised-instrument exception. */
+#hud > .st-ui-section:not(.st-ui-section--instrument) {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: var(--ui-space-2) 0;
+  border: 0;
+  border-bottom: 1px solid var(--ui-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#hud > .st-ui-section--instrument {
+  margin: var(--ui-space-2) 0;
+}
+#hud > .st-ui-section--active {
+  padding-block: 0 var(--ui-space-2);
+}
+#hud > .st-ui-section--store {
+  justify-content: flex-start;
+  gap: var(--ui-space-2);
+  color: var(--ui-copy);
+}
+#hud > .st-ui-section--arsenal {
+  margin-top: auto;
+  border-top: 1px solid var(--ui-line);
+  border-bottom: 0;
+}
+#hud > .st-ui-section.st-hud__strip--open {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 20;
+  width: auto;
+  max-height: calc(100% - 24px);
+  margin: 0;
+  padding: var(--ui-space-3);
+  overflow: hidden;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 210, 63, 0.06), transparent 38%),
+    var(--ui-surface-raised);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.66),
+    0 0 0 1px rgba(9, 4, 13, 0.9),
+    inset 0 1px 0 rgba(255, 233, 168, 0.08);
+}
+.st-ui-action:focus-visible,
+.st-ui-icon-action:focus-visible,
+.st-hud__weapon-btn:focus-visible,
+.st-hud__touch-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus);
+}
+.st-ui-icon {
+  display: block;
+  flex: 0 0 auto;
+  stroke: currentColor;
 }
 #game-overlay button,
 #hud button {

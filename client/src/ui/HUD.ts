@@ -13,10 +13,8 @@ import {
   windMagnitudeLabel,
   windDirectionSymbol,
 } from './gaugeMath';
-import {
-  COMPACT_STAGE_QUERY,
-  resolveInitialArsenalCollapsed,
-} from './arsenalPreference';
+import { resolveInitialArsenalCollapsed } from './arsenalPreference';
+import { makeHudIcon } from './hudIcons';
 
 /**
  * What a store Buy click requests: exactly one of a weapon bundle or an accessory, mirroring the
@@ -96,6 +94,9 @@ function aimReadout(angle: number): string {
  * listeners, keeping per-frame work cheap and leak-free.
  */
 export class HUD {
+  /** Per-document suffix for unique aria-controls relationships in remounted HUDs. */
+  private static arsenalDrawerSequence = 0;
+
   /** Side-panel root (#hud) — status widgets stack here, off the canvas. */
   private readonly root: HTMLElement;
   /** On-canvas overlay root (#game-overlay) — controls legend + liveness widgets. */
@@ -167,10 +168,10 @@ export class HUD {
   private stripEl!: HTMLElement;
   /** Collapse/expand control for the arsenal strip + its persisted state. */
   private stripToggleEl!: HTMLButtonElement;
+  private stripToggleLabelEl!: HTMLElement;
   private stripCollapsed = false;
-  private arsenalPreferenceExplicit = false;
-  private compactStageMedia: MediaQueryList | null = null;
   private storeBtnEl!: HTMLButtonElement;
+  private storeBtnLabelEl!: HTMLElement;
   private storeEl!: HTMLElement;
   private storeCreditsEl!: HTMLElement;
   // Networked liveness widgets (P1-6): a persistent connection banner (shown only
@@ -305,7 +306,8 @@ export class HUD {
   /** Build the static DOM scaffold + inject styles. Runs once (idempotent). */
   private build(): void {
     HUD.injectStyle();
-    this.root.classList.add('st-hud');
+    this.root.classList.add('st-hud', 'st-ui-shell');
+    this.root.dataset['ui'] = 'combat-rail';
     this.root.innerHTML = '';
 
     this.buildPlayers();
@@ -325,6 +327,9 @@ export class HUD {
     // can never overlap the play field. margin-top:auto (via CSS) pushes it to
     // the bottom of the panel column.
     this.root.append(menu, this.roundEl, this.playersEl, instruments, this.activePlayerEl, this.aimEl, this.storeBtnEl, this.stripEl, this.touchStripEl);
+    // buildArsenal resolves the persisted state before the rail children exist;
+    // re-apply it now so a stored-open drawer also isolates covered controls.
+    this.applyStripCollapsed();
     // Controls and liveness widgets stay on the canvas overlay. The controls card
     // is pinned to the upper-left sky so it never forces side-panel scrolling or
     // obscures the lower terrain/tanks.
@@ -337,14 +342,15 @@ export class HUD {
   private buildPlayers(): void {
     // Player health-bar column (top-left).
     this.playersEl = document.createElement('div');
-    this.playersEl.className = 'st-hud__players';
+    this.playersEl.className = 'st-hud__players st-ui-section st-ui-section--roster';
   }
 
   /** Round indicator (side panel): "Round N of M". */
   private buildRound(): void {
     // Round indicator (side panel): "Round N of M" — hidden in single-round matches.
     this.roundEl = document.createElement('div');
-    this.roundEl.className = 'st-hud__round st-hud__round--hidden';
+    this.roundEl.className =
+      'st-hud__round st-hud__round--hidden st-ui-section st-ui-section--round';
   }
 
   /** Responsive analog fire-control console (#44). */
@@ -353,7 +359,8 @@ export class HUD {
     // All volatile geometry remains driven by the pure gaugeMath helpers.
 
     const instruments = document.createElement('div');
-    instruments.className = 'st-hud__instruments';
+    instruments.className =
+      'st-hud__instruments st-ui-section st-ui-section--instrument';
     const instrTitle = document.createElement('div');
     instrTitle.className = 'st-hud__instr-title';
     instrTitle.textContent = 'Ballistic Computer';
@@ -552,10 +559,11 @@ export class HUD {
     // This shows "PlayerName  ·  WeaponName" in one compact row. It persists below the
     // gauges and is hidden during the firing "Sending..." state (replaced by aimTextEl).
     this.activePlayerEl = document.createElement('div');
-    this.activePlayerEl.className = 'st-hud__active-row';
+    this.activePlayerEl.className =
+      'st-hud__active-row st-ui-section st-ui-section--active';
     // aimEl is the "Sending..." firing strip — shown only during isFiring state.
     this.aimEl = document.createElement('div');
-    this.aimEl.className = 'st-hud__aim';
+    this.aimEl.className = 'st-hud__aim st-ui-section st-ui-section--active';
     this.aimTextEl = document.createElement('span');
     this.aimTextEl.className = 'st-hud__aim-text';
     this.aimEl.append(this.aimTextEl);
@@ -595,25 +603,34 @@ export class HUD {
     // and a 2-column grid of buttons, each showing name + live ammo count.
     // Listeners attached ONCE here.
     this.stripEl = document.createElement('div');
-    this.stripEl.className = 'st-hud__strip';
+    this.stripEl.className =
+      'st-hud__strip st-ui-section st-ui-section--arsenal';
+    this.stripEl.dataset['ui'] = 'arsenal-drawer';
     // Header row: "Arsenal" title + a collapse/expand toggle. Collapsing folds the
     // grid away to reclaim vertical space (mobile especially); the state persists.
     const stripHeader = document.createElement('div');
     stripHeader.className = 'st-hud__strip-header';
     const stripTitle = document.createElement('div');
     stripTitle.className = 'st-hud__strip-title';
-    stripTitle.textContent = 'Arsenal';
-    const scrollHint = document.createElement('span');
-    scrollHint.className = 'st-hud__strip-scroll-hint';
-    scrollHint.textContent = 'Swipe panel to scroll';
+    const stripTitleText = document.createElement('span');
+    stripTitleText.textContent = 'Arsenal';
+    stripTitle.append(makeHudIcon('arsenal', 15), stripTitleText);
     const stripToggle = document.createElement('button');
     stripToggle.type = 'button';
-    stripToggle.className = 'st-hud__strip-toggle';
+    stripToggle.className = 'st-hud__strip-toggle st-ui-icon-action';
+    const stripToggleLabel = document.createElement('span');
+    stripToggleLabel.className = 'st-hud__strip-toggle-label';
+    stripToggle.append(makeHudIcon('disclosure', 16), stripToggleLabel);
     stripToggle.addEventListener('click', () => this.toggleStripCollapsed());
-    stripHeader.append(stripTitle, scrollHint, stripToggle);
+    stripHeader.append(stripTitle, stripToggle);
     this.stripToggleEl = stripToggle;
+    this.stripToggleLabelEl = stripToggleLabel;
     const stripGrid = document.createElement('div');
     stripGrid.className = 'st-hud__strip-grid';
+    stripGrid.id = `st-hud-arsenal-drawer-${HUD.arsenalDrawerSequence++}`;
+    stripGrid.setAttribute('role', 'region');
+    stripGrid.setAttribute('aria-label', 'Weapon arsenal');
+    stripToggle.setAttribute('aria-controls', stripGrid.id);
     for (const type of STRIP_WEAPONS) {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -631,20 +648,17 @@ export class HUD {
       stripGrid.append(btn);
     }
     this.stripEl.append(stripHeader, stripGrid);
-    const stored = readStoredArsenalPreference();
-    this.arsenalPreferenceExplicit = stored === '0' || stored === '1';
-    this.compactStageMedia = typeof matchMedia === 'function'
-      ? matchMedia(COMPACT_STAGE_QUERY)
-      : null;
-    this.stripCollapsed = resolveInitialArsenalCollapsed(
-      stored,
-      this.compactStageMedia?.matches ?? false,
-    );
-    this.compactStageMedia?.addEventListener('change', (event) => {
-      if (this.arsenalPreferenceExplicit) return;
-      this.stripCollapsed = event.matches;
+    this.stripEl.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || this.stripCollapsed) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.stripCollapsed = true;
+      writeArsenalCollapsed(true);
       this.applyStripCollapsed();
+      this.stripToggleEl.focus();
     });
+    const stored = readStoredArsenalPreference();
+    this.stripCollapsed = resolveInitialArsenalCollapsed(stored);
     this.applyStripCollapsed();
   }
 
@@ -654,7 +668,11 @@ export class HUD {
     // Clicking the button opens/closes the modal; buying is wired per-row below.
     this.storeBtnEl = document.createElement('button');
     this.storeBtnEl.type = 'button';
-    this.storeBtnEl.className = 'st-hud__store-btn';
+    this.storeBtnEl.className =
+      'st-hud__store-btn st-ui-action st-ui-section st-ui-section--store';
+    this.storeBtnLabelEl = document.createElement('span');
+    this.storeBtnLabelEl.className = 'st-hud__store-btn-label';
+    this.storeBtnEl.append(makeHudIcon('store', 16), this.storeBtnLabelEl);
     this.storeBtnEl.addEventListener('click', () => this.toggleStore());
 
     this.storeEl = document.createElement('div');
@@ -893,8 +911,11 @@ export class HUD {
     // Persistent Quit/Menu button (top of the side panel) — returns to the lobby.
     const menu = document.createElement('button');
     menu.type = 'button';
-    menu.className = 'st-hud__menu';
-    menu.textContent = '⤺ Menu';
+    menu.className = 'st-hud__menu st-ui-action st-ui-action--quiet';
+    menu.setAttribute('aria-label', 'Menu');
+    const label = document.createElement('span');
+    label.textContent = 'Menu';
+    menu.append(makeHudIcon('menu', 16), label);
     // Opens the non-destructive PAUSE overlay (Resume / Quit), NOT a direct quit —
     // so the player can get back into the live game (review #5).
     menu.addEventListener('click', () => this.togglePause(true));
@@ -1073,7 +1094,11 @@ export class HUD {
     const credits = active?.credits ?? 0;
     const canAct = state.phase === 'PLAYER_TURN';
 
-    this.storeBtnEl.textContent = `⛁ Store · $${credits.toLocaleString()}`;
+    const storeLabel = `Store · $${credits.toLocaleString()}`;
+    if (this.storeBtnLabelEl.textContent !== storeLabel) {
+      this.storeBtnLabelEl.textContent = storeLabel;
+    }
+    this.storeBtnEl.setAttribute('aria-label', storeLabel);
     this.storeCreditsEl.textContent = `Credits: $${credits.toLocaleString()}`;
 
     for (const [type, cell] of this.storeCells) {
@@ -1284,22 +1309,25 @@ export class HUD {
 
   /** Flip and persist the arsenal-collapsed preference. */
   private toggleStripCollapsed(): void {
-    this.arsenalPreferenceExplicit = true;
     this.stripCollapsed = !this.stripCollapsed;
     writeArsenalCollapsed(this.stripCollapsed);
     this.applyStripCollapsed();
+    if (this.stripCollapsed) this.stripToggleEl.focus();
   }
 
   /** Reflect the collapsed state onto the strip DOM + toggle affordance. */
   private applyStripCollapsed(): void {
     this.stripEl.classList.toggle('st-hud__strip--collapsed', this.stripCollapsed);
-    // ▸ points right when collapsed (click to open), ▾ down when expanded.
-    this.stripToggleEl.textContent = this.stripCollapsed ? '▸' : '▾';
+    this.stripEl.classList.toggle('st-hud__strip--open', !this.stripCollapsed);
     this.stripToggleEl.setAttribute('aria-expanded', String(!this.stripCollapsed));
     this.stripToggleEl.setAttribute(
       'aria-label',
       this.stripCollapsed ? 'Expand arsenal' : 'Collapse arsenal',
     );
+    this.stripToggleLabelEl.textContent = this.stripCollapsed ? 'Expand' : 'Close';
+    for (const child of [...this.root.children]) {
+      if (child !== this.stripEl) (child as HTMLElement).inert = !this.stripCollapsed;
+    }
   }
 
   /** Reconcile the weapon strip: owned-only visibility, active highlight, live ammo. No DOM rebuild. */
@@ -1319,6 +1347,7 @@ export class HUD {
       cell.el.classList.toggle('st-hud__weapon-btn--hidden', !visible);
       cell.ammo.textContent = unlimited ? AMMO_UNLIMITED_GLYPH : `${count}`;
       cell.el.classList.toggle('st-hud__weapon-btn--active', selected);
+      cell.el.setAttribute('aria-pressed', String(selected));
       cell.el.classList.toggle('st-hud__weapon-btn--depleted', depleted);
       // Disable while firing, when no active tank, or when depleted, so a click
       // cannot emit a select for an unusable weapon. (Engine still re-validates;
@@ -1506,34 +1535,32 @@ export class HUD {
 .st-hud {
   font-family: var(--font-sans);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--ui-type-title);
 }
 .st-hud__players {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 0;
 }
 .st-hud__player {
   position: relative;
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 4px 8px;
-  border-radius: 5px;
-  background:
-    linear-gradient(90deg, rgba(255, 210, 63, 0.055), rgba(12, 7, 22, 0.68) 32%),
-    rgba(12, 7, 22, 0.62);
-  border: 1px solid rgba(255, 210, 63, 0.18);
+  padding: 5px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-line);
+  border-radius: 0;
+  background: transparent;
   font-size: 13px;
   transition: box-shadow 160ms ease, background 160ms ease, opacity 220ms ease;
 }
 .st-hud__player--active {
   background:
-    linear-gradient(90deg, rgba(255, 210, 63, 0.16), rgba(142, 47, 83, 0.42) 42%, rgba(12, 7, 22, 0.72)),
-    rgba(142, 47, 83, 0.42);
-  border-color: var(--gold);
-  box-shadow: 0 0 0 1px var(--gold), 0 0 14px rgba(255, 210, 63, 0.38), inset 0 0 18px rgba(255, 122, 31, 0.10);
-  animation: st-hud-pulse 1.6s ease-in-out infinite;
+    linear-gradient(90deg, var(--ui-surface-active), rgba(142, 47, 83, 0.16) 58%, transparent);
+  border-left: 2px solid var(--ui-action);
+  padding-left: 6px;
+  box-shadow: inset 10px 0 18px rgba(255, 122, 31, 0.06);
 }
 .st-hud__player--dead {
   opacity: 0.45;
@@ -1583,29 +1610,32 @@ export class HUD {
   align-items: center;
   justify-content: space-between;
   gap: 7px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  background:
-    linear-gradient(90deg, rgba(255, 210, 63, 0.07), rgba(12, 7, 22, 0.62) 46%),
-    rgba(12, 7, 22, 0.55);
-  border: 1px solid rgba(255, 210, 63, 0.20);
-  font-size: 13px;
+  padding: 5px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--ui-type-title);
 }
 .st-hud__menu {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--ui-space-2);
   width: 100%;
   pointer-events: auto;
   cursor: pointer;
-  padding: 7px 10px;
-  border: 1px solid rgba(255, 210, 63, 0.38);
-  border-radius: 5px;
-  background: linear-gradient(180deg, rgba(255, 210, 63, 0.08), rgba(12, 7, 22, 0.76));
-  color: var(--text-gold);
+  padding: 7px 2px 9px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ui-muted);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--ui-type-body);
   letter-spacing: 0.5px;
   transition: background 130ms ease, border-color 130ms ease;
 }
-.st-hud__menu:hover { background: rgba(255, 122, 31, 0.3); border-color: var(--ember); }
+.st-hud__menu:hover { background: var(--ui-surface-active); color: var(--ui-action); }
 .st-hud__weapon-label {
   opacity: 0.65;
   text-transform: uppercase;
@@ -1694,7 +1724,7 @@ export class HUD {
   background: rgba(12, 7, 22, 0.55);
   border: 1px solid rgba(255, 210, 63, 0.14);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--ui-type-body);
   line-height: 1.5;
   color: var(--text-gold);
 }
@@ -1718,29 +1748,48 @@ export class HUD {
   gap: 8px;
 }
 .st-hud__strip-title {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
   font-family: var(--font-display);
-  font-size: 10px;
+  font-size: var(--ui-type-label);
   font-weight: bold;
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--text-dim);
 }
-.st-hud__strip-scroll-hint { display: none; }
 .st-hud__strip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   pointer-events: auto;
   cursor: pointer;
   flex: 0 0 auto;
   min-width: 22px;
   min-height: 22px;
   padding: 0 4px;
-  border: 1px solid rgba(255, 210, 63, 0.22);
-  border-radius: 4px;
-  background: rgba(12, 7, 22, 0.7);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
   color: var(--text-gold);
   font-size: 11px;
   line-height: 1;
 }
-.st-hud__strip-toggle:hover { border-color: var(--gold); color: var(--gold); }
+.st-hud__strip-toggle:hover { background: var(--ui-surface-active); color: var(--gold); }
+.st-hud__strip-toggle .st-ui-icon {
+  margin: 0;
+  transition: transform 130ms ease;
+}
+.st-hud__strip-toggle-label {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.st-hud__strip--open .st-hud__strip-toggle .st-ui-icon {
+  transform: rotate(180deg);
+}
 .st-hud__strip-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1762,11 +1811,11 @@ export class HUD {
   width: 100%;
   box-sizing: border-box;
   padding: 5px 9px;
-  border: 1px solid rgba(255, 210, 63, 0.18);
-  border-radius: 5px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-sm);
   background:
     linear-gradient(180deg, rgba(255, 210, 63, 0.035), rgba(12, 7, 22, 0.74)),
-    rgba(12, 7, 22, 0.7);
+    var(--ui-surface);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 11px;
@@ -1923,24 +1972,24 @@ export class HUD {
 
 /* ---- Store ---- */
 .st-hud__store-btn {
+  display: flex;
+  align-items: center;
   width: 100%;
   pointer-events: auto;
   cursor: pointer;
   padding: 9px 10px;
-  margin-top: 4px;
-  border: 1px solid rgba(122, 215, 255, 0.46);
-  border-radius: 6px;
-  background:
-    linear-gradient(90deg, rgba(122, 215, 255, 0.08), rgba(12, 7, 22, 0.70)),
-    rgba(12, 7, 22, 0.7);
-  color: var(--tank-blue-lite, #7ad7ff);
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ui-muted);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--ui-type-body);
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
   transition: background 130ms ease, border-color 130ms ease;
 }
-.st-hud__store-btn:hover { background: rgba(122, 215, 255, 0.18); border-color: #7ad7ff; }
+.st-hud__store-btn:hover { background: var(--ui-surface-active); color: var(--ui-action); }
 .st-hud__store {
   position: absolute;
   inset: 0;
@@ -2224,7 +2273,7 @@ export class HUD {
   flex-direction: column;
   gap: 5px;
   overflow: hidden;
-  /* Keep the console physical; the HUD itself scrolls on short touch screens. */
+  /* Keep the console physical; the fitted combat rail does not flex-crush it. */
   flex-shrink: 0;
 }
 .st-hud__instruments::before {
@@ -2250,7 +2299,7 @@ export class HUD {
 }
 .st-hud__instr-title {
   font-family: var(--font-display);
-  font-size: 10px;
+  font-size: var(--ui-type-label);
   font-weight: bold;
   letter-spacing: 2.6px;
   text-transform: uppercase;
@@ -2355,12 +2404,12 @@ export class HUD {
 .st-hud__gauge-label {
   fill: var(--text-gold);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--ui-type-body);
   font-weight: bold;
   font-variant-numeric: tabular-nums;
 }
 .st-hud__gauge-label--lg {
-  font-size: 13px;
+  font-size: var(--ui-type-title);
   fill: var(--gold);
 }
 #app.is-compact .st-hud__gauge-track { stroke-width: 5; }
@@ -2369,7 +2418,7 @@ export class HUD {
 #app.is-compact .st-hud__gauge-label { font-size: 12px; }
 /* On touch devices, lift the touch controls up to sit right after the players
  * list (before the instruments) instead of being pinned to the bottom of the
- * scrollable panel. Every child from instruments onward gets order:1; the touch
+ * fitted panel. Every child from instruments onward gets order:1; the touch
  * strip keeps the default order:0, so (being the last DOM child of #hud) it
  * renders at the end of the order:0 group: after menu/round/players. */
 @media (pointer: coarse) {
