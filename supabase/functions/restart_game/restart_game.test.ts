@@ -7,7 +7,9 @@
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts'
 import {
   buildRematchPlayers,
+  handleRestartGame,
   normalizeRematchOptions,
+  normalizeStoredRematchOptions,
   projectCreatedRematchInfo,
   projectExistingRematchInfo,
 } from './index.ts'
@@ -64,19 +66,19 @@ Deno.test('buildRematchPlayers preserves valid cosmetics and defaults old seats'
   assertEquals(out[1].loadout, DEFAULT_TANK_LOADOUT)
 })
 
-Deno.test('normalizeRematchOptions preserves reflective walls and rejects invalid values', () => {
+Deno.test('normalizeRematchOptions preserves wrap walls and rejects invalid values', () => {
   assertEquals(
     normalizeRematchOptions({
       maxPlayers: 2,
       maxWind: 7,
       gravity: 0.2,
-      walls: 'reflective',
+      walls: 'wrap' as never,
     }, 2),
     {
       maxPlayers: 2,
       maxWind: 7,
       gravity: 0.2,
-      walls: 'reflective',
+      walls: 'wrap' as never,
     },
   )
   assertEquals(
@@ -90,7 +92,111 @@ Deno.test('normalizeRematchOptions preserves reflective walls and rejects invali
   )
 })
 
-Deno.test('lost-claim response projector preserves reflective walls', () => {
+Deno.test('normalizeStoredRematchOptions preserves the room contract but never persists invalid walls', () => {
+  assertEquals(
+    normalizeStoredRematchOptions({
+      maxPlayers: 2,
+      maxWind: 7,
+      gravity: 0.2,
+      walls: 'wrap' as never,
+      rounds: 3,
+      interestRate: 0.1,
+    }),
+    {
+      maxPlayers: 2,
+      maxWind: 7,
+      gravity: 0.2,
+      walls: 'wrap',
+      rounds: 3,
+      interestRate: 0.1,
+    },
+  )
+  assertEquals(
+    normalizeStoredRematchOptions({
+      maxPlayers: 2,
+      maxWind: 7,
+      gravity: 0.2,
+      walls: 'invalid' as never,
+      rounds: 5,
+    }).walls,
+    'open',
+  )
+})
+
+Deno.test('handleRestartGame persists normalized walls through the successor insert', async () => {
+  const roomId = '00000000-0000-4000-8000-000000000001'
+
+  async function insertedWalls(walls: unknown) {
+    let insertedRoom: Record<string, unknown> | null = null
+    const oldRoom = {
+      id: roomId,
+      options: {
+        maxPlayers: 2,
+        maxWind: 7,
+        gravity: 0.2,
+        walls,
+        rounds: 3,
+      },
+      players: [
+        { id: 'uid-a', name: 'Ana', color: '#f00', ready: true },
+        { id: 'uid-b', name: 'Bo', color: '#00f', ready: true },
+      ],
+    }
+    const rooms = {
+      select: (columns: string) => columns === '*'
+        ? {
+          eq: () => ({
+            maybeSingle: () => Promise.resolve({ data: oldRoom, error: null }),
+          }),
+        }
+        : {
+          eq: () => ({
+            neq: () => ({
+              maybeSingle: () => Promise.resolve({ data: null, error: null }),
+            }),
+          }),
+        },
+      update: () => ({
+        eq: () => ({
+          is: () => ({
+            select: () => Promise.resolve({ data: [{ id: roomId }], error: null }),
+          }),
+        }),
+      }),
+      insert: (row: Record<string, unknown>) => {
+        insertedRoom = row
+        return Promise.resolve({ error: null })
+      },
+    }
+    const roomSeats = {
+      select: () => ({
+        eq: () => Promise.resolve({ data: [], error: null }),
+      }),
+    }
+    const supabase = {
+      from: (table: string) => table === 'rooms' ? rooms : roomSeats,
+    }
+
+    const response = await handleRestartGame(
+      { roomId, playerId: 'uid-a' },
+      undefined,
+      {
+        supabase: supabase as never,
+        verifySeat: () => Promise.resolve(true),
+      },
+    )
+
+    assertEquals(response.status, 200)
+    const captured = insertedRoom as Record<string, unknown> | null
+    if (!captured) throw new Error('success path did not insert a successor room')
+    return (captured.options as { walls?: unknown }).walls
+  }
+
+  assertEquals(await insertedWalls('wrap'), 'wrap')
+  assertEquals(await insertedWalls('invalid'), 'open')
+})
+
+Deno.test('lost-claim response projector preserves wrap walls', () => {
   const players: StoredPlayer[] = [
     { id: 'uid-a', name: 'Ana', color: '#f00', ready: true },
     { id: 'uid-b', name: 'Bo', color: '#00f', ready: true },
@@ -104,13 +210,13 @@ Deno.test('lost-claim response projector preserves reflective walls', () => {
       maxPlayers: 2,
       maxWind: 7,
       gravity: 0.2,
-      walls: 'reflective',
+      walls: 'wrap' as never,
     },
     players,
   })
 
   assertEquals(info.roomId, 'existing-room')
-  assertEquals(info.options.walls, 'reflective')
+  assertEquals(info.options.walls, 'wrap')
   assertEquals(info.players, [
     { id: 'uid-a', name: 'Ana', color: '#f00', loadout: DEFAULT_TANK_LOADOUT },
     { id: 'uid-b', name: 'Bo', color: '#00f', loadout: DEFAULT_TANK_LOADOUT },

@@ -24,7 +24,7 @@ interface RematchInfo {
     maxPlayers: number
     maxWind: number
     gravity: number
-    walls: 'open' | 'reflective'
+    walls: 'open' | 'reflective' | 'wrap'
   }
   players: Array<{
     id: string
@@ -51,7 +51,24 @@ export function normalizeRematchOptions(
     maxPlayers: options.maxPlayers ?? playerCount,
     maxWind: typeof options.maxWind === 'number' ? options.maxWind : DEFAULT_MAX_WIND,
     gravity: typeof options.gravity === 'number' ? options.gravity : DEFAULT_GRAVITY,
-    walls: options.walls === 'reflective' ? 'reflective' : 'open',
+    walls: options.walls === 'reflective' || options.walls === 'wrap'
+      ? options.walls
+      : 'open',
+  }
+}
+
+export interface RestartGameDependencies {
+  supabase?: ServiceClient
+  verifySeat?: typeof verifySeatToken
+}
+
+/** Preserve every synchronized room option while normalizing the opaque wall value. */
+export function normalizeStoredRematchOptions(options: StoredOptions): StoredOptions {
+  return {
+    ...options,
+    walls: options.walls === 'reflective' || options.walls === 'wrap'
+      ? options.walls
+      : 'open',
   }
 }
 
@@ -133,7 +150,11 @@ async function fetchRematchInfo(supabase: ServiceClient, id: string): Promise<Re
 // Guard Deno.serve so importing this module in tests does not start the HTTP
 // listener (mirrors submit_action). import.meta.main is true only when Deno runs
 // this file as the program entry point.
-export async function handleRestartGame(body: unknown): Promise<Response> {
+export async function handleRestartGame(
+  body: unknown,
+  _request?: Request,
+  dependencies: RestartGameDependencies = {},
+): Promise<Response> {
   const { roomId, playerId, token } = body as { roomId?: unknown; playerId?: unknown; token?: unknown }
 
   if (typeof roomId !== 'string' || !UUID_REGEX.test(roomId)) {
@@ -143,7 +164,8 @@ export async function handleRestartGame(body: unknown): Promise<Response> {
     return json({ error: 'Invalid input: playerId' }, 400)
   }
 
-  const supabase = getServiceClient()
+  const supabase = dependencies.supabase ?? getServiceClient()
+  const verifySeat = dependencies.verifySeat ?? verifySeatToken
 
   // Fetch the old room (any status — a rematch is normally requested from a
   // 'finished' room, but accept 'active' too so a request that races the
@@ -166,7 +188,7 @@ export async function handleRestartGame(body: unknown): Promise<Response> {
   if (!players.some(p => p.id === playerId)) {
     return json({ error: 'Player not in room' }, 403)
   }
-  if (!(await verifySeatToken(supabase, roomId, playerId as string, token))) {
+  if (!(await verifySeat(supabase, roomId, playerId as string, token))) {
     return json({ error: 'Invalid or missing seat token' }, 403)
   }
 
@@ -219,7 +241,9 @@ export async function handleRestartGame(body: unknown): Promise<Response> {
   // Preserve roster order (id/name/color) so each client's positional engine
   // tank mapping (players[i] -> 'p{i+1}') stays identical to the old game; mark
   // everyone ready so the room is immediately playable.
-  const oldOptions = (oldRoom.options ?? {}) as StoredOptions
+  const oldOptions = normalizeStoredRematchOptions(
+    (oldRoom.options ?? {}) as StoredOptions,
+  )
   const newPlayers: StoredPlayer[] = buildRematchPlayers(players, nowMs)
 
   // Unique code with collision retry (mirrors create_room).
