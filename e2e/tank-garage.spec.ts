@@ -206,13 +206,21 @@ test.describe('tank Garage', () => {
       }).click();
       const labels = await page.locator(
         '.lobby-garage[data-owner="player-1"] .lobby-garage__slot strong',
-      ).evaluateAll((nodes) => nodes.map((label) => ({
-        text: label.textContent,
-        clientWidth: label.clientWidth,
-        scrollWidth: label.scrollWidth,
-      })));
+      ).evaluateAll((nodes) => nodes.map((label) => {
+        const range = document.createRange();
+        range.selectNodeContents(label);
+        return {
+          text: label.textContent,
+          clientWidth: label.clientWidth,
+          scrollWidth: label.scrollWidth,
+          textWidth: range.getBoundingClientRect().width,
+        };
+      }));
       expect(labels.map(({ text }) => text)).toEqual(expected);
       for (const label of labels) {
+        // Keep real slack for Linux/Windows font-metric differences rather
+        // than merely passing at the exact no-overflow boundary.
+        expect(label.textWidth + 4).toBeLessThanOrEqual(label.clientWidth);
         expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
       }
     }

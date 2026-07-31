@@ -607,8 +607,8 @@ export class Lobby {
         position: relative;
         z-index: 1;
         width: 100%;
-        max-width: 570px;
-        margin-left: 48px;
+        max-width: 600px;
+        margin-left: 32px;
         margin-right: auto;
       }
       #lobby .lobby-card > .lobby-preview {
@@ -671,7 +671,7 @@ export class Lobby {
       #lobby .lobby-garage {
         flex: 1 0 100%;
         display: grid;
-        grid-template-columns: 58px minmax(190px, auto) 1fr;
+        grid-template-columns: 42px minmax(174px, auto) 1fr;
         align-items: center;
         gap: 6px;
         padding: 5px 7px;
@@ -693,7 +693,8 @@ export class Lobby {
       #lobby .lobby-garage__presets,
       #lobby .lobby-garage__slots {
         display: flex;
-        gap: 4px;
+        gap: 3px;
+        min-width: 0;
       }
       #lobby .lobby-garage button {
         min-height: 28px;
@@ -710,8 +711,8 @@ export class Lobby {
         color: var(--text-gold);
       }
       #lobby .lobby-garage__preset {
-        padding: 4px 7px;
-        font-size: 10px;
+        padding: 4px 5px;
+        font-size: 9px;
       }
       #lobby .lobby-garage__preset.selected {
         border-color: var(--gold);
