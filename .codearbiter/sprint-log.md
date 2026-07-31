@@ -2123,3 +2123,8 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 ### Honest ballistic guide ready PR handoff
 
 - Ready PR #221 opened from reviewed behavior commit `8bf78b5` plus governance receipt `f4bf139`. Hosted exact-head typecheck, deterministic harnesses, build, Edge, E2E, JavaScript analysis, and CodeQL remain the merge gate. Confidence high.
+### Honest ballistic guide hosted E2E correction
+
+- Hosted E2E on exact head `fd35878` exposed a causal-oracle contamination: desktop-fine measured impossible right-guide deflections of -98 and -138 pixels while the same product passed pixel-touch and small-window. The guide-off/on comparison was admitting presentation-only turn-start wind motion into its consecutive Canvas frames; product physics and rendering were unchanged. Confidence high.
+- SMARTS DECISION (high confidence): make the static-geometry acceptance page reduced-motion before Renderer construction rather than weakening the curvature threshold or filtering arbitrary pixels. Score 96/100: Scope 20/20 (one test setup line), User value 19/20 (restores a trustworthy merge gate), Risk 19/20 (guide has no reduced-motion branch), Maintainability 19/20 (declares the test's static-frame premise), Testability 19/20 (stress plus exact hosted profile), Security 0 exposure.
+- CORRECTION: reduced motion suppresses the unrelated wind ribbons but preserves guide toggling, aim response, turn persistence, both barrel directions, muzzle continuity, gravity-sign curvature, bounded reach, and distance fade. Hosted-profile desktop stress passes 20/20 with two workers; the full two-worker matrix passes 98 with 10 intentional skips; adversarial follow-up is CLEAN at 0 Critical / 0 High / 0 Medium / 0 Low. Confidence high.

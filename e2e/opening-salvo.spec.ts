@@ -203,6 +203,10 @@ async function composedGuideSeam(
 
 test.describe('bounded aim guide', () => {
   test.beforeEach(async ({ page }) => {
+    // This suite measures static guide geometry through consecutive Canvas
+    // frames. Suppress presentation-only wind/handoff motion before Renderer
+    // construction so a slow hosted frame cannot enter the causal guide delta.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.addInitScript(() => {
       localStorage.setItem('singedterra:aimguide', '1');
     });
