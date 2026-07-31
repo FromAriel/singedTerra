@@ -66,8 +66,8 @@ test.describe('HUD layout guardrails', () => {
     const railIcons = page.locator('#hud svg.st-ui-icon');
     const railGlyphs = page.locator('#hud .st-ui-glyph');
 
-    await expect(icons).toHaveCount(11);
-    await expect(glyphs).toHaveCount(9);
+    await expect(icons).toHaveCount(12);
+    await expect(glyphs).toHaveCount(10);
     expect(await commandIcons.evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-icon')),
     )).toEqual(['aim', 'power', 'move', 'weapon', 'fire']);
@@ -76,7 +76,7 @@ test.describe('HUD layout guardrails', () => {
     )).toEqual(['aim', 'power', 'move', 'weapon', 'fire']);
     expect(await touchIcons.evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-icon')),
-    )).toEqual(['weapon']);
+    )).toEqual(['weapon', 'menu']);
     expect(await railIcons.evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-symbol')),
     )).toEqual(['menu', 'credits', 'target', 'ordnance', 'disclosure']);
@@ -161,7 +161,7 @@ test.describe('HUD layout guardrails', () => {
       await expect(dock).toHaveAttribute('role', 'toolbar');
       await expect(dock).toHaveAttribute('aria-label', 'Touch commands');
       const buttons = dock.locator('.st-hud__touch-btn');
-      await expect(buttons).toHaveCount(7);
+      await expect(buttons).toHaveCount(8);
       expect(await buttons.evaluateAll((items) =>
         items.map((item) => (item as HTMLElement).dataset['command']),
       )).toEqual([
@@ -172,6 +172,7 @@ test.describe('HUD layout guardrails', () => {
         'move-left',
         'move-right',
         'weapon',
+        'menu',
       ]);
       const buttonBoxes = await buttons.evaluateAll((items) =>
         items.map((item) => item.getBoundingClientRect().toJSON()),
@@ -180,6 +181,31 @@ test.describe('HUD layout guardrails', () => {
         expect(box.width).toBeGreaterThanOrEqual(44);
         expect(box.height).toBeGreaterThanOrEqual(44);
       }
+      const regularBox = await dock.locator('[data-command="aim-left"]').boundingBox();
+      const weaponBox = await dock.locator('[data-command="weapon"]').boundingBox();
+      expect(regularBox).not.toBeNull();
+      expect(weaponBox).not.toBeNull();
+      expect(weaponBox!.width).toBeGreaterThan(regularBox!.width * 1.8);
+      const dockType = await dock.evaluate((node) => ({
+        labels: [...node.querySelectorAll<HTMLElement>('.st-hud__touch-label')]
+          .map((label) => label.getBoundingClientRect().height),
+        symbols: [...node.querySelectorAll<HTMLElement>('.st-hud__touch-symbol')]
+          .map((symbol) => {
+            const box = symbol.getBoundingClientRect();
+            return { width: box.width, height: box.height };
+          }),
+      }));
+      for (const height of dockType.labels) expect(height).toBeGreaterThanOrEqual(8);
+      for (const symbol of dockType.symbols) {
+        expect(symbol.width).toBeGreaterThanOrEqual(18);
+        expect(symbol.height).toBeGreaterThanOrEqual(18);
+      }
+      await expect(page.locator('#hud .st-hud__menu')).toBeHidden();
+      await dock.getByRole('button', { name: 'Open menu' }).click();
+      await expect(page.getByText('Paused', { exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Resume' }).click();
+      await expect(page.getByText('Paused', { exact: true })).toBeHidden();
+      await expect(dock).toBeVisible();
 
       const elevation = page.locator(
         '.st-hud__gauge-cell--elevation .st-hud__gauge-label',
@@ -202,9 +228,26 @@ test.describe('HUD layout guardrails', () => {
       const fuel = page.locator('.st-hud__fuel-value');
       await expect(fuel).toHaveText('100');
       await dock.getByRole('button', { name: 'Move tank right, 8 fuel maximum' }).click();
-      if (await fuel.textContent() === '100') {
+      const movedRight = await fuel.evaluate((element) =>
+        new Promise<boolean>((resolve) => {
+          let frames = 0;
+          const sample = (): void => {
+            if (element.textContent !== '100') {
+              resolve(true);
+            } else if (frames >= 6) {
+              resolve(false);
+            } else {
+              frames += 1;
+              requestAnimationFrame(sample);
+            }
+          };
+          requestAnimationFrame(sample);
+        }),
+      );
+      if (!movedRight) {
         await dock.getByRole('button', { name: 'Move tank left, 8 fuel maximum' }).click();
       }
+      await expect(fuel).not.toHaveText('100');
       const remainingFuel = Number(await fuel.textContent());
       expect(remainingFuel).toBeGreaterThanOrEqual(92);
       expect(remainingFuel).toBeLessThan(100);
@@ -224,7 +267,12 @@ test.describe('HUD layout guardrails', () => {
         expect(box!.height).toBeGreaterThanOrEqual(44);
       }
 
-      await page.getByRole('button', { name: 'Expand arsenal' }).click();
+      const arsenalToggle = page.getByRole('button', { name: 'Expand arsenal' });
+      const arsenalBox = await arsenalToggle.boundingBox();
+      expect(arsenalBox).not.toBeNull();
+      expect(arsenalBox!.width).toBeGreaterThanOrEqual(44);
+      expect(arsenalBox!.height).toBeGreaterThanOrEqual(44);
+      await arsenalToggle.click();
       await expect(dock).toBeHidden();
       expect(await dock.evaluate((element) => (element as HTMLElement).inert)).toBe(true);
       await page.getByRole('button', { name: 'Collapse arsenal' }).click();
