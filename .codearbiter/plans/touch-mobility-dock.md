@@ -19,7 +19,7 @@
 ## Task 3: Review, verify, and deliver
 
 - [x] Inspect every viewport and resolve one adversarial review.
-- [ ] Run the complete local gate, commit, open a ready PR, and prove exact-head
+- [x] Run the complete local gate, commit, open a ready PR, and prove exact-head
   hosted CI/CodeQL.
 - [ ] Merge, deploy, verify the public touch mobility surface, then continue the
   sprint.
