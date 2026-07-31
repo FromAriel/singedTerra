@@ -98,7 +98,7 @@ matches derive a new round seed while carrying credits, inventory, and score.
 
 ## Terrain
 
-Terrain is a `Uint8Array` for an 800×500 logical battlefield. Each byte answers
+Terrain is a `Uint8Array` for a 1200×600 logical battlefield. Each byte answers
 whether one pixel is solid.
 
 This representation gives the engine:
@@ -147,7 +147,7 @@ reporting path.
 
 ## Rendering and UI
 
-The battlefield is Canvas 2D at 800×500 logical pixels. HTML and CSS own the
+The battlefield is Canvas 2D at 1200×600 logical pixels. HTML and CSS own the
 HUD, lobby, store, menus, and accessibility surface.
 
 The composition is a fitted stage:

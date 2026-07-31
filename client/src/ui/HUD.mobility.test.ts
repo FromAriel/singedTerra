@@ -184,35 +184,53 @@ describe('HUD mobility rocker', () => {
   });
 
   it('disables movement without local control, fuel, life, or a playable turn', () => {
-    const { hud, state, left, right } = mount();
+    const { root, hud, state, left, right } = mount();
     const tank = state.tanks[0]!;
+    const touchMoves = () => [
+      document.querySelector<HTMLButtonElement>('[data-command="move-left"]')!,
+      document.querySelector<HTMLButtonElement>('[data-command="move-right"]')!,
+    ];
+    const expectMovementDisabled = (disabled: boolean): void => {
+      for (const button of [left(), right(), ...touchMoves()]) {
+        expect(button.disabled).toBe(disabled);
+        expect(button.getAttribute('aria-disabled')).toBe(String(disabled));
+      }
+    };
 
     hud.update(state, false, false);
-    expect(left().disabled).toBe(true);
-    expect(right().disabled).toBe(true);
+    expectMovementDisabled(true);
 
     tank.fuel = 0;
     hud.update(state, false, true);
-    expect(left().disabled).toBe(true);
-    expect(right().disabled).toBe(true);
+    expectMovementDisabled(true);
 
     tank.fuel = 100;
     tank.buried = true;
     hud.update(state, false, true);
-    expect(left().disabled).toBe(true);
-    expect(right().disabled).toBe(true);
+    expectMovementDisabled(true);
 
     tank.buried = false;
     tank.alive = false;
     hud.update(state, false, true);
-    expect(left().disabled).toBe(true);
-    expect(right().disabled).toBe(true);
+    expectMovementDisabled(true);
 
     tank.alive = true;
     state.phase = 'FIRING';
     hud.update(state, false, true);
-    expect(left().disabled).toBe(true);
-    expect(right().disabled).toBe(true);
+    expectMovementDisabled(true);
+
+    state.phase = 'PLAYER_TURN';
+    hud.update(state, true, true);
+    expectMovementDisabled(true);
+
+    hud.update(state, false, true);
+    expectMovementDisabled(false);
+    const dock = document.querySelector<HTMLElement>('.st-hud__touch-strip')!;
+    root.querySelector<HTMLButtonElement>('.st-hud__strip-toggle')!.click();
+    expect(dock.inert).toBe(true);
+    root.querySelector<HTMLButtonElement>('.st-hud__strip-toggle')!.click();
+    expect(dock.inert).toBe(false);
+    expectMovementDisabled(false);
   });
 
   it('keeps the active-row announcement focused on turn ownership', () => {

@@ -66,8 +66,8 @@ test.describe('HUD layout guardrails', () => {
     const railIcons = page.locator('#hud svg.st-ui-icon');
     const railGlyphs = page.locator('#hud .st-ui-glyph');
 
-    await expect(icons).toHaveCount(11);
-    await expect(glyphs).toHaveCount(9);
+    await expect(icons).toHaveCount(12);
+    await expect(glyphs).toHaveCount(10);
     expect(await commandIcons.evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-icon')),
     )).toEqual(['aim', 'power', 'move', 'weapon', 'fire']);
@@ -76,7 +76,7 @@ test.describe('HUD layout guardrails', () => {
     )).toEqual(['aim', 'power', 'move', 'weapon', 'fire']);
     expect(await touchIcons.evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-icon')),
-    )).toEqual(['weapon']);
+    )).toEqual(['weapon', 'menu']);
     expect(await railIcons.evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-symbol')),
     )).toEqual(['menu', 'credits', 'target', 'ordnance', 'disclosure']);
@@ -161,10 +161,19 @@ test.describe('HUD layout guardrails', () => {
       await expect(dock).toHaveAttribute('role', 'toolbar');
       await expect(dock).toHaveAttribute('aria-label', 'Touch commands');
       const buttons = dock.locator('.st-hud__touch-btn');
-      await expect(buttons).toHaveCount(5);
+      await expect(buttons).toHaveCount(8);
       expect(await buttons.evaluateAll((items) =>
         items.map((item) => (item as HTMLElement).dataset['command']),
-      )).toEqual(['aim-left', 'aim-right', 'power-down', 'power-up', 'weapon']);
+      )).toEqual([
+        'aim-left',
+        'aim-right',
+        'power-down',
+        'power-up',
+        'move-left',
+        'move-right',
+        'weapon',
+        'menu',
+      ]);
       const buttonBoxes = await buttons.evaluateAll((items) =>
         items.map((item) => item.getBoundingClientRect().toJSON()),
       );
@@ -172,6 +181,31 @@ test.describe('HUD layout guardrails', () => {
         expect(box.width).toBeGreaterThanOrEqual(44);
         expect(box.height).toBeGreaterThanOrEqual(44);
       }
+      const regularBox = await dock.locator('[data-command="aim-left"]').boundingBox();
+      const weaponBox = await dock.locator('[data-command="weapon"]').boundingBox();
+      expect(regularBox).not.toBeNull();
+      expect(weaponBox).not.toBeNull();
+      expect(weaponBox!.width).toBeGreaterThan(regularBox!.width * 1.8);
+      const dockType = await dock.evaluate((node) => ({
+        labels: [...node.querySelectorAll<HTMLElement>('.st-hud__touch-label')]
+          .map((label) => label.getBoundingClientRect().height),
+        symbols: [...node.querySelectorAll<HTMLElement>('.st-hud__touch-symbol')]
+          .map((symbol) => {
+            const box = symbol.getBoundingClientRect();
+            return { width: box.width, height: box.height };
+          }),
+      }));
+      for (const height of dockType.labels) expect(height).toBeGreaterThanOrEqual(8);
+      for (const symbol of dockType.symbols) {
+        expect(symbol.width).toBeGreaterThanOrEqual(18);
+        expect(symbol.height).toBeGreaterThanOrEqual(18);
+      }
+      await expect(page.locator('#hud .st-hud__menu')).toBeHidden();
+      await dock.getByRole('button', { name: 'Open menu' }).click();
+      await expect(page.getByText('Paused', { exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Resume' }).click();
+      await expect(page.getByText('Paused', { exact: true })).toBeHidden();
+      await expect(dock).toBeVisible();
 
       const elevation = page.locator(
         '.st-hud__gauge-cell--elevation .st-hud__gauge-label',
@@ -191,7 +225,54 @@ test.describe('HUD layout guardrails', () => {
       await expect(dock.getByRole('button', { name: 'Cycle weapon, current Missile' }))
         .toBeVisible();
 
-      await page.getByRole('button', { name: 'Expand arsenal' }).click();
+      const fuel = page.locator('.st-hud__fuel-value');
+      await expect(fuel).toHaveText('100');
+      await dock.getByRole('button', { name: 'Move tank right, 8 fuel maximum' }).click();
+      const movedRight = await fuel.evaluate((element) =>
+        new Promise<boolean>((resolve) => {
+          let frames = 0;
+          const sample = (): void => {
+            if (element.textContent !== '100') {
+              resolve(true);
+            } else if (frames >= 6) {
+              resolve(false);
+            } else {
+              frames += 1;
+              requestAnimationFrame(sample);
+            }
+          };
+          requestAnimationFrame(sample);
+        }),
+      );
+      if (!movedRight) {
+        await dock.getByRole('button', { name: 'Move tank left, 8 fuel maximum' }).click();
+      }
+      await expect(fuel).not.toHaveText('100');
+      const remainingFuel = Number(await fuel.textContent());
+      expect(remainingFuel).toBeGreaterThanOrEqual(92);
+      expect(remainingFuel).toBeLessThan(100);
+      await expect(page.locator('.st-hud__turn-owner')).toHaveText('P1');
+
+      const railMoves = page.locator('.st-hud__mobility > .st-hud__move-btn');
+      await expect(railMoves).toHaveCount(2);
+      await expect(railMoves.first()).toBeHidden();
+      await expect(railMoves.last()).toBeHidden();
+      for (const action of [
+        page.getByRole('button', { name: /^Store/ }),
+        page.getByRole('button', { name: /^Fire/ }),
+      ]) {
+        const box = await action.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box!.width).toBeGreaterThanOrEqual(44);
+        expect(box!.height).toBeGreaterThanOrEqual(44);
+      }
+
+      const arsenalToggle = page.getByRole('button', { name: 'Expand arsenal' });
+      const arsenalBox = await arsenalToggle.boundingBox();
+      expect(arsenalBox).not.toBeNull();
+      expect(arsenalBox!.width).toBeGreaterThanOrEqual(44);
+      expect(arsenalBox!.height).toBeGreaterThanOrEqual(44);
+      await arsenalToggle.click();
       await expect(dock).toBeHidden();
       expect(await dock.evaluate((element) => (element as HTMLElement).inert)).toBe(true);
       await page.getByRole('button', { name: 'Collapse arsenal' }).click();
@@ -386,8 +467,12 @@ test.describe('HUD layout guardrails', () => {
       const playerNode = node.querySelector<HTMLElement>('.st-hud__turn-owner')!;
       const weaponNode = node.querySelector<HTMLElement>('.st-hud__weapon-value')!;
       const bounds = node.getBoundingClientRect();
-      const targetRects = [...node.querySelectorAll<HTMLElement>('button')]
-        .map((target) => target.getBoundingClientRect());
+      const visibleTargets = [...node.querySelectorAll<HTMLElement>('button')]
+        .filter((target) => {
+          const rect = target.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
+      const targetRects = visibleTargets.map((target) => target.getBoundingClientRect());
       return {
         consoleClientHeight: node.clientHeight,
         consoleScrollHeight: node.scrollHeight,
@@ -404,7 +489,7 @@ test.describe('HUD layout guardrails', () => {
           && target.right <= bounds.right + 1
           && target.top >= bounds.top - 1
           && target.bottom <= bounds.bottom + 1),
-        targetMetrics: [...node.querySelectorAll<HTMLElement>('button')].map((target) => ({
+        targetMetrics: visibleTargets.map((target) => ({
           className: target.className,
           height: target.getBoundingClientRect().height,
           minHeight: getComputedStyle(target).minHeight,
@@ -436,10 +521,15 @@ test.describe('HUD layout guardrails', () => {
     const commandConsole = page.getByRole('region', { name: 'Turn command console' });
     const geometry = await commandConsole.evaluate((node) => {
       const hud = document.getElementById('hud')!;
+      const visibleTargets = [...node.querySelectorAll<HTMLElement>('button')]
+        .filter((target) => {
+          const rect = target.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
       return {
         hudClientHeight: hud.clientHeight,
         hudScrollHeight: hud.scrollHeight,
-        targets: [...node.querySelectorAll<HTMLElement>('button')].map((target) => ({
+        targets: visibleTargets.map((target) => ({
           className: target.className,
           height: target.getBoundingClientRect().height,
         })),
@@ -492,10 +582,11 @@ test.describe('HUD layout guardrails', () => {
       const style = getComputedStyle(node);
       return { width: parseFloat(style.width), height: parseFloat(style.height) };
     });
-    expect(authoredDialSize.width).toBeCloseTo(34, 1);
-    expect(authoredDialSize.height).toBeCloseTo(34, 1);
+    const touch = testInfo.project.name === 'pixel-touch';
+    expect(authoredDialSize.width).toBeCloseTo(touch ? 46 : 34, 1);
+    expect(authoredDialSize.height).toBeCloseTo(touch ? 46 : 34, 1);
     expect(Math.abs(meterBox!.width - meterBox!.height)).toBeLessThanOrEqual(1);
-    expect(meterBox!.width).toBeGreaterThanOrEqual(20);
+    expect(meterBox!.width).toBeGreaterThanOrEqual(touch ? 28 : 20);
     expect(fuelBox!.x).toBeGreaterThanOrEqual(meterBox!.x);
     expect(fuelBox!.x + fuelBox!.width).toBeLessThanOrEqual(meterBox!.x + meterBox!.width);
     expect(fuelLabelBox!.x).toBeGreaterThanOrEqual(meterBox!.x);
@@ -532,10 +623,16 @@ test.describe('HUD layout guardrails', () => {
     await meter.evaluate((node) => { node.dataset['identityProbe'] = 'stable'; });
     const fullRing = await meter.evaluate((node) => getComputedStyle(node).backgroundImage);
 
-    await right.click();
+    const activeLeft = touch
+      ? page.locator('.st-hud__touch-strip [data-command="move-left"]')
+      : left;
+    const activeRight = touch
+      ? page.locator('.st-hud__touch-strip [data-command="move-right"]')
+      : right;
+    await activeRight.click();
     let remaining = Number(await fuel.textContent());
     if (remaining === 100) {
-      await left.click();
+      await activeLeft.click();
       remaining = Number(await fuel.textContent());
     }
     expect(remaining).toBeGreaterThanOrEqual(92);

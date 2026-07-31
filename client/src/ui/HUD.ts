@@ -238,6 +238,9 @@ export class HUD {
   private touchStripEl!: HTMLElement;
   private touchWeaponBtnEl!: HTMLButtonElement;
   private touchWeaponLabelEl!: HTMLElement;
+  private touchMoveLeftBtnEl!: HTMLButtonElement;
+  private touchMoveRightBtnEl!: HTMLButtonElement;
+  private touchMenuBtnEl!: HTMLButtonElement;
   private touchCommandBtns: HTMLButtonElement[] = [];
 
   constructor(root: HTMLElement, overlayRoot: HTMLElement, modalRoot: HTMLElement) {
@@ -1140,7 +1143,7 @@ export class HUD {
     this.turnWatchEl.className = 'st-hud__turnwatch st-hud__turnwatch--hidden';
   }
 
-  /** Coarse-pointer command dock: angle/power steppers and weapon cycle. */
+  /** Coarse-pointer command dock: combat steppers, weapon cycle, and menu. */
   private buildTouchStrip(): void {
     this.touchStripEl = document.createElement('div');
     this.touchStripEl.className = 'st-hud__touch-strip';
@@ -1150,7 +1153,7 @@ export class HUD {
     const mkTouchBtn = (
       command: string,
       ariaLabel: string,
-      symbol: string | SVGElement,
+      symbol: string | Node,
       label: string,
       extra?: string,
     ): HTMLButtonElement => {
@@ -1214,6 +1217,18 @@ export class HUD {
     const touchAngleR = mkTouchBtn('aim-right', 'Aim barrel right', '▶', 'Aim');
     const touchPowerD = mkTouchBtn('power-down', 'Decrease power', '−', 'Power');
     const touchPowerU = mkTouchBtn('power-up', 'Increase power', '+', 'Power');
+    this.touchMoveLeftBtnEl = mkTouchBtn(
+      'move-left',
+      'Move tank left, 8 fuel maximum',
+      '‹',
+      'Move',
+    );
+    this.touchMoveRightBtnEl = mkTouchBtn(
+      'move-right',
+      'Move tank right, 8 fuel maximum',
+      '›',
+      'Move',
+    );
     this.touchWeaponBtnEl = mkTouchBtn(
       'weapon',
       'Cycle weapon, current Baby Missile',
@@ -1224,19 +1239,32 @@ export class HUD {
     this.touchWeaponLabelEl = this.touchWeaponBtnEl.querySelector(
       '.st-hud__touch-label',
     )!;
+    this.touchMenuBtnEl = mkTouchBtn(
+      'menu',
+      'Open menu',
+      makeHudGlyph('menu', 18),
+      'Menu',
+      'st-hud__touch-menu',
+    );
 
     wireRepeater(touchAngleL, () => this.touchAngleCb?.(3));
     wireRepeater(touchAngleR, () => this.touchAngleCb?.(-3));
     wireRepeater(touchPowerD, () => this.touchPowerCb?.(-3));
     wireRepeater(touchPowerU, () => this.touchPowerCb?.(3));
+    this.touchMoveLeftBtnEl.addEventListener('click', () => this.moveCb?.(-8));
+    this.touchMoveRightBtnEl.addEventListener('click', () => this.moveCb?.(8));
     this.touchWeaponBtnEl.addEventListener('click', () => this.touchWeaponCb?.());
+    this.touchMenuBtnEl.addEventListener('click', () => this.togglePause(true));
 
     this.touchCommandBtns = [
       touchAngleL,
       touchAngleR,
       touchPowerD,
       touchPowerU,
+      this.touchMoveLeftBtnEl,
+      this.touchMoveRightBtnEl,
       this.touchWeaponBtnEl,
+      this.touchMenuBtnEl,
     ];
     this.touchStripEl.append(...this.touchCommandBtns);
   }
@@ -1710,7 +1738,12 @@ export class HUD {
       !tank.buried &&
       fuel > 0;
     const disabled = !canMove;
-    for (const button of [this.moveLeftBtnEl, this.moveRightBtnEl]) {
+    for (const button of [
+      this.moveLeftBtnEl,
+      this.moveRightBtnEl,
+      this.touchMoveLeftBtnEl,
+      this.touchMoveRightBtnEl,
+    ]) {
       if (button.disabled !== disabled) button.disabled = disabled;
       const ariaDisabled = String(disabled);
       if (button.getAttribute('aria-disabled') !== ariaDisabled) {
@@ -1774,6 +1807,11 @@ export class HUD {
     // Sync the shared primary action and touch weapon stepper from the same
     // explicit local-ownership state.
     for (const button of this.touchCommandBtns) {
+      if (
+        button === this.touchMoveLeftBtnEl
+        || button === this.touchMoveRightBtnEl
+        || button === this.touchMenuBtnEl
+      ) continue;
       button.disabled = !canAct;
       button.setAttribute('aria-disabled', String(!canAct));
     }
@@ -2859,9 +2897,9 @@ export class HUD {
   top: 14px;
   left: 14px;
   display: none;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: 6px;
-  width: min(560px, calc(100% - 28px));
+  width: min(896px, calc(100% - 28px));
   /* 72 logical px resolves to 45 rendered px at the supported 0.625 phone scale. */
   padding: 6px;
   box-sizing: border-box;
@@ -2910,8 +2948,8 @@ export class HUD {
 .st-hud__touch-symbol {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   border: 1px solid rgba(255, 210, 63, 0.20);
   border-radius: 5px;
   background: rgba(255, 210, 63, 0.08);
@@ -2926,7 +2964,7 @@ export class HUD {
   overflow: hidden;
   color: var(--ui-copy);
   font-family: var(--font-sans);
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.35px;
   line-height: 1.05;
@@ -2942,6 +2980,7 @@ export class HUD {
 }
 .st-hud__touch-btn:disabled { opacity: 0.38; cursor: not-allowed; }
 .st-hud__touch-weapon {
+  grid-column: span 2;
   border-color: rgba(122, 215, 255, 0.42);
   color: var(--tank-blue-lite, #7ad7ff);
 }
@@ -2950,15 +2989,31 @@ export class HUD {
   background: rgba(122, 215, 255, 0.08);
   color: var(--tank-blue-lite, #7ad7ff);
 }
+.st-hud__touch-menu {
+  border-color: rgba(192, 132, 252, 0.34);
+  color: var(--ui-muted);
+}
+.st-hud__touch-menu .st-hud__touch-symbol {
+  border-color: rgba(192, 132, 252, 0.28);
+  background: rgba(192, 132, 252, 0.08);
+  color: var(--ui-muted);
+}
+.st-hud__touch-menu .st-ui-glyph {
+  width: 25px;
+  height: 25px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
 /* ===== Coarse-pointer (touch) overrides ================================ */
 /* Enlarge interactive targets to ≥44px and hide the keyboard legend. */
 @media (pointer: coarse) {
   .st-hud__controls { display: none; }
   .st-hud__weapon-btn { min-height: 44px; }
-  .st-hud__strip-toggle { min-width: 44px; min-height: 44px; }
+  .st-hud__strip-toggle { min-width: 72px; min-height: 72px; }
   .st-hud__store-buy  { min-height: 44px; }
   .st-hud__restart    { min-height: 48px; padding-top: 12px; padding-bottom: 12px; }
-  .st-hud__menu       { min-height: 44px; }
+  #hud .st-hud__menu  { display: none; }
   .st-hud__store-btn  { min-height: 44px; }
   /* #app zoom reaches 0.625 at the supported phone-landscape viewport, so
      72 logical px preserves a >=44 CSS-pixel hit target after scaling. */
@@ -3394,6 +3449,17 @@ export class HUD {
   #app .st-hud__mobility {
     grid-column: 2;
     grid-row: 1 / span 2;
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  #app .st-hud__mobility > .st-hud__move-btn {
+    display: none;
+  }
+  #app .st-hud__fuel-meter {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    min-height: 46px;
   }
   #app .st-hud__turn-actions {
     padding: 3px 6px;

@@ -78,8 +78,9 @@ selected loadout appears in the roster preview and carries into the match.
 | `M` | Mute or restore synthesized audio |
 | Hold `F` | Fast-forward the current shot locally |
 
-Touch layouts replace the keyboard deck with named aim, power, and weapon
-controls. Fire, Store, movement, fuel, and Arsenal remain in the tactical rail.
+Touch layouts replace the keyboard deck with an eight-control dock for aim,
+power, movement, weapon selection, and Menu. Fire, Store, fuel, and Arsenal
+remain in the tactical rail.
 On desktop, dragging outward from the active tank sets angle and power without
 firing.
 See [How to play](docs/PLAYING.md) for the full turn loop, online rooms, economy,

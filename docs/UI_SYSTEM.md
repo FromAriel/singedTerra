@@ -28,7 +28,7 @@ and ember actions form one locked visual family.
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-- The Canvas remains 800×500 logical pixels and preserves its aspect ratio.
+- The Canvas remains 1200×600 logical pixels and preserves its aspect ratio.
 - The tactical rail owns player state, ballistic instruments, turn context,
   fuel, economy, Fire, and the Arsenal drawer.
 - Fine pointers receive the keyboard Command Deck over the sky.

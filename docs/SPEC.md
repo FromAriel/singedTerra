@@ -127,7 +127,7 @@ for the same ordered inputs.
 
 ### Terrain
 
-The battlefield is 800×500 logical pixels. A `Uint8Array` stores solidity per
+The battlefield is 1200×600 logical pixels. A `Uint8Array` stores solidity per
 pixel.
 
 The engine supports:

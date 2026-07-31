@@ -5,6 +5,7 @@ import { HUD } from './HUD';
 interface MountedCommands {
   root: HTMLElement;
   overlay: HTMLElement;
+  modal: HTMLElement;
   hud: HUD;
 }
 
@@ -23,7 +24,7 @@ function mount(): MountedCommands {
     seed: 1,
   }).getState();
   hud.update(state, false, true);
-  return { root, overlay, hud };
+  return { root, overlay, modal, hud };
 }
 
 function pointerEvent(type: string, pointerId = 1): Event {
@@ -76,7 +77,7 @@ describe('HUD command input console', () => {
     expect(items.at(-1)?.classList.contains('st-hud__control-cell--primary')).toBe(true);
   });
 
-  it('places five explicitly named touch commands in the overlay, not the narrow rail', () => {
+  it('places eight explicitly named touch commands in the overlay, not the narrow rail', () => {
     const { root, overlay } = mount();
     const dock = overlay.querySelector<HTMLElement>('.st-hud__touch-strip')!;
     const buttons = [...dock.querySelectorAll<HTMLButtonElement>('.st-hud__touch-btn')];
@@ -90,17 +91,42 @@ describe('HUD command input console', () => {
       'aim-right',
       'power-down',
       'power-up',
+      'move-left',
+      'move-right',
       'weapon',
+      'menu',
     ]);
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
       'Aim barrel left',
       'Aim barrel right',
       'Decrease power',
       'Increase power',
+      'Move tank left, 8 fuel maximum',
+      'Move tank right, 8 fuel maximum',
       'Cycle weapon, current Baby Missile',
+      'Open menu',
     ]);
     expect(buttons.map((button) => button.querySelector('.st-hud__touch-label')?.textContent))
-      .toEqual(['Aim', 'Aim', 'Power', 'Power', 'Baby Missile']);
+      .toEqual(['Aim', 'Aim', 'Power', 'Power', 'Move', 'Move', 'Baby Missile', 'Menu']);
+    expect(
+      buttons.at(-1)?.querySelector('.st-ui-glyph')?.getAttribute('data-glyph'),
+    ).toBe('menu');
+  });
+
+  it('routes the touch Menu through the existing non-destructive pause surface', () => {
+    const { overlay, modal, hud } = mount();
+    const pause = [...modal.querySelectorAll<HTMLElement>('.st-hud__overlay')]
+      .find((element) => element.textContent?.includes('Paused'))!;
+
+    overlay.querySelector<HTMLButtonElement>('[data-command="menu"]')!.click();
+    expect(hud.isPaused()).toBe(true);
+    expect(pause.classList.contains('st-hud__overlay--hidden')).toBe(false);
+
+    [...pause.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent === 'Resume')!
+      .click();
+    expect(hud.isPaused()).toBe(false);
+    expect(pause.classList.contains('st-hud__overlay--hidden')).toBe(true);
   });
 
   it('maps visible touch directions to causal signed deltas and preserves repeat cadence', () => {
@@ -108,9 +134,11 @@ describe('HUD command input console', () => {
     const { overlay, hud } = mount();
     const angles = vi.fn();
     const powers = vi.fn();
+    const moves = vi.fn();
     const weapons = vi.fn();
     hud.onTouchAngle(angles);
     hud.onTouchPower(powers);
+    hud.onMove(moves);
     hud.onTouchWeapon(weapons);
 
     const button = (command: string): HTMLButtonElement => {
@@ -146,6 +174,10 @@ describe('HUD command input console', () => {
     expect(powers).toHaveBeenLastCalledWith(3);
     powerUp.dispatchEvent(pointerEvent('pointerup', 4));
 
+    button('move-left').click();
+    expect(moves).toHaveBeenLastCalledWith(-8);
+    button('move-right').click();
+    expect(moves).toHaveBeenLastCalledWith(8);
     button('weapon').click();
     expect(weapons).toHaveBeenCalledTimes(1);
 
