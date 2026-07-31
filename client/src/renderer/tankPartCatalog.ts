@@ -17,7 +17,7 @@ export type { TankKitId, TankPartSlot };
 
 export const TANK_PART_ATLAS_ASSET = 'art/tank-parts.webp';
 export const TANK_PART_ATLAS_WIDTH = 1024;
-export const TANK_PART_ATLAS_HEIGHT = 384;
+export const TANK_PART_ATLAS_HEIGHT = 512;
 export const TANK_PART_CELL_WIDTH = 256;
 export const TANK_PART_CELL_HEIGHT = 128;
 
@@ -53,7 +53,7 @@ const source = (column: number, row: number): TankPartSource => ({
 });
 
 /**
- * All three authored families share one gameplay footprint and mount contract.
+ * All four authored families share one gameplay footprint and mount contract.
  * Each row was composed as a complete tank before its exclusive slot partition.
  */
 function partSet(id: TankKitId, row: number): TankPartSet {
@@ -104,6 +104,7 @@ export const TANK_PART_SETS: Readonly<Record<TankKitId, TankPartSet>> = {
   foundry: partSet('foundry', 0),
   ranger: partSet('ranger', 1),
   bulwark: partSet('bulwark', 2),
+  jackal: partSet('jackal', 3),
 };
 
 export const DEFAULT_TANK_PART_SET = TANK_PART_SETS.foundry;

@@ -35,8 +35,8 @@ describe('modular tank part catalog', () => {
     ]);
   });
 
-  it('defines three coherent atlas rows with one compatible part per slot', () => {
-    expect(TANK_PART_ATLAS_HEIGHT).toBe(384);
+  it('defines four coherent atlas rows with one compatible part per slot', () => {
+    expect(TANK_PART_ATLAS_HEIGHT).toBe(512);
     expect(Object.keys(TANK_PART_SETS)).toEqual(TANK_KIT_IDS);
 
     for (const [row, kit] of TANK_KIT_IDS.entries()) {
@@ -55,18 +55,18 @@ describe('modular tank part catalog', () => {
 
   it('resolves every slot independently from a mixed player loadout', () => {
     const loadout: TankLoadout = {
-      treads: 'bulwark',
+      treads: 'jackal',
       hull: 'ranger',
       turret: 'foundry',
-      barrel: 'ranger',
+      barrel: 'jackal',
     };
 
     expect(TANK_PART_SLOTS.map((slot) =>
       tankPartDefinition(loadout, slot).source.y)).toEqual([
-      256,
+      384,
       128,
       0,
-      128,
+      384,
     ]);
     expect(tankPartDefinition(DEFAULT_TANK_LOADOUT, 'barrel')).toBe(
       DEFAULT_TANK_PART_SET.parts.barrel,

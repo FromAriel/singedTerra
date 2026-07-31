@@ -10,8 +10,8 @@ import { placeTanks } from '@shared/engine/Tank';
 import { CANVAS_WIDTH } from '@shared/engine/Terrain';
 
 describe('tank cosmetic loadout contract', () => {
-  it('defines three kits across four independently selectable slots', () => {
-    expect(TANK_KIT_IDS).toEqual(['foundry', 'ranger', 'bulwark']);
+  it('defines four kits across four independently selectable slots', () => {
+    expect(TANK_KIT_IDS).toEqual(['foundry', 'ranger', 'bulwark', 'jackal']);
     expect(TANK_PART_SLOTS).toEqual(['treads', 'hull', 'turret', 'barrel']);
     expect(DEFAULT_TANK_LOADOUT).toEqual({
       treads: 'foundry',
@@ -23,9 +23,9 @@ describe('tank cosmetic loadout contract', () => {
 
   it('preserves a complete allowlisted mix and returns a fresh value', () => {
     const input: TankLoadout = {
-      treads: 'bulwark',
+      treads: 'jackal',
       hull: 'ranger',
-      turret: 'foundry',
+      turret: 'jackal',
       barrel: 'ranger',
     };
 
@@ -68,10 +68,10 @@ describe('tank cosmetic loadout contract', () => {
   it('propagates presentation metadata into tanks without changing placement', () => {
     const terrain = Array.from({ length: 800 }, () => 420);
     const loadout: TankLoadout = {
-      treads: 'ranger',
+      treads: 'jackal',
       hull: 'bulwark',
-      turret: 'ranger',
-      barrel: 'foundry',
+      turret: 'jackal',
+      barrel: 'jackal',
     };
     const [custom, baseline] = placeTanks(terrain, [
       { name: 'Custom', color: '#e84d4d', loadout },

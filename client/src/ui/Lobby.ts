@@ -136,6 +136,7 @@ const TANK_KIT_LABELS: Readonly<Record<TankKitId, string>> = {
   foundry: 'Foundry',
   ranger: 'Ranger',
   bulwark: 'Bulwark',
+  jackal: 'Jackal',
 };
 const TANK_SLOT_LABELS: Readonly<Record<(typeof TANK_PART_SLOTS)[number], string>> = {
   treads: 'Mobility',
@@ -151,21 +152,25 @@ const TANK_PART_VARIANT_LABELS: Readonly<Record<
     foundry: 'Tracks',
     ranger: 'Spider Legs',
     bulwark: 'Hover',
+    jackal: 'Dune Wheels',
   },
   hull: {
-    foundry: 'Foundry Armor',
-    ranger: 'Ranger Scout',
-    bulwark: 'Bulwark Siege',
+    foundry: 'Armor Hull',
+    ranger: 'Scout Hull',
+    bulwark: 'Siege Hull',
+    jackal: 'Raider Hull',
   },
   turret: {
-    foundry: 'Foundry Cupola',
-    ranger: 'Ranger Sensor',
-    bulwark: 'Bulwark Bunker',
+    foundry: 'Cupola',
+    ranger: 'Sensor Pod',
+    bulwark: 'Bunker',
+    jackal: 'Sensor Ring',
   },
   barrel: {
-    foundry: 'Foundry Cannon',
-    ranger: 'Ranger Railgun',
-    bulwark: 'Bulwark Siege',
+    foundry: 'Cannon',
+    ranger: 'Railgun',
+    bulwark: 'Siege Gun',
+    jackal: 'Howitzer',
   },
 };
 
@@ -602,8 +607,8 @@ export class Lobby {
         position: relative;
         z-index: 1;
         width: 100%;
-        max-width: 520px;
-        margin-left: 104px;
+        max-width: 570px;
+        margin-left: 48px;
         margin-right: auto;
       }
       #lobby .lobby-card > .lobby-preview {
@@ -734,7 +739,7 @@ export class Lobby {
       }
       #lobby .lobby-garage__slot strong {
         color: var(--text);
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 700;
       }
       #lobby .lobby-hotseat.crowded .lobby-sub { display: none; }
@@ -777,7 +782,7 @@ export class Lobby {
       #lobby .lobby-rows.crowded .lobby-garage {
         grid-column: 1 / -1;
         display: grid;
-        grid-template-columns: repeat(7, minmax(0, 1fr));
+        grid-template-columns: repeat(8, minmax(0, 1fr));
         gap: 3px;
         padding: 3px;
       }

@@ -1,4 +1,9 @@
-export const TANK_KIT_IDS = ['foundry', 'ranger', 'bulwark'] as const
+export const TANK_KIT_IDS = [
+  'foundry',
+  'ranger',
+  'bulwark',
+  'jackal',
+] as const
 export type TankKitId = (typeof TANK_KIT_IDS)[number]
 
 export const TANK_PART_SLOTS = ['treads', 'hull', 'turret', 'barrel'] as const

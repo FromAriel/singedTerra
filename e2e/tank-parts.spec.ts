@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { BARREL_LENGTH } from '../shared/src/engine/Tank';
+import {
+  BARREL_LENGTH,
+  BARREL_PIVOT_HEIGHT,
+} from '../shared/src/engine/Tank';
 import {
   TANK_KIT_IDS,
   TANK_PART_ATLAS_HEIGHT,
@@ -13,7 +16,7 @@ const ATLAS_PATH = 'art/tank-parts.webp';
 const MAX_TRANSFER_BYTES = 250_000;
 
 test.describe('modular authored tank atlas', () => {
-  test('ships twelve independently occupied transparent gameplay parts', async ({
+  test('ships sixteen independently occupied transparent gameplay parts', async ({
     page,
     request,
   }) => {
@@ -34,6 +37,7 @@ test.describe('modular authored tank atlas', () => {
       cellWidth,
       cellHeight,
       barrels,
+      kitCount,
     }) => {
       const image = new Image();
       image.src = src;
@@ -51,7 +55,7 @@ test.describe('modular authored tank atlas', () => {
         canvas.height,
       ).data;
 
-      const cells = Array.from({ length: 12 }, (_, cell) => {
+      const cells = Array.from({ length: kitCount * 4 }, (_, cell) => {
         const row = Math.floor(cell / 4);
         const column = cell % 4;
         let visible = 0;
@@ -93,7 +97,7 @@ test.describe('modular authored tank atlas', () => {
         };
       });
 
-      const mobilityMasks = Array.from({ length: 3 }, (_, row) => {
+      const mobilityMasks = Array.from({ length: kitCount }, (_, row) => {
         const sample = document.createElement('canvas');
         sample.width = 36;
         sample.height = 24;
@@ -131,11 +135,41 @@ test.describe('modular authored tank atlas', () => {
         }
         return union === 0 ? 0 : 1 - intersection / union;
       };
-      const mobilityDistances = [
-        silhouetteDistance(mobilityMasks[0]!, mobilityMasks[1]!),
-        silhouetteDistance(mobilityMasks[0]!, mobilityMasks[2]!),
-        silhouetteDistance(mobilityMasks[1]!, mobilityMasks[2]!),
-      ];
+      const mobilityDistances: number[] = [];
+      for (let left = 0; left < mobilityMasks.length; left++) {
+        for (let right = left + 1; right < mobilityMasks.length; right++) {
+          mobilityDistances.push(silhouetteDistance(
+            mobilityMasks[left]!,
+            mobilityMasks[right]!,
+          ));
+        }
+      }
+      let legacyRowsDigest = 2_166_136_261;
+      let legacyRowsVisibleDigest = 2_166_136_261;
+      for (let y = 0; y < 3 * cellHeight; y++) {
+        const rowStart = y * atlasWidth * 4;
+        const rowEnd = rowStart + atlasWidth * 4;
+        for (let offset = rowStart; offset < rowEnd; offset += 4) {
+          const alpha = pixels[offset + 3]!;
+          legacyRowsDigest ^= alpha;
+          legacyRowsDigest = Math.imul(legacyRowsDigest, 16_777_619);
+          for (let channel = 0; channel < 3; channel++) {
+            const premultiplied = Math.round(
+              pixels[offset + channel]! * alpha / 255,
+            );
+            legacyRowsVisibleDigest ^= premultiplied;
+            legacyRowsVisibleDigest = Math.imul(
+              legacyRowsVisibleDigest,
+              16_777_619,
+            );
+          }
+          legacyRowsVisibleDigest ^= alpha;
+          legacyRowsVisibleDigest = Math.imul(
+            legacyRowsVisibleDigest,
+            16_777_619,
+          );
+        }
+      }
 
       const alphaNear = (
         row: number,
@@ -170,6 +204,12 @@ test.describe('modular authored tank atlas', () => {
         height: image.naturalHeight,
         cells,
         mobilityDistances,
+        legacyRowsDigest: (legacyRowsDigest >>> 0)
+          .toString(16)
+          .padStart(8, '0'),
+        legacyRowsVisibleDigest: (legacyRowsVisibleDigest >>> 0)
+          .toString(16)
+          .padStart(8, '0'),
         barrels: barrels.map((barrel, row) => {
           const mountY = -barrel.offsetY / barrel.height * cellHeight;
           // One rendered logical pixel converted back into source-cell pixels.
@@ -197,11 +237,14 @@ test.describe('modular authored tank atlas', () => {
       cellWidth: TANK_PART_CELL_WIDTH,
       cellHeight: TANK_PART_CELL_HEIGHT,
       barrels: barrelDefinitions,
+      kitCount: TANK_KIT_IDS.length,
     });
 
+    expect(decoded.legacyRowsDigest).toBe('669c6463');
+    expect(decoded.legacyRowsVisibleDigest).toBe('56549168');
     expect(decoded.width).toBe(TANK_PART_ATLAS_WIDTH);
     expect(decoded.height).toBe(TANK_PART_ATLAS_HEIGHT);
-    expect(decoded.cells).toHaveLength(12);
+    expect(decoded.cells).toHaveLength(16);
     expect(Math.min(...decoded.mobilityDistances)).toBeGreaterThan(0.28);
     const minimumsBySlot = [
       { visible: 7_000, width: 200, height: 35 },
@@ -224,37 +267,61 @@ test.describe('modular authored tank atlas', () => {
     }
   });
 
-  test('keeps all three complete families distinct at gameplay scale', async ({
+  test('keeps all four complete families distinct at gameplay scale', async ({
     page,
   }) => {
     await page.goto('.');
+    const partSets = TANK_KIT_IDS.map((kit) => TANK_PART_SETS[kit].parts);
     const result = await page.evaluate(async ({
       atlasSrc,
       cellWidth,
       cellHeight,
+      definitions,
+      barrelPivotHeight,
     }) => {
       const image = new Image();
       image.src = atlasSrc;
       await image.decode();
 
-      const masks = Array.from({ length: 3 }, (_, row) => {
+      const masks = definitions.map((parts, row) => {
         const canvas = document.createElement('canvas');
-        canvas.width = 36;
-        canvas.height = 24;
+        canvas.width = 48;
+        canvas.height = 32;
         const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+        const anchorX = 24;
+        const anchorY = 28;
+        const staticSlots = ['treads', 'hull', 'turret'] as const;
         for (let column = 0; column < 3; column++) {
+          const slot = staticSlots[column]!;
+          const part = parts[slot];
           ctx.drawImage(
             image,
             column * cellWidth,
             row * cellHeight,
             cellWidth,
             cellHeight,
-            0,
-            0,
-            canvas.width,
-            canvas.height,
+            anchorX + part.offsetX,
+            anchorY + part.offsetY,
+            part.width,
+            part.height,
           );
         }
+        const barrel = parts.barrel;
+        ctx.save();
+        ctx.translate(anchorX, anchorY - barrelPivotHeight);
+        ctx.rotate(-12 * Math.PI / 180);
+        ctx.drawImage(
+          image,
+          3 * cellWidth,
+          row * cellHeight,
+          cellWidth,
+          cellHeight,
+          barrel.offsetX,
+          barrel.offsetY,
+          barrel.width,
+          barrel.height,
+        );
+        ctx.restore();
         const pixels = ctx.getImageData(
           0,
           0,
@@ -275,18 +342,22 @@ test.describe('modular authored tank atlas', () => {
         }
         return union === 0 ? 0 : 1 - intersection / union;
       };
+      const pairwise: number[] = [];
+      for (let left = 0; left < masks.length; left++) {
+        for (let right = left + 1; right < masks.length; right++) {
+          pairwise.push(distance(masks[left]!, masks[right]!));
+        }
+      }
       return {
         occupied: masks.map((mask) => mask.filter(Boolean).length),
-        pairwise: [
-          distance(masks[0]!, masks[1]!),
-          distance(masks[0]!, masks[2]!),
-          distance(masks[1]!, masks[2]!),
-        ],
+        pairwise,
       };
     }, {
       atlasSrc: ATLAS_PATH,
       cellWidth: TANK_PART_CELL_WIDTH,
       cellHeight: TANK_PART_CELL_HEIGHT,
+      definitions: partSets,
+      barrelPivotHeight: BARREL_PIVOT_HEIGHT,
     });
 
     expect(Math.min(...result.occupied)).toBeGreaterThan(110);

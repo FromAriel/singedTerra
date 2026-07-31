@@ -29,7 +29,7 @@ describe('Lobby tank Garage', () => {
       '.lobby-garage[data-owner="player-2"]',
     )!;
     expect(playerTwo).not.toBeNull();
-    expect(playerTwo.querySelectorAll('[data-preset]')).toHaveLength(3);
+    expect(playerTwo.querySelectorAll('[data-preset]')).toHaveLength(4);
     expect(playerTwo.querySelectorAll('[data-slot]')).toHaveLength(4);
 
     playerTwo.querySelector<HTMLButtonElement>('[data-preset="ranger"]')!.click();
@@ -67,7 +67,30 @@ describe('Lobby tank Garage', () => {
     );
     expect(garage).not.toBeNull();
     expect(garage!.querySelector('[data-preset="bulwark"]')).not.toBeNull();
+    expect(garage!.querySelector('[data-preset="jackal"]')).not.toBeNull();
     expect(root.querySelectorAll('.lobby-preview canvas')).toHaveLength(1);
+  });
+
+  it('names and cycles the Jackal parts by their visible vehicle role', () => {
+    const lobby = new Lobby(root, onReady);
+    lobby.show();
+
+    let garage = root.querySelector<HTMLElement>(
+      '.lobby-garage[data-owner="player-1"]',
+    )!;
+    garage.querySelector<HTMLButtonElement>('[data-preset="jackal"]')!.click();
+    garage = root.querySelector<HTMLElement>(
+      '.lobby-garage[data-owner="player-1"]',
+    )!;
+
+    expect(garage.querySelector('[data-slot="treads"] strong')!.textContent)
+      .toBe('Dune Wheels');
+    expect(garage.querySelector('[data-slot="hull"] strong')!.textContent)
+      .toBe('Raider Hull');
+    expect(garage.querySelector('[data-slot="turret"] strong')!.textContent)
+      .toBe('Sensor Ring');
+    expect(garage.querySelector('[data-slot="barrel"] strong')!.textContent)
+      .toBe('Howitzer');
   });
 
   it('previews the joiner color in join mode instead of the host color', () => {

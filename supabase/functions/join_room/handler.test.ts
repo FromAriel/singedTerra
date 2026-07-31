@@ -28,10 +28,10 @@ Deno.test('handleJoinRoom: rejects an over-posted tank loadout before DB access'
 
 Deno.test('handleJoinRoom: appends the exact bounded joiner loadout', async () => {
   const loadout = {
-    treads: 'bulwark',
+    treads: 'jackal',
     hull: 'ranger',
     turret: 'foundry',
-    barrel: 'bulwark',
+    barrel: 'jackal',
   } as const
   const host = {
     id: 'host',

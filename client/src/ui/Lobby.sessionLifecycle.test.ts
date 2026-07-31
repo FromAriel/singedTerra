@@ -86,10 +86,10 @@ const waitingPlayers = [
 const waitingOptions = { maxPlayers: 3, maxWind: 7, gravity: 0.2, rounds: 3 };
 const activeLoadouts: TankLoadout[] = [
   {
-    treads: 'ranger',
+    treads: 'jackal',
     hull: 'bulwark',
     turret: 'foundry',
-    barrel: 'ranger',
+    barrel: 'jackal',
   },
   {
     treads: 'bulwark',
@@ -230,10 +230,10 @@ describe('Lobby waiting-room session lifecycle (characterization)', () => {
     expect(render).toHaveBeenCalledTimes(1);
 
     const customizedLoadout = {
-      treads: 'ranger' as const,
+      treads: 'jackal' as const,
       hull: 'bulwark' as const,
       turret: 'foundry' as const,
-      barrel: 'ranger' as const,
+      barrel: 'jackal' as const,
     };
     const customizedPlayers = waitingPlayers.map((player, index) => index === 0
       ? {
