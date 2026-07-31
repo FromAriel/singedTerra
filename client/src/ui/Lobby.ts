@@ -722,7 +722,7 @@ export class Lobby {
       #lobby .lobby-garage__slot {
         flex: 1;
         min-width: 0;
-        padding: 3px 5px;
+        padding: 3px 2px;
         text-align: left;
       }
       #lobby .lobby-garage__slot span,
