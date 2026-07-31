@@ -40,6 +40,7 @@ describe('getMuzzleVisualProfile', () => {
       deaths_head: 'fan',
       riot_bomb: 'earth',
       hot_napalm: 'flame',
+      sandhog: 'earth',
       shield: 'needle',
     } satisfies Record<WeaponType, MuzzleMotif>;
 

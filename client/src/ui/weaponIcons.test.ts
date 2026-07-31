@@ -17,6 +17,7 @@ const EXPECTED_FAMILIES = {
   deaths_head: 'death',
   riot_bomb: 'terrain',
   hot_napalm: 'fire',
+  sandhog: 'drill',
   shield: 'defense',
 } satisfies Record<WeaponType, string>;
 
@@ -32,6 +33,7 @@ const EXPECTED_SILHOUETTES = {
   airburst: 'circle:18,5,3|circle:6,12,3|circle:18,19,3',
   mirv: 'circle:12,18,3|circle:6,6,3|circle:18,6,3',
   death: 'path:m12.5 17-.5-1-.5 1h1z',
+  drill: 'path:M10 18a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a3 3 0 0 1-3-3 1 1 0 0 1 1-1z',
   defense:
     'path:M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z',
 } satisfies Record<string, string>;

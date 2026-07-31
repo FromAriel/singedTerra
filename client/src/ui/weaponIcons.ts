@@ -1,6 +1,7 @@
 import type { WeaponType } from '@shared/engine/WeaponSystem';
 import {
   CircleDot,
+  Drill,
   Flame,
   GitFork,
   Mountain,
@@ -23,6 +24,7 @@ type WeaponFamily =
   | 'airburst'
   | 'mirv'
   | 'death'
+  | 'drill'
   | 'defense';
 
 interface WeaponGlyphDefinition {
@@ -51,6 +53,7 @@ const WEAPON_GLYPHS = {
   deaths_head: { icon: Skull, family: 'death', tier: 2 },
   riot_bomb: { icon: Mountain, family: 'terrain', tier: 2 },
   hot_napalm: { icon: Flame, family: 'fire', tier: 2 },
+  sandhog: { icon: Drill, family: 'drill', tier: 2 },
   shield: { icon: Shield, family: 'defense', tier: 1 },
 } satisfies Record<WeaponType, WeaponGlyphDefinition>;
 

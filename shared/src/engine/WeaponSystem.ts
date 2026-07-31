@@ -1,9 +1,9 @@
 /**
  * Weapon definitions (SPEC §4.5).
  *
- * The full V1 roster of 10 weapons is declared here as the `WeaponType` union so
- * that client/server type-check against the complete contract. Only Baby Missile
- * and Missile are wired up for MVP1; the rest are stubbed in the definition table.
+ * The complete weapon roster is declared here as the `WeaponType` union so the
+ * deterministic engine, client, and action referee type-check against one
+ * implemented contract.
  */
 
 import type { ExplosionStyle } from '../types/GameState';
@@ -23,6 +23,7 @@ export type WeaponType =
   | 'deaths_head'
   | 'riot_bomb'
   | 'hot_napalm'
+  | 'sandhog'
   | 'shield';
 
 /**
@@ -145,6 +146,22 @@ export interface ShieldDef {
   capacity: number;
 }
 
+/**
+ * Sandhog underground drill: the ballistic shell enters terrain, then follows
+ * one fixed diagonal vector for a bounded number of ticks while carving a
+ * narrow corridor. All values are constants so replay remains deterministic.
+ */
+export interface SandhogDef {
+  /** Underground simulation ticks before the endpoint blast. */
+  ticks: number;
+  /** Absolute horizontal drill speed; impact direction supplies the sign. */
+  horizontalSpeed: number;
+  /** Downward drill speed in canvas pixels per tick. */
+  verticalSpeed: number;
+  /** Terrain-clearing radius applied at each underground step. */
+  tunnelRadius: number;
+}
+
 /** Optional non-default flight/behavior modifiers for a weapon. */
 export interface BehaviorDef {
   /** Present only on airburst (cluster) weapons. Absent => simple ballistic shell. */
@@ -153,6 +170,8 @@ export interface BehaviorDef {
   napalm?: NapalmDef;
   /** Present only on bouncing weapons (bouncing_betty). Absent => no bounce. */
   bounce?: BounceDef;
+  /** Present only on Sandhog. Absent => ground contact follows normal impact rules. */
+  sandhog?: SandhogDef;
   /** Present only on the shield. Absent => an offensive weapon (a projectile). */
   shield?: ShieldDef;
 }
@@ -577,6 +596,29 @@ export const WEAPONS: Record<WeaponType, WeaponDefinition> = {
         burnTicks:    HOT_NAPALM_BURN_TICKS,
         dotPerTick:   HOT_NAPALM_DOT,
         climbLimit:   HOT_NAPALM_CLIMB,
+      },
+    },
+  },
+  sandhog: {
+    type: 'sandhog',
+    name: 'Sandhog',
+    implemented: true,
+    price: 16750,
+    bundleSize: 5,
+    armsLevel: 0,
+    detonation: {
+      radius: 38,
+      maxDamage: 70,
+      style: 'blast',
+      color: '#f3a83b',
+      durationFrames: 88,
+    },
+    behavior: {
+      sandhog: {
+        ticks: 22,
+        horizontalSpeed: 3.2,
+        verticalSpeed: 2.4,
+        tunnelRadius: 7,
       },
     },
   },

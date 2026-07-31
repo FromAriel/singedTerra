@@ -2,6 +2,7 @@ import './style.css';
 import { GameEngine } from '@shared/engine/GameEngine';
 import { computeAiPlan } from '@shared/engine/AI';
 import { GRAVITY } from '@shared/engine/Physics';
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/engine/Terrain';
 import type { GameState } from '@shared/types/GameState';
 import { normalizeTankLoadout } from '@shared/types/TankLoadout';
 import type { GameClient, RematchInfo } from './client/GameClient';
@@ -14,6 +15,9 @@ import { AudioEngine } from './audio/AudioEngine';
 import { HUD } from './ui/HUD';
 import { Lobby, type LobbyConfig } from './ui/Lobby';
 import { crtCssVars } from './ui/theme';
+
+const ENABLE_DETERMINISTIC_HOT_SEAT_PROBE =
+  new URLSearchParams(window.location.search).get('e2e') === 'hotseat';
 
 /**
  * Entry point. Grabs the canvas + overlay containers, shows the Lobby, and on
@@ -271,6 +275,7 @@ function bootstrap(): void {
     newClient.onTurnWatch?.((watch) => hud.setTurnWatch(watch));
 
     unsubscribe = newClient.onStateChange((state) => {
+      if (ENABLE_DETERMINISTIC_HOT_SEAT_PROBE) exposeDeterministicHotSeatProbe(state);
       // Aim guide is shown only when the LOCAL human controls the active tank: a
       // human turn in hot-seat, or (networked) the active tank is THIS client's id.
       // Never for a CPU seat or a remote opponent's turn.
@@ -508,6 +513,95 @@ function bootstrap(): void {
   // window.resize does not always fire for those micro-height changes.
   window.visualViewport?.addEventListener('resize', updateScale);
   updateScale();
+}
+
+interface SandhogE2EProbe {
+  phase: GameState['phase'];
+  terrainVersion: number;
+  sandhog: Readonly<{
+    x: number;
+    y: number;
+    burrowTicksRemaining: number | null;
+    centerSolid: boolean | null;
+  }> | null;
+  corridorWitness: Readonly<{
+    x: number;
+    y: number;
+    centerSolid: boolean;
+    adjacentX: number;
+    adjacentY: number;
+    adjacentSolid: boolean;
+  }> | null;
+  sandhogExplosionCount: number;
+}
+
+/**
+ * Narrow, snapshot-only evidence channel for production-bundle browser tests.
+ * It exists solely on the deterministic `?e2e=hotseat` entrypoint and copies
+ * presentation-relevant facts rather than exposing the mutable GameState.
+ */
+function exposeDeterministicHotSeatProbe(state: GameState): void {
+  const projectile = state.projectiles.find((candidate) => candidate.weaponType === 'sandhog');
+  const burrowTicksRemaining = projectile?.burrowTicksRemaining ?? null;
+  let centerSolid: boolean | null = null;
+  let corridorWitness: SandhogE2EProbe['corridorWitness'] = null;
+  if (projectile && burrowTicksRemaining !== null) {
+    const x = Math.max(0, Math.min(CANVAS_WIDTH - 1, Math.round(projectile.x)));
+    const y = Math.max(0, Math.min(CANVAS_HEIGHT - 1, Math.round(projectile.y)));
+    centerSolid = state.terrain[y * CANVAS_WIDTH + x] !== 0;
+
+    // Five drill steps behind the live head is 20px away for Sandhog's 3-4-5
+    // vector: beyond its 13px presentation halo. Pair that cleared center with
+    // a perpendicular pixel 15px away, beyond the 7px tunnel radius.
+    const speed = Math.hypot(projectile.vx, projectile.vy);
+    const witnessX = projectile.x - projectile.vx * 5;
+    const witnessY = projectile.y - projectile.vy * 5;
+    const adjacentX = witnessX - (projectile.vy / speed) * 15;
+    const adjacentY = witnessY + (projectile.vx / speed) * 15;
+    const inBounds = (sampleX: number, sampleY: number): boolean =>
+      sampleX >= 0
+      && sampleX < CANVAS_WIDTH
+      && sampleY >= 0
+      && sampleY < CANVAS_HEIGHT;
+    const solidAt = (sampleX: number, sampleY: number): boolean =>
+      state.terrain[
+        Math.round(sampleY) * CANVAS_WIDTH + Math.round(sampleX)
+      ] !== 0;
+    if (
+      speed > 0
+      && inBounds(witnessX, witnessY)
+      && inBounds(adjacentX, adjacentY)
+    ) {
+      corridorWitness = Object.freeze({
+        x: witnessX,
+        y: witnessY,
+        centerSolid: solidAt(witnessX, witnessY),
+        adjacentX,
+        adjacentY,
+        adjacentSolid: solidAt(adjacentX, adjacentY),
+      });
+    }
+  }
+
+  const probe = Object.freeze<SandhogE2EProbe>({
+    phase: state.phase,
+    terrainVersion: state.terrainVersion,
+    sandhog: projectile
+      ? Object.freeze({
+          x: projectile.x,
+          y: projectile.y,
+          burrowTicksRemaining,
+          centerSolid,
+        })
+      : null,
+    corridorWitness,
+    sandhogExplosionCount: state.explosions.filter(
+      (explosion) => explosion.weaponType === 'sandhog',
+    ).length,
+  });
+  (
+    window as typeof window & { __SINGED_TERRA_E2E__?: Readonly<SandhogE2EProbe> }
+  ).__SINGED_TERRA_E2E__ = probe;
 }
 
 /** Build the GameClient for the selected mode (SPEC §5). */

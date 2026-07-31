@@ -2237,6 +2237,7 @@ export class HUD {
 .st-weapon-icon[data-family='volatile'] { color: var(--ember); }
 .st-weapon-icon[data-family='defense'] { color: var(--tank-blue-lite); }
 .st-weapon-icon[data-family='terrain'] { color: #c49359; }
+.st-weapon-icon[data-family='drill'] { color: #f3a83b; }
 .st-hud__weapon-btn--active .st-weapon-icon {
   color: var(--gold);
   filter: drop-shadow(0 0 4px rgba(255, 210, 63, 0.42));

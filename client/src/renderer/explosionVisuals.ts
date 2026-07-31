@@ -77,6 +77,9 @@ const BASE_PROFILES = {
   hot_napalm: {
     family: 'incendiary', coreScale: 0.34, detailScale: 0.84, verticalScale: 0.64, detailCount: 6,
   },
+  sandhog: {
+    family: 'earth', coreScale: 0.3, detailScale: 0.76, verticalScale: 0.72, detailCount: 9,
+  },
   shield: {
     // Defensive use never creates an event, but keep the total mapping safe.
     family: 'conventional', coreScale: 0.28, detailScale: 0.78, verticalScale: 1, detailCount: 9,

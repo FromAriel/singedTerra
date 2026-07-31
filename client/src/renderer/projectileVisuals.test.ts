@@ -76,6 +76,7 @@ describe('getProjectileVisualProfile', () => {
       deaths_head: 'airburst',
       riot_bomb: 'earth',
       hot_napalm: 'napalm',
+      sandhog: 'drill',
       shield: 'shell',
     } satisfies Record<WeaponType, ProjectileSilhouette>;
 

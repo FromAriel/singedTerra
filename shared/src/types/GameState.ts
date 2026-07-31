@@ -287,4 +287,9 @@ export interface ProjectileState {
    * detonates immediately, preserving existing behavior.
    */
   bounces: number;
+  /**
+   * Remaining fixed underground drill steps for Sandhog. Absent during normal
+   * ballistic flight and on every other projectile type.
+   */
+  burrowTicksRemaining?: number;
 }

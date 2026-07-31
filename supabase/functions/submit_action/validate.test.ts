@@ -127,6 +127,21 @@ Deno.test('validateActionShape: fire with a known non-default weapon passes', ()
   assertEquals(result, { ok: true })
 })
 
+Deno.test('validateActionShape: Sandhog fire and buy pass the network allowlist', () => {
+  const fire = validateActionShape({
+    roomId: 'room-1',
+    playerId: 'player-1',
+    action: { type: 'fire', angle: 45, power: 80, weapon: 'sandhog' },
+  })
+  const buy = validateActionShape({
+    roomId: 'room-1',
+    playerId: 'player-1',
+    action: { type: 'buy', weapon: 'sandhog' },
+  })
+  assertEquals(fire, { ok: true })
+  assertEquals(buy, { ok: true })
+})
+
 Deno.test('validateActionShape: fire with an unknown weapon returns 400', () => {
   const result = validateActionShape({
     roomId: 'room-1',

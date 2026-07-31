@@ -271,6 +271,45 @@ describe('ProjectileRenderer weapon signatures', () => {
     }).toEqual({ lineTo: 6, fillRect: 2, stroke: 0, closePath: 2 });
   });
 
+  it('resets at ground entry and suppresses only the decorative drill wake for reduced motion', () => {
+    const renderer = new ProjectileRenderer();
+    renderer.draw(tracingContext().ctx, [projectile('sandhog', { age: 1 })]);
+    renderer.draw(tracingContext().ctx, [projectile('sandhog', { x: 104, age: 2 })]);
+
+    const entry = tracingContext();
+    renderer.draw(entry.ctx, [projectile('sandhog', {
+      x: 108,
+      y: 94,
+      age: 3,
+      burrowTicksRemaining: 22,
+    })]);
+    expect(entry.trace.arcs).toHaveLength(1);
+
+    const active = tracingContext();
+    renderer.draw(active.ctx, [projectile('sandhog', {
+      x: 111.2,
+      y: 96.4,
+      age: 4,
+      burrowTicksRemaining: 21,
+    })]);
+    expect(active.trace.arcs).toHaveLength(2);
+
+    const reduced = new ProjectileRenderer(true);
+    reduced.draw(tracingContext().ctx, [projectile('sandhog', {
+      age: 3,
+      burrowTicksRemaining: 22,
+    })]);
+    const reducedNext = tracingContext();
+    reduced.draw(reducedNext.ctx, [projectile('sandhog', {
+      x: 103.2,
+      y: 92.4,
+      age: 4,
+      burrowTicksRemaining: 21,
+    })]);
+    expect(reducedNext.trace.arcs).toHaveLength(1);
+    expect(reducedNext.trace.linearGradients).toHaveLength(0);
+  });
+
   it('draws split airburst children smaller with their own finned silhouette', () => {
     const renderer = new ProjectileRenderer();
     const parentContext = tracingContext();
