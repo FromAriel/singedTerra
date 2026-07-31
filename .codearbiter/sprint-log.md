@@ -2091,3 +2091,7 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 
 - The governed commit hook correctly blocked the test harness Node SHA-256 terrain fingerprint under the project security policy, which permits no application hashing without an ADR. No bypass or pass marker was used. The harness now compares exact lossless base64 serialization of every terrain byte, preserving collision-free clone/replay equality without a cryptographic primitive. The harness and empty secret scan passed, and commit 3be3f27 was created through the governed gate. Confidence high.
 - Exact-head adversarial follow-up on 3be3f27 returned CLEAN: 0 Critical / 0 High / 0 Medium / 0 Low. It confirmed the replacement is one-to-one, exact, test-only, and bounded. Confidence high.
+
+### Sandhog ready PR handoff
+
+- Ready PR #220 opened from reviewed behavior commit 3be3f27 plus governance receipts. Hosted exact-head typecheck, deterministic harnesses, build, Edge, E2E, JavaScript analysis, and CodeQL remain the merge gate. Confidence high.
