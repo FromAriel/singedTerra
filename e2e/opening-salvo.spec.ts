@@ -44,8 +44,10 @@ async function expectGuideToggleChangesCanvas(page: Page): Promise<void> {
 interface ComposedGuideSeam {
   changedPixels: number;
   openingCrossError: number;
-  fullCrossError: number;
+  curveDeflection: number;
   guideSpan: number;
+  nearDelta: number;
+  farDelta: number;
   immediateBarrelSamples: number;
   totalBarrelSamples: number;
 }
@@ -118,26 +120,31 @@ async function composedGuideSeam(
       ))
       .sort((left, right) => left - right);
     const openingCrossError = crossErrors[Math.floor(crossErrors.length / 2)] ?? Infinity;
-    const rayPixels = changed.filter((pixel) => {
+    const guidePixels = changed.map((pixel) => {
       const dx = pixel.x - muzzle.x;
       const dy = pixel.y - muzzle.y;
       const forward = dx * aim.x + dy * aim.y;
       const cross = dx * normal.x + dy * normal.y;
-      return forward >= -3 && forward <= 180 && Math.abs(cross) <= 12;
-    });
-    const fullCrossErrors = rayPixels
-      .map((pixel) => Math.abs(
-        (pixel.x - muzzle.x) * normal.x + (pixel.y - muzzle.y) * normal.y,
-      ))
-      .sort((left, right) => left - right);
-    const fullCrossError = fullCrossErrors[
-      Math.floor(fullCrossErrors.length * 0.8)
-    ] ?? Infinity;
-    const guideSpan = rayPixels.reduce((furthest, pixel) => {
-      const dx = pixel.x - muzzle.x;
-      const dy = pixel.y - muzzle.y;
-      return Math.max(furthest, dx * aim.x + dy * aim.y);
-    }, 0);
+      return { ...pixel, forward, cross };
+    }).filter((pixel) => pixel.forward >= -3 && pixel.forward <= 180);
+    const guideSpan = guidePixels.reduce(
+      (furthest, pixel) => Math.max(furthest, pixel.forward),
+      0,
+    );
+    const farPixels = guidePixels.filter((pixel) => pixel.forward >= guideSpan * 0.65);
+    const farWeight = farPixels.reduce((sum, pixel) => sum + pixel.delta, 0);
+    const curveDeflection = farPixels.reduce(
+      (sum, pixel) => sum + pixel.cross * pixel.delta,
+      0,
+    ) / farWeight;
+    const nearPixels = guidePixels.filter(
+      (pixel) => pixel.forward >= 4 && pixel.forward <= guideSpan * 0.35,
+    );
+    const averageDelta = (pixels: typeof guidePixels): number =>
+      pixels.reduce((sum, pixel) => sum + pixel.delta, 0)
+      / Math.max(1, pixels.length);
+    const nearDelta = averageDelta(nearPixels);
+    const farDelta = averageDelta(farPixels);
 
     const colorAt = (x: number, y: number): [number, number, number] => {
       let red = 0;
@@ -182,8 +189,10 @@ async function composedGuideSeam(
     return {
       changedPixels: changed.length,
       openingCrossError,
-      fullCrossError,
+      curveDeflection,
       guideSpan,
+      nearDelta,
+      farDelta,
       immediateBarrelSamples: barrelContrast.slice(0, 5)
         .filter((contrast) => contrast > 18).length,
       totalBarrelSamples: barrelContrast
@@ -194,6 +203,10 @@ async function composedGuideSeam(
 
 test.describe('bounded aim guide', () => {
   test.beforeEach(async ({ page }) => {
+    // This suite measures static guide geometry through consecutive Canvas
+    // frames. Suppress presentation-only wind/handoff motion before Renderer
+    // construction so a slow hosted frame cannot enter the causal guide delta.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.addInitScript(() => {
       localStorage.setItem('singedterra:aimguide', '1');
     });
@@ -265,20 +278,29 @@ test.describe('bounded aim guide', () => {
         `${direction} guide opening must stay on the rendered barrel centerline`,
       ).toBeLessThan(2.5);
       expect(
-        seam.fullCrossError,
-        `${direction} complete guide must remain one straight muzzle ray`,
-      ).toBeLessThan(4);
+        Math.abs(seam.curveDeflection),
+        `${direction} guide must visibly depart from the muzzle tangent under gravity`,
+      ).toBeGreaterThan(2);
+      const expectedGravitySign = direction === 'right' ? 1 : -1;
+      expect(
+        seam.curveDeflection * expectedGravitySign,
+        `${direction} guide must bend downward in screen space`,
+      ).toBeGreaterThan(2);
       expect(
         seam.guideSpan,
-        `${direction} straight guide must retain its bounded readable reach`,
+        `${direction} ballistic guide must retain its bounded readable reach`,
       ).toBeGreaterThan(70);
+      expect(
+        seam.nearDelta,
+        `${direction} guide must fade toward its bounded endpoint`,
+      ).toBeGreaterThan(seam.farDelta);
       expect(
         seam.immediateBarrelSamples,
         `${direction} guide start must touch the authored barrel at the muzzle`,
       ).toBeGreaterThanOrEqual(3);
       expect(
         seam.totalBarrelSamples,
-        `${direction} guide must extend the authored barrel rather than a parallel seam`,
+        `${direction} guide must leave the authored barrel rather than a parallel seam`,
       ).toBeGreaterThanOrEqual(12);
     }
   });

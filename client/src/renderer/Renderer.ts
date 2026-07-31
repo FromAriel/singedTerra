@@ -976,10 +976,7 @@ export class Renderer {
     }
   }
 
-  /**
-   * Draw a short, collision-unaware muzzle ray. It communicates direction and
-   * relative power without revealing a landing point or solving a bank shot.
-   */
+  /** Draw the bounded, physics-honest launch hint with a distance fade. */
   private drawAimGuide(state: GameState): void {
     const tank = state.tanks.find((t) => t.id === state.activePlayerId);
     if (!tank || !tank.alive) return;
@@ -991,28 +988,46 @@ export class Renderer {
     );
     if (mode === 'none') return;
 
-    const points = buildLaunchGuide(tank);
+    const points = buildLaunchGuide(state, tank, this.aimGuideGravity);
     if (points.length === 0) return;
 
     const ctx = this.ctx;
+    const cumulative = [0];
+    for (let index = 1; index < points.length; index++) {
+      cumulative.push(
+        cumulative[index - 1]!
+        + Math.hypot(
+          points[index]!.x - points[index - 1]!.x,
+          points[index]!.y - points[index - 1]!.y,
+        ),
+      );
+    }
+    const totalLength = cumulative.at(-1) || 1;
+
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.strokeStyle = ACCENT.gold;
     ctx.lineCap = 'round';
-    ctx.lineWidth = 3;
-    ctx.globalAlpha = 0.1;
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
+    ctx.lineWidth = 2;
     for (let index = 1; index < points.length; index++) {
-      ctx.lineTo(points[index].x, points[index].y);
+      const progress = (
+        cumulative[index - 1]! + cumulative[index]!
+      ) / (2 * totalLength);
+      ctx.globalAlpha = 0.22 * (1 - progress) ** 1.35 + 0.01;
+      ctx.beginPath();
+      ctx.moveTo(points[index - 1]!.x, points[index - 1]!.y);
+      ctx.lineTo(points[index]!.x, points[index]!.y);
+      ctx.stroke();
     }
-    ctx.stroke();
 
     for (let index = 0; index < points.length; index++) {
       const point = points[index];
-      ctx.globalAlpha = 0.58 * (1 - index / points.length);
+      const progress = cumulative[index]! / totalLength;
+      ctx.globalAlpha = 0.62 * (1 - progress) ** 1.5 + 0.015;
       ctx.fillStyle = ACCENT.gold;
-      ctx.fillRect((point.x - 1.5) | 0, (point.y - 1.5) | 0, 3, 3);
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, index === 0 ? 1.8 : 1.45, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.globalAlpha = 1;
     ctx.restore();
