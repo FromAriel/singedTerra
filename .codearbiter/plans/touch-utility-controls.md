@@ -18,5 +18,5 @@
 ## Task 3: Review, verify, and deliver
 
 - [x] Inspect every viewport and resolve one adversarial review.
-- [ ] Run the complete local gate, commit, open a stacked ready PR, and prove
+- [x] Run the complete local gate, commit, open a stacked ready PR, and prove
   exact-head hosted CI/CodeQL.
