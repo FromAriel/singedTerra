@@ -161,10 +161,18 @@ test.describe('HUD layout guardrails', () => {
       await expect(dock).toHaveAttribute('role', 'toolbar');
       await expect(dock).toHaveAttribute('aria-label', 'Touch commands');
       const buttons = dock.locator('.st-hud__touch-btn');
-      await expect(buttons).toHaveCount(5);
+      await expect(buttons).toHaveCount(7);
       expect(await buttons.evaluateAll((items) =>
         items.map((item) => (item as HTMLElement).dataset['command']),
-      )).toEqual(['aim-left', 'aim-right', 'power-down', 'power-up', 'weapon']);
+      )).toEqual([
+        'aim-left',
+        'aim-right',
+        'power-down',
+        'power-up',
+        'move-left',
+        'move-right',
+        'weapon',
+      ]);
       const buttonBoxes = await buttons.evaluateAll((items) =>
         items.map((item) => item.getBoundingClientRect().toJSON()),
       );
@@ -190,6 +198,31 @@ test.describe('HUD layout guardrails', () => {
       await dock.getByRole('button', { name: 'Cycle weapon, current Baby Missile' }).click();
       await expect(dock.getByRole('button', { name: 'Cycle weapon, current Missile' }))
         .toBeVisible();
+
+      const fuel = page.locator('.st-hud__fuel-value');
+      await expect(fuel).toHaveText('100');
+      await dock.getByRole('button', { name: 'Move tank right, 8 fuel maximum' }).click();
+      if (await fuel.textContent() === '100') {
+        await dock.getByRole('button', { name: 'Move tank left, 8 fuel maximum' }).click();
+      }
+      const remainingFuel = Number(await fuel.textContent());
+      expect(remainingFuel).toBeGreaterThanOrEqual(92);
+      expect(remainingFuel).toBeLessThan(100);
+      await expect(page.locator('.st-hud__turn-owner')).toHaveText('P1');
+
+      const railMoves = page.locator('.st-hud__mobility > .st-hud__move-btn');
+      await expect(railMoves).toHaveCount(2);
+      await expect(railMoves.first()).toBeHidden();
+      await expect(railMoves.last()).toBeHidden();
+      for (const action of [
+        page.getByRole('button', { name: /^Store/ }),
+        page.getByRole('button', { name: /^Fire/ }),
+      ]) {
+        const box = await action.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box!.width).toBeGreaterThanOrEqual(44);
+        expect(box!.height).toBeGreaterThanOrEqual(44);
+      }
 
       await page.getByRole('button', { name: 'Expand arsenal' }).click();
       await expect(dock).toBeHidden();
@@ -386,8 +419,12 @@ test.describe('HUD layout guardrails', () => {
       const playerNode = node.querySelector<HTMLElement>('.st-hud__turn-owner')!;
       const weaponNode = node.querySelector<HTMLElement>('.st-hud__weapon-value')!;
       const bounds = node.getBoundingClientRect();
-      const targetRects = [...node.querySelectorAll<HTMLElement>('button')]
-        .map((target) => target.getBoundingClientRect());
+      const visibleTargets = [...node.querySelectorAll<HTMLElement>('button')]
+        .filter((target) => {
+          const rect = target.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
+      const targetRects = visibleTargets.map((target) => target.getBoundingClientRect());
       return {
         consoleClientHeight: node.clientHeight,
         consoleScrollHeight: node.scrollHeight,
@@ -404,7 +441,7 @@ test.describe('HUD layout guardrails', () => {
           && target.right <= bounds.right + 1
           && target.top >= bounds.top - 1
           && target.bottom <= bounds.bottom + 1),
-        targetMetrics: [...node.querySelectorAll<HTMLElement>('button')].map((target) => ({
+        targetMetrics: visibleTargets.map((target) => ({
           className: target.className,
           height: target.getBoundingClientRect().height,
           minHeight: getComputedStyle(target).minHeight,
@@ -436,10 +473,15 @@ test.describe('HUD layout guardrails', () => {
     const commandConsole = page.getByRole('region', { name: 'Turn command console' });
     const geometry = await commandConsole.evaluate((node) => {
       const hud = document.getElementById('hud')!;
+      const visibleTargets = [...node.querySelectorAll<HTMLElement>('button')]
+        .filter((target) => {
+          const rect = target.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
       return {
         hudClientHeight: hud.clientHeight,
         hudScrollHeight: hud.scrollHeight,
-        targets: [...node.querySelectorAll<HTMLElement>('button')].map((target) => ({
+        targets: visibleTargets.map((target) => ({
           className: target.className,
           height: target.getBoundingClientRect().height,
         })),
@@ -492,10 +534,11 @@ test.describe('HUD layout guardrails', () => {
       const style = getComputedStyle(node);
       return { width: parseFloat(style.width), height: parseFloat(style.height) };
     });
-    expect(authoredDialSize.width).toBeCloseTo(34, 1);
-    expect(authoredDialSize.height).toBeCloseTo(34, 1);
+    const touch = testInfo.project.name === 'pixel-touch';
+    expect(authoredDialSize.width).toBeCloseTo(touch ? 46 : 34, 1);
+    expect(authoredDialSize.height).toBeCloseTo(touch ? 46 : 34, 1);
     expect(Math.abs(meterBox!.width - meterBox!.height)).toBeLessThanOrEqual(1);
-    expect(meterBox!.width).toBeGreaterThanOrEqual(20);
+    expect(meterBox!.width).toBeGreaterThanOrEqual(touch ? 28 : 20);
     expect(fuelBox!.x).toBeGreaterThanOrEqual(meterBox!.x);
     expect(fuelBox!.x + fuelBox!.width).toBeLessThanOrEqual(meterBox!.x + meterBox!.width);
     expect(fuelLabelBox!.x).toBeGreaterThanOrEqual(meterBox!.x);
@@ -532,10 +575,16 @@ test.describe('HUD layout guardrails', () => {
     await meter.evaluate((node) => { node.dataset['identityProbe'] = 'stable'; });
     const fullRing = await meter.evaluate((node) => getComputedStyle(node).backgroundImage);
 
-    await right.click();
+    const activeLeft = touch
+      ? page.locator('.st-hud__touch-strip [data-command="move-left"]')
+      : left;
+    const activeRight = touch
+      ? page.locator('.st-hud__touch-strip [data-command="move-right"]')
+      : right;
+    await activeRight.click();
     let remaining = Number(await fuel.textContent());
     if (remaining === 100) {
-      await left.click();
+      await activeLeft.click();
       remaining = Number(await fuel.textContent());
     }
     expect(remaining).toBeGreaterThanOrEqual(92);

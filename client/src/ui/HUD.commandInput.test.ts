@@ -76,7 +76,7 @@ describe('HUD command input console', () => {
     expect(items.at(-1)?.classList.contains('st-hud__control-cell--primary')).toBe(true);
   });
 
-  it('places five explicitly named touch commands in the overlay, not the narrow rail', () => {
+  it('places seven explicitly named touch commands in the overlay, not the narrow rail', () => {
     const { root, overlay } = mount();
     const dock = overlay.querySelector<HTMLElement>('.st-hud__touch-strip')!;
     const buttons = [...dock.querySelectorAll<HTMLButtonElement>('.st-hud__touch-btn')];
@@ -90,6 +90,8 @@ describe('HUD command input console', () => {
       'aim-right',
       'power-down',
       'power-up',
+      'move-left',
+      'move-right',
       'weapon',
     ]);
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
@@ -97,10 +99,12 @@ describe('HUD command input console', () => {
       'Aim barrel right',
       'Decrease power',
       'Increase power',
+      'Move tank left, 8 fuel maximum',
+      'Move tank right, 8 fuel maximum',
       'Cycle weapon, current Baby Missile',
     ]);
     expect(buttons.map((button) => button.querySelector('.st-hud__touch-label')?.textContent))
-      .toEqual(['Aim', 'Aim', 'Power', 'Power', 'Baby Missile']);
+      .toEqual(['Aim', 'Aim', 'Power', 'Power', 'Move', 'Move', 'Baby Missile']);
   });
 
   it('maps visible touch directions to causal signed deltas and preserves repeat cadence', () => {
@@ -108,9 +112,11 @@ describe('HUD command input console', () => {
     const { overlay, hud } = mount();
     const angles = vi.fn();
     const powers = vi.fn();
+    const moves = vi.fn();
     const weapons = vi.fn();
     hud.onTouchAngle(angles);
     hud.onTouchPower(powers);
+    hud.onMove(moves);
     hud.onTouchWeapon(weapons);
 
     const button = (command: string): HTMLButtonElement => {
@@ -146,6 +152,10 @@ describe('HUD command input console', () => {
     expect(powers).toHaveBeenLastCalledWith(3);
     powerUp.dispatchEvent(pointerEvent('pointerup', 4));
 
+    button('move-left').click();
+    expect(moves).toHaveBeenLastCalledWith(-8);
+    button('move-right').click();
+    expect(moves).toHaveBeenLastCalledWith(8);
     button('weapon').click();
     expect(weapons).toHaveBeenCalledTimes(1);
 

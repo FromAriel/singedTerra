@@ -238,6 +238,8 @@ export class HUD {
   private touchStripEl!: HTMLElement;
   private touchWeaponBtnEl!: HTMLButtonElement;
   private touchWeaponLabelEl!: HTMLElement;
+  private touchMoveLeftBtnEl!: HTMLButtonElement;
+  private touchMoveRightBtnEl!: HTMLButtonElement;
   private touchCommandBtns: HTMLButtonElement[] = [];
 
   constructor(root: HTMLElement, overlayRoot: HTMLElement, modalRoot: HTMLElement) {
@@ -1214,6 +1216,18 @@ export class HUD {
     const touchAngleR = mkTouchBtn('aim-right', 'Aim barrel right', '▶', 'Aim');
     const touchPowerD = mkTouchBtn('power-down', 'Decrease power', '−', 'Power');
     const touchPowerU = mkTouchBtn('power-up', 'Increase power', '+', 'Power');
+    this.touchMoveLeftBtnEl = mkTouchBtn(
+      'move-left',
+      'Move tank left, 8 fuel maximum',
+      '‹',
+      'Move',
+    );
+    this.touchMoveRightBtnEl = mkTouchBtn(
+      'move-right',
+      'Move tank right, 8 fuel maximum',
+      '›',
+      'Move',
+    );
     this.touchWeaponBtnEl = mkTouchBtn(
       'weapon',
       'Cycle weapon, current Baby Missile',
@@ -1229,6 +1243,8 @@ export class HUD {
     wireRepeater(touchAngleR, () => this.touchAngleCb?.(-3));
     wireRepeater(touchPowerD, () => this.touchPowerCb?.(-3));
     wireRepeater(touchPowerU, () => this.touchPowerCb?.(3));
+    this.touchMoveLeftBtnEl.addEventListener('click', () => this.moveCb?.(-8));
+    this.touchMoveRightBtnEl.addEventListener('click', () => this.moveCb?.(8));
     this.touchWeaponBtnEl.addEventListener('click', () => this.touchWeaponCb?.());
 
     this.touchCommandBtns = [
@@ -1236,6 +1252,8 @@ export class HUD {
       touchAngleR,
       touchPowerD,
       touchPowerU,
+      this.touchMoveLeftBtnEl,
+      this.touchMoveRightBtnEl,
       this.touchWeaponBtnEl,
     ];
     this.touchStripEl.append(...this.touchCommandBtns);
@@ -1710,7 +1728,12 @@ export class HUD {
       !tank.buried &&
       fuel > 0;
     const disabled = !canMove;
-    for (const button of [this.moveLeftBtnEl, this.moveRightBtnEl]) {
+    for (const button of [
+      this.moveLeftBtnEl,
+      this.moveRightBtnEl,
+      this.touchMoveLeftBtnEl,
+      this.touchMoveRightBtnEl,
+    ]) {
       if (button.disabled !== disabled) button.disabled = disabled;
       const ariaDisabled = String(disabled);
       if (button.getAttribute('aria-disabled') !== ariaDisabled) {
@@ -1774,6 +1797,10 @@ export class HUD {
     // Sync the shared primary action and touch weapon stepper from the same
     // explicit local-ownership state.
     for (const button of this.touchCommandBtns) {
+      if (
+        button === this.touchMoveLeftBtnEl
+        || button === this.touchMoveRightBtnEl
+      ) continue;
       button.disabled = !canAct;
       button.setAttribute('aria-disabled', String(!canAct));
     }
@@ -2859,9 +2886,9 @@ export class HUD {
   top: 14px;
   left: 14px;
   display: none;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
-  width: min(560px, calc(100% - 28px));
+  width: min(896px, calc(100% - 28px));
   /* 72 logical px resolves to 45 rendered px at the supported 0.625 phone scale. */
   padding: 6px;
   box-sizing: border-box;
@@ -3394,6 +3421,17 @@ export class HUD {
   #app .st-hud__mobility {
     grid-column: 2;
     grid-row: 1 / span 2;
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  #app .st-hud__mobility > .st-hud__move-btn {
+    display: none;
+  }
+  #app .st-hud__fuel-meter {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    min-height: 46px;
   }
   #app .st-hud__turn-actions {
     padding: 3px 6px;
