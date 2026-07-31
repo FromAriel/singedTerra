@@ -70,7 +70,17 @@ interface NetworkNextRoundAction {
   type: 'next_round'
 }
 
-type NetworkAction = NetworkFireAction | NetworkShieldAction | NetworkBuyAction | NetworkNextRoundAction
+interface NetworkMoveAction {
+  type: 'move'
+  delta: number
+}
+
+type NetworkAction =
+  | NetworkFireAction
+  | NetworkShieldAction
+  | NetworkBuyAction
+  | NetworkNextRoundAction
+  | NetworkMoveAction
 
 // Guard Deno.serve so importing this module in tests does not start the HTTP
 // listener.  When Deno executes the file as the program entry point,
@@ -106,7 +116,7 @@ export async function submitActionCore(body: unknown, injectedClient?: ServiceCl
     // on its behalf (any room member may; idempotency is the seq-unique + cursor
     // gate). Validated below.
     actingPlayerId?: unknown
-    action?: { type?: unknown; angle?: unknown; power?: unknown; weapon?: unknown; accessory?: unknown; tankId?: unknown }
+    action?: { type?: unknown; angle?: unknown; power?: unknown; weapon?: unknown; accessory?: unknown; tankId?: unknown; delta?: unknown }
   }
 
   // Pure shape validation — all 400 paths (no DB required)
@@ -159,7 +169,7 @@ export async function submitActionCore(body: unknown, injectedClient?: ServiceCl
   //   2. ROUND_OVER buy — per-seat shop, no turn gate
   //   3. fire / use_shield / normal-turn buy — turn-enforcement gate
   const authResult = authorizeAction({
-    action: action as { type: 'fire' | 'use_shield' | 'buy' | 'next_round'; tankId?: unknown },
+    action: action as { type: 'fire' | 'use_shield' | 'buy' | 'next_round' | 'move'; tankId?: unknown },
     players,
     playerId: playerId as string,
     actingId: actingId as string,
@@ -195,6 +205,8 @@ export async function submitActionCore(body: unknown, injectedClient?: ServiceCl
       ? { type: 'use_shield' }
       : a.type === 'next_round'
         ? { type: 'next_round' }
+        : a.type === 'move'
+          ? { type: 'move', delta: a.delta as number }
         : a.type === 'buy'
           ? {
               type: 'buy',

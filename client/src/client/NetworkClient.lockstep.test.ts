@@ -233,4 +233,33 @@ describe('NetworkClient — deterministic lockstep core', () => {
     expect(p1?.angle).toBe(12);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('sendAction(move) commits one turn-neutral action and waits for its ordered echo', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, seq: 0 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { supabase, captured } = makeFakeSupabase([{ data: [], error: null }]);
+    const client = new NetworkClient(supabase, 'room-1', 'player-abc', OPTIONS);
+    await client.initialize();
+    const beforeX = client.getState().tanks[0]!.x;
+
+    client.sendAction({ type: 'move', delta: 8 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.action).toEqual({ type: 'move', delta: 8 });
+    expect(body.nextActiveIndex).toBeUndefined();
+    expect(client.getState().tanks[0]!.x).toBe(beforeX);
+    expect(client.getState().activePlayerId).toBe('p1');
+    expect(client.isFiring).toBe(false);
+
+    captured.insertHandler?.(row(0, { type: 'move', delta: 8 }));
+    expect(client.getState().tanks[0]!.x).not.toBe(beforeX);
+    expect(client.getState().activePlayerId).toBe('p1');
+    expect(client.getState().turn).toBe(0);
+  });
 });

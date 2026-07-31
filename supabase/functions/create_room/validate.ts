@@ -31,6 +31,10 @@ export function coerceGravity(value: unknown, fallback: number): number {
   return fallback;
 }
 
+export function coerceWallMode(value: unknown): 'open' | 'reflective' {
+  return value === 'reflective' ? 'reflective' : 'open';
+}
+
 export function coerceEconomyOptions(
   options:
     | { interestRate?: unknown; suddenDeathTurn?: unknown; armsLevel?: unknown; [key: string]: unknown }

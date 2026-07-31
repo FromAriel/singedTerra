@@ -1,4 +1,14 @@
-import { withCors, json, getServiceClient, UUID_REGEX, isValidColor, StoredPlayer, verifySeatToken } from '../_shared/mod.ts'
+import {
+  withCors,
+  json,
+  getServiceClient,
+  UUID_REGEX,
+  isValidColor,
+  parseTankLoadout,
+  type StoredPlayer,
+  type TankLoadout,
+  verifySeatToken,
+} from '../_shared/mod.ts'
 
 export type UpdatePlayerResult =
   | { ok: false; status: number; error: string }
@@ -17,6 +27,7 @@ export function applyPlayerUpdate(
   name: string | undefined,
   color: string | undefined,
   nowMs: number,
+  loadout?: TankLoadout,
 ): UpdatePlayerResult {
   if (!existingPlayers.some((p) => p.id === playerId)) {
     return { ok: false, status: 400, error: 'Player not in room' }
@@ -35,6 +46,7 @@ export function applyPlayerUpdate(
     const next = { ...p }
     if (name !== undefined) next.name = name.trim()
     if (color !== undefined) next.color = color
+    if (loadout !== undefined) next.loadout = { ...loadout }
     next.lastSeen = nowMs
     return next
   })
@@ -42,11 +54,12 @@ export function applyPlayerUpdate(
 }
 
 export async function handleUpdatePlayer(body: unknown): Promise<Response> {
-  const { roomId, playerId, name, color, token } = body as {
+  const { roomId, playerId, name, color, loadout, token } = body as {
     roomId?: unknown
     playerId?: unknown
     name?: unknown
     color?: unknown
+    loadout?: unknown
     token?: unknown
   }
 
@@ -60,9 +73,9 @@ export async function handleUpdatePlayer(body: unknown): Promise<Response> {
     return json({ error: 'Invalid input: playerId' }, 400)
   }
 
-  // At least one of name/color must be present
-  if (name === undefined && color === undefined) {
-    return json({ error: 'Invalid input: at least one of name or color is required' }, 400)
+  // At least one editable player field must be present.
+  if (name === undefined && color === undefined && loadout === undefined) {
+    return json({ error: 'Invalid input: at least one player field is required' }, 400)
   }
 
   // Validate name if present
@@ -78,6 +91,10 @@ export async function handleUpdatePlayer(body: unknown): Promise<Response> {
   // Validate color if present (bounded hex; see isValidColor / appsec-003)
   if (color !== undefined && !isValidColor(color)) {
     return json({ error: 'Invalid input: color' }, 400)
+  }
+  const parsedLoadout = loadout === undefined ? undefined : parseTankLoadout(loadout)
+  if (parsedLoadout === null) {
+    return json({ error: 'Invalid input: loadout' }, 400)
   }
 
   const supabase = getServiceClient()
@@ -111,6 +128,7 @@ export async function handleUpdatePlayer(body: unknown): Promise<Response> {
     name as string | undefined,
     color as string | undefined,
     Date.now(),
+    parsedLoadout,
   )
   if (!result.ok) {
     return json({ error: result.error }, result.status)

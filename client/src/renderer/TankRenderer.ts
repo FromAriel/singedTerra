@@ -2,6 +2,20 @@ import type { TankState } from '@shared/types/GameState';
 import { BARREL_LENGTH, BARREL_PIVOT_HEIGHT, barrelTip } from '@shared/engine/Tank';
 import { TANK, ACCENT, lightenHex, darkenHex } from '../ui/theme';
 import { damageTier } from './tankFx';
+import {
+  TankChassisArt,
+  type TankChassisPainter,
+} from './TankChassisArt';
+import {
+  TankPartArt,
+  type TankPartPainter,
+} from './TankPartArt';
+
+export interface TankRenderPose {
+  readonly tankId: string;
+  readonly offsetX: number;
+  readonly offsetY: number;
+}
 
 /** Tank body dimensions (logical canvas px). */
 const BODY_WIDTH = 24;
@@ -23,8 +37,26 @@ const BARREL_WIDTH = 4;
  * (cos θ, -sin θ) (−sin because screen up is −y).
  */
 export class TankRenderer {
+  constructor(
+    private readonly chassisArt: TankChassisPainter = new TankChassisArt(),
+    private readonly partArt: TankPartPainter = new TankPartArt(),
+  ) {}
+
+  get isChassisArtSettled(): boolean {
+    if (this.partArt.state === 'ready') return this.partArt.isSettled;
+    if (this.partArt.state === 'loading') return false;
+    return this.chassisArt.isSettled;
+  }
+
   draw(ctx: CanvasRenderingContext2D, tank: TankState, active = false): void {
     const { x, y, color, angle } = tank;
+
+    // Eliminated seats remain in GameState for scoring/replay. Leave a persistent
+    // wreck instead of painting the retained row as an intact, active-capable tank.
+    if (!tank.alive) {
+      this.drawWreck(ctx, tank);
+      return;
+    }
 
     // Vertical layout (y grows downward; base sits on the surface at y).
     const treadBottom = y;
@@ -55,6 +87,120 @@ export class TankRenderer {
     ctx.ellipse(x, treadBottom + 1, BODY_WIDTH * 0.74, 4, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+
+    const modularChassis = this.partArt.drawStatic(ctx, tank);
+    if (!modularChassis && !this.chassisArt.draw(ctx, x, y, color)) {
+      this.drawProceduralChassis(ctx, x, y, color);
+    }
+
+    // --- Barrel: rotatable line from the body's top-center along the aim
+    // vector (cos θ, -sin θ), in a lightened shade so it reads off the body. ---
+    if (!modularChassis || !this.partArt.drawBarrel(ctx, tank)) {
+      this.drawProceduralBarrel(ctx, tank);
+    }
+
+    // --- Damage-state scorch overlay (render-only; keyed on authoritative health). ---
+    // When the tank is alive and below the damage threshold, overlay the body with
+    // a dark semi-transparent wash and a few char marks to read as "battle damage".
+    if (tank.alive && damageTier(tank.health) === 'damaged') {
+      ctx.save();
+      // Proportional darkness: deeper scorch as health approaches zero.
+      // health 33 → alpha 0.15;  health 1 → alpha 0.50.
+      const scorchStrength = 1 - (tank.health / 33);
+      const bodyAlpha = 0.15 + scorchStrength * 0.35;
+      ctx.globalAlpha = bodyAlpha;
+      ctx.fillStyle = '#1a0d00';
+      ctx.fillRect(left, bodyTop, BODY_WIDTH, BODY_HEIGHT);
+
+      // Diagonal char mark — two short dark scratches across the body.
+      ctx.globalAlpha = bodyAlpha * 0.9;
+      ctx.strokeStyle = '#0d0600';
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(left + 4, bodyTop + 2);
+      ctx.lineTo(left + 10, bodyTop + BODY_HEIGHT - 2);
+      ctx.moveTo(left + BODY_WIDTH - 4, bodyTop + 2);
+      ctx.lineTo(left + BODY_WIDTH - 10, bodyTop + BODY_HEIGHT - 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.lineCap = 'butt';
+      ctx.restore();
+    }
+
+    // --- Active-player chevron above the body (gold). ---
+    if (active) {
+      // Keep the active marker above the modular turret/barrel silhouette so it
+      // never reads as a disconnected joint in the aiming assembly.
+      const cy = bodyTop - 26;
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.strokeStyle = ACCENT.gold;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, cy + 2, 9, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = ACCENT.gold;
+      ctx.beginPath();
+      ctx.moveTo(x - 5, cy);
+      ctx.lineTo(x + 5, cy);
+      ctx.lineTo(x, cy + 6);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  /** Procedural barrel retained for loading/error fallback parity. */
+  private drawProceduralBarrel(
+    ctx: CanvasRenderingContext2D,
+    tank: TankState,
+  ): void {
+    const { x, y, color } = tank;
+    const pivotX = x;
+    const pivotY = y - BARREL_PIVOT_HEIGHT;
+    const tip = barrelTip(tank, BARREL_LENGTH);
+    const tipX = tip.x;
+    const tipY = tip.y;
+    const barrelNormalX = (tipY - pivotY) / BARREL_LENGTH;
+    const barrelNormalY = (pivotX - tipX) / BARREL_LENGTH;
+
+    ctx.beginPath();
+    ctx.moveTo(pivotX, pivotY);
+    ctx.lineTo(tipX, tipY);
+    ctx.lineWidth = BARREL_WIDTH + 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#130809';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pivotX, pivotY);
+    ctx.lineTo(tipX, tipY);
+    ctx.lineWidth = BARREL_WIDTH;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = lightenHex(color, 0.48);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pivotX + barrelNormalX, pivotY + barrelNormalY);
+    ctx.lineTo(tipX + barrelNormalX, tipY + barrelNormalY);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = lightenHex(color, 0.72);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.lineCap = 'butt';
+  }
+
+  /** Existing live-tank geometry retained as the exact loading/error fallback. */
+  private drawProceduralChassis(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    color: string,
+  ): void {
+    const treadBottom = y;
+    const treadTop = treadBottom - TREAD_HEIGHT;
+    const bodyBottom = treadTop;
+    const bodyTop = bodyBottom - BODY_HEIGHT;
+    const left = x - BODY_WIDTH / 2;
 
     // --- Tread: trapezoid wider at the bottom for a tank-like stance. ---
     ctx.beginPath();
@@ -101,89 +247,84 @@ export class TankRenderer {
     ctx.fillRect(x - turretW / 2, bodyTop - turretH + 1, turretW, turretH);
     ctx.fillStyle = lightenHex(color, 0.34);
     ctx.fillRect(x - turretW / 2 + 2, bodyTop - turretH + 1, turretW - 4, 2);
+  }
 
-    // --- Barrel: rotatable line from the body's top-center along the aim
-    // vector (cos θ, -sin θ), in a lightened shade so it reads off the body. ---
-    const pivotX = x;
-    const pivotY = y - BARREL_PIVOT_HEIGHT;
-    const tip = barrelTip(tank, BARREL_LENGTH);
-    const tipX = tip.x;
-    const tipY = tip.y;
-    const barrelNormalX = (tipY - pivotY) / BARREL_LENGTH;
-    const barrelNormalY = (pivotX - tipX) / BARREL_LENGTH;
+  /**
+   * Static destroyed-state silhouette. It is derived only from authoritative
+   * `alive` and contains no random/timed state, so every client paints the same
+   * round-long battlefield history without touching deterministic simulation.
+   */
+  private drawWreck(ctx: CanvasRenderingContext2D, tank: TankState): void {
+    const { x, y, color } = tank;
+
+    ctx.save();
+
+    // Deeper contact shadow and crushed tread bed seat the wreck into the terrain.
+    ctx.globalAlpha = 0.46;
+    ctx.fillStyle = '#07030c';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 1, 18, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
 
     ctx.beginPath();
-    ctx.moveTo(pivotX, pivotY);
-    ctx.lineTo(tipX, tipY);
-    ctx.lineWidth = BARREL_WIDTH + 2;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#130809';
+    ctx.moveTo(x - 17, y);
+    ctx.lineTo(x + 15, y);
+    ctx.lineTo(x + 12, y - 5);
+    ctx.lineTo(x - 13, y - 4);
+    ctx.closePath();
+    ctx.fillStyle = '#120b0b';
+    ctx.fill();
+    ctx.strokeStyle = '#070405';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
+
+    // Low asymmetric hull: the missing upper mass makes the turret-pop permanent.
     ctx.beginPath();
-    ctx.moveTo(pivotX, pivotY);
-    ctx.lineTo(tipX, tipY);
-    ctx.lineWidth = BARREL_WIDTH;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = lightenHex(color, 0.48);
+    ctx.moveTo(x - 13, y - 4);
+    ctx.lineTo(x - 9, y - 11);
+    ctx.lineTo(x - 2, y - 13);
+    ctx.lineTo(x + 5, y - 11);
+    ctx.lineTo(x + 13, y - 6);
+    ctx.lineTo(x + 10, y - 3);
+    ctx.lineTo(x - 10, y - 3);
+    ctx.closePath();
+    ctx.fillStyle = '#1a1110';
+    ctx.fill();
+    ctx.strokeStyle = '#080506';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
+
+    // One scorched owner-color plate keeps the eliminated seat identifiable.
     ctx.beginPath();
-    ctx.moveTo(pivotX + barrelNormalX, pivotY + barrelNormalY);
-    ctx.lineTo(tipX + barrelNormalX, tipY + barrelNormalY);
+    ctx.moveTo(x - 8, y - 9);
+    ctx.lineTo(x - 2, y - 11);
+    ctx.lineTo(x + 5, y - 9);
+    ctx.lineTo(x + 8, y - 6);
+    ctx.lineTo(x - 6, y - 6);
+    ctx.closePath();
+    ctx.fillStyle = darkenHex(color, 0.58);
+    ctx.fill();
+
+    // Bent metal edge and two cold rivets add readable detail at gameplay scale.
+    ctx.beginPath();
+    ctx.moveTo(x - 11, y - 4);
+    ctx.lineTo(x - 3, y - 7);
+    ctx.lineTo(x + 3, y - 5);
+    ctx.lineTo(x + 11, y - 7);
+    ctx.strokeStyle = 'rgba(255, 210, 63, 0.24)';
     ctx.lineWidth = 1;
-    ctx.strokeStyle = lightenHex(color, 0.72);
     ctx.stroke();
-    // Reset to avoid leaking line state to subsequent draws.
-    ctx.lineWidth = 1;
-    ctx.lineCap = 'butt';
 
-    // --- Damage-state scorch overlay (render-only; keyed on authoritative health). ---
-    // When the tank is alive and below the damage threshold, overlay the body with
-    // a dark semi-transparent wash and a few char marks to read as "battle damage".
-    if (tank.alive && damageTier(tank.health) === 'damaged') {
-      ctx.save();
-      // Proportional darkness: deeper scorch as health approaches zero.
-      // health 33 → alpha 0.15;  health 1 → alpha 0.50.
-      const scorchStrength = 1 - (tank.health / 33);
-      const bodyAlpha = 0.15 + scorchStrength * 0.35;
-      ctx.globalAlpha = bodyAlpha;
-      ctx.fillStyle = '#1a0d00';
-      ctx.fillRect(left, bodyTop, BODY_WIDTH, BODY_HEIGHT);
+    ctx.fillStyle = '#5f4938';
+    ctx.beginPath();
+    ctx.arc(x - 7, y - 2.5, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + 7, y - 2.5, 1.2, 0, Math.PI * 2);
+    ctx.fill();
 
-      // Diagonal char mark — two short dark scratches across the body.
-      ctx.globalAlpha = bodyAlpha * 0.9;
-      ctx.strokeStyle = '#0d0600';
-      ctx.lineWidth = 1.5;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(left + 4, bodyTop + 2);
-      ctx.lineTo(left + 10, bodyTop + BODY_HEIGHT - 2);
-      ctx.moveTo(left + BODY_WIDTH - 4, bodyTop + 2);
-      ctx.lineTo(left + BODY_WIDTH - 10, bodyTop + BODY_HEIGHT - 2);
-      ctx.stroke();
-      ctx.lineWidth = 1;
-      ctx.lineCap = 'butt';
-      ctx.restore();
-    }
-
-    // --- Active-player chevron above the body (gold). ---
-    if (active) {
-      const cy = bodyTop - 18;
-      ctx.save();
-      ctx.globalAlpha = 0.28;
-      ctx.strokeStyle = ACCENT.gold;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(x, cy + 2, 9, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-      ctx.fillStyle = ACCENT.gold;
-      ctx.beginPath();
-      ctx.moveTo(x - 5, cy);
-      ctx.lineTo(x + 5, cy);
-      ctx.lineTo(x, cy + 6);
-      ctx.closePath();
-      ctx.fill();
-    }
+    ctx.restore();
   }
 
   /** Convenience: draw every tank in turn, emphasising the active one. */
@@ -191,9 +332,17 @@ export class TankRenderer {
     ctx: CanvasRenderingContext2D,
     tanks: TankState[],
     activeId?: string,
+    pose?: Readonly<TankRenderPose>,
   ): void {
     for (const tank of tanks) {
-      this.draw(ctx, tank, tank.id === activeId);
+      if (pose?.tankId === tank.id) {
+        ctx.save();
+        ctx.translate(pose.offsetX, pose.offsetY);
+        this.draw(ctx, tank, tank.id === activeId);
+        ctx.restore();
+      } else {
+        this.draw(ctx, tank, tank.id === activeId);
+      }
     }
   }
 

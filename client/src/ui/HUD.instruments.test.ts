@@ -1,21 +1,10 @@
-/**
- * HUD.instruments.test.ts — the mobile instrument cluster contract.
- *
- * On coarse-pointer (touch) the analog dials are hidden and replaced by bold
- * numeric readouts: the dials' thin 1–3px gold strokes go sub-pixel and vanish
- * when the whole #app is zoom-scaled down on a phone (the "I only see
- * Instruments" bug). Both representations are built into the DOM and CSS picks
- * one, so they MUST always carry the same value — this test locks that mirror
- * invariant so the mobile readout can never silently drift from the desktop dial.
- *
- * It also guards the power-gauge label position (y=50): the number must sit
- * inside the arch, not on the 140° arc stroke where it was unreadable.
- */
+/** Fire-control console structure and live telemetry contract. */
 import { describe, it, expect } from 'vitest';
 import { HUD } from './HUD';
 import { GameEngine } from '@shared/engine/GameEngine';
+import { MAX_WIND } from '@shared/engine/Physics';
 
-function mountHud(): HTMLElement {
+function mountHud(): { root: HTMLElement; hud: HUD; engine: GameEngine } {
   const root = document.createElement('div');
   const overlay = document.createElement('div');
   const modal = document.createElement('div');
@@ -31,29 +20,160 @@ function mountHud(): HTMLElement {
     seed: 1,
   });
   hud.update(engine.getState());
-  return root;
+  return { root, hud, engine };
 }
 
 describe('HUD instrument cluster', () => {
-  it('mobile numeric readouts mirror the analog dial labels, gauge-for-gauge', () => {
-    const root = mountHud();
+  it('builds one semantic two-tier analog console without a numeric substitute', () => {
+    const { root } = mountHud();
 
-    // Both representations are always in the DOM (CSS chooses which is visible).
-    // Document order is elev, wind, power for both the SVG labels and the cells.
-    const svgLabels = root.querySelectorAll('.st-hud__gauge-label');
-    const numValues = root.querySelectorAll('.st-hud__gauge-num-value');
-
-    expect(svgLabels.length).toBe(3);
-    expect(numValues.length).toBe(3);
-
-    for (let i = 0; i < 3; i++) {
-      expect(numValues[i]?.textContent).toBe(svgLabels[i]?.textContent);
-    }
+    expect(root.querySelector('.st-hud__instr-title')?.textContent)
+      .toBe('Ballistic Computer');
+    expect(root.querySelectorAll('.st-hud__gauge-label')).toHaveLength(3);
+    expect(root.querySelector('.st-hud__gauge-nums')).toBeNull();
+    expect(root.querySelector('.st-hud__gauge-cell--elevation')?.textContent)
+      .toContain('Elevation');
+    expect(root.querySelector('.st-hud__gauge-cell--power')?.textContent)
+      .toContain('Power');
+    expect(root.querySelector('.st-hud__gauge-cell--wind')?.textContent)
+      .toContain('Wind Vector');
   });
 
-  it('seats the power-gauge number inside the arch (y=50), off the arc stroke', () => {
-    const root = mountHud();
+  it('uses a full-width wind rail with exact signed, clamped marker travel', () => {
+    const { root, hud, engine } = mountHud();
+    const wind = root.querySelector<SVGSVGElement>(
+      '.st-hud__gauge-cell--wind svg',
+    );
+    const marker = root.querySelector<SVGRectElement>(
+      '.st-hud__gauge-needle-rect',
+    );
+    const label = wind?.querySelector('.st-hud__gauge-label');
+
+    expect(wind?.getAttribute('viewBox')).toBe('0 0 144 52');
+    expect(wind?.querySelector('.st-hud__gauge-track-rect')?.getAttribute('x'))
+      .toBe('8');
+    expect(wind?.querySelector('.st-hud__gauge-track-rect')?.getAttribute('width'))
+      .toBe('128');
+    expect(label?.getAttribute('x')).toBe('72');
+
+    const state = engine.getState();
+    state.wind = 0;
+    hud.update(state);
+    expect(marker?.getAttribute('x')).toBe('68');
+    expect(marker?.getAttribute('transform')).toBe('rotate(45, 72, 22)');
+    expect(label?.textContent).toBe('• 0.0');
+
+    state.wind = MAX_WIND;
+    hud.update(state);
+    expect(marker?.getAttribute('x')).toBe('126');
+    expect(marker?.getAttribute('transform')).toBe('rotate(45, 130, 22)');
+    expect(label?.textContent).toBe(`→ ${MAX_WIND.toFixed(1)}`);
+
+    state.wind = -MAX_WIND;
+    hud.update(state);
+    expect(marker?.getAttribute('x')).toBe('10');
+    expect(marker?.getAttribute('transform')).toBe('rotate(45, 14, 22)');
+    expect(label?.textContent).toBe(`← ${MAX_WIND.toFixed(1)}`);
+
+    state.wind = MAX_WIND * 2;
+    hud.update(state);
+    expect(marker?.getAttribute('x')).toBe('126');
+    expect(marker?.getAttribute('transform')).toBe('rotate(45, 130, 22)');
+  });
+
+  it('points the elevation needle toward cardinal and diagonal firing directions', () => {
+    const { root, hud, engine } = mountHud();
+    const needle = root.querySelector<SVGLineElement>('.st-hud__gauge-needle');
+    const label = root.querySelector<SVGTextElement>(
+      '.st-hud__gauge-cell--elevation .st-hud__gauge-label',
+    );
+    const state = engine.getState();
+    const tank = state.tanks.find((candidate) => candidate.id === state.activePlayerId)!;
+
+    // Player 1 starts at global angle 45°: up and to the RIGHT.
+    expect(needle?.getAttribute('transform')).toBe('rotate(45, 36, 40)');
+    expect(label?.textContent).toBe('45° ▶');
+
+    tank.angle = 0;
+    hud.update(state);
+    expect(needle?.getAttribute('transform')).toBe('rotate(90, 36, 40)');
+    expect(label?.textContent).toBe('0° ▶');
+
+    tank.angle = 90;
+    hud.update(state);
+    expect(needle?.getAttribute('transform')).toBe('rotate(0, 36, 40)');
+    expect(label?.textContent).toBe('90° ▲');
+
+    tank.angle = 135;
+    hud.update(state);
+    expect(needle?.getAttribute('transform')).toBe('rotate(-45, 36, 40)');
+    expect(label?.textContent).toBe('45° ◀');
+
+    tank.angle = 180;
+    hud.update(state);
+    expect(needle?.getAttribute('transform')).toBe('rotate(-90, 36, 40)');
+    expect(label?.textContent).toBe('0° ◀');
+  });
+
+  it('gives elevation and power matching dial geometry', () => {
+    const { root } = mountHud();
+    const elevation = root.querySelector<SVGSVGElement>(
+      '.st-hud__gauge-cell--elevation svg',
+    );
+    const power = root.querySelector<SVGSVGElement>(
+      '.st-hud__gauge-cell--power svg',
+    );
+
+    expect(power?.getAttribute('viewBox')).toBe(elevation?.getAttribute('viewBox'));
+    expect(power?.querySelector('.st-hud__gauge-track')?.getAttribute('d'))
+      .toBe(elevation?.querySelector('.st-hud__gauge-track')?.getAttribute('d'));
+    expect(power?.querySelector('.st-hud__gauge-label')?.getAttribute('y'))
+      .toBe(elevation?.querySelector('.st-hud__gauge-label')?.getAttribute('y'));
+  });
+
+  it('never hides the analog grid behind the compact-scale class', () => {
+    mountHud();
+    const css = document.getElementById('st-hud-style')?.textContent ?? '';
+
+    expect(css).not.toMatch(
+      /#app\.is-compact\s+\.st-hud__gauge-row\s*\{\s*display:\s*none/,
+    );
+    expect(css).toContain('grid-template-areas:');
+  });
+
+  it('aligns the power number with the elevation label baseline', () => {
+    const { root } = mountHud();
     const pwrLabel = root.querySelector('.st-hud__gauge-label--lg');
-    expect(pwrLabel?.getAttribute('y')).toBe('50');
+    expect(pwrLabel?.getAttribute('y')).toBe('52');
+  });
+
+  it('fills the power arc from zero to the active tank cap and updates its label', () => {
+    const { root, hud, engine } = mountHud();
+    const arc = root.querySelector<SVGPathElement>('.st-hud__gauge-power-fill');
+    const label = root.querySelector<SVGTextElement>('.st-hud__gauge-label--lg');
+    const state = engine.getState();
+    const tank = state.tanks.find((candidate) => candidate.id === state.activePlayerId)!;
+
+    tank.powerCap = 100;
+    tank.power = 0;
+    hud.update(state);
+    expect(arc?.getAttribute('stroke-dasharray')).toBe('0.00 94.25');
+    expect(label?.textContent).toBe('0');
+
+    tank.power = 50;
+    hud.update(state);
+    expect(arc?.getAttribute('stroke-dasharray')).toBe('47.12 47.12');
+    expect(label?.textContent).toBe('50');
+
+    tank.power = 100;
+    hud.update(state);
+    expect(arc?.getAttribute('stroke-dasharray')).toBe('94.25 0.00');
+    expect(label?.textContent).toBe('100');
+
+    tank.powerCap = 200;
+    tank.power = 50;
+    hud.update(state);
+    expect(arc?.getAttribute('stroke-dasharray')).toBe('23.56 70.69');
+    expect(label?.textContent).toBe('50');
   });
 });

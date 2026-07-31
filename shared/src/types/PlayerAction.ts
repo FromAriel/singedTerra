@@ -8,6 +8,7 @@ import type { WeaponType, AccessoryType } from '../engine/WeaponSystem';
 export type PlayerAction =
   | SetAngleAction
   | SetPowerAction
+  | MoveAction
   | SelectWeaponAction
   | FireAction
   | UseShieldAction
@@ -17,6 +18,7 @@ export type PlayerAction =
 export type PlayerActionType =
   | 'set_angle'
   | 'set_power'
+  | 'move'
   | 'select_weapon'
   | 'fire'
   | 'use_shield'
@@ -33,6 +35,16 @@ export interface SetAngleAction {
 export interface SetPowerAction {
   type: 'set_power';
   power: number;
+}
+
+/**
+ * Move the active tank horizontally by a bounded signed logical-pixel delta.
+ * Movement is committed and turn-neutral: networked clients log it because tank
+ * position affects later ballistics, but it never advances the turn.
+ */
+export interface MoveAction {
+  type: 'move';
+  delta: number;
 }
 
 /** Select the active tank's weapon. */

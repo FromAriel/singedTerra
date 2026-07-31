@@ -36,6 +36,10 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { Mock } from 'vitest';
+import {
+  DEFAULT_TANK_LOADOUT,
+  type TankLoadout,
+} from '@shared/types/TankLoadout';
 import { Lobby } from './Lobby';
 import { readSession, writeSession } from '../lib/sessionDescriptor';
 
@@ -67,7 +71,11 @@ interface LobbyInternals {
   stopHeartbeat(): void;
   handleReadyUp(): Promise<void>;
   handleLeaveRoom(): Promise<void>;
-  updateMe(fields: { name?: string; color?: string }): Promise<void>;
+  updateMe(fields: {
+    name?: string;
+    color?: string;
+    loadout?: TankLoadout;
+  }): Promise<void>;
   cleanupWaitingChannel(): void;
   [key: string]: unknown;
 }
@@ -102,6 +110,12 @@ function callAt(fetchMock: Mock, i = fetchMock.mock.calls.length - 1): { url: st
 }
 
 const fnUrl = (name: string): string => `https://example.supabase.co/functions/v1/${name}`;
+const MIXED_LOADOUT: TankLoadout = {
+  treads: 'jackal',
+  hull: 'bulwark',
+  turret: 'foundry',
+  barrel: 'jackal',
+};
 
 /** Let the void-ed subscribeWaitingRoom()'s dynamic import + chain settle. */
 async function flush(): Promise<void> {
@@ -148,6 +162,23 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
   // 1. create_room  (handleCreateRoom)
   // ========================================================================
   describe('create_room', () => {
+    it('associates the side-wall label and hint with its select', () => {
+      lobby.show();
+      const playOnline = Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Play Online')!;
+      playOnline.click();
+
+      const label = Array.from(root.querySelectorAll('label'))
+        .find((candidate) => candidate.textContent === 'Side walls')!;
+      expect(label.htmlFor).not.toBe('');
+      const select = root.querySelector<HTMLSelectElement>(`#${label.htmlFor}`)!;
+      expect(select).not.toBeNull();
+      const hintId = select.getAttribute('aria-describedby');
+      expect(hintId).not.toBeNull();
+      expect(root.querySelector(`#${hintId}`)?.textContent)
+        .toContain('bank shots rebound');
+    });
+
     it('GUARD: empty name sets the error and never calls fetch', async () => {
       const fetchMock = stubFetch();
       internals(lobby).onlineName = '   '; // whitespace trims to empty
@@ -163,6 +194,7 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       const fetchMock = stubFetch({ json: () => ({ error: 'stop-here' }) });
       // All optional inputs left at their blank defaults; 0 bots.
       internals(lobby).onlineName = 'Alice';
+      internals(lobby).onlineLoadout = MIXED_LOADOUT;
       // onlineColor default = Red, onlineMaxPlayers default = 2, visibility default = public.
 
       await internals(lobby).handleCreateRoom();
@@ -173,7 +205,8 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       expect(body).toEqual({
         playerName: 'Alice',
         color: '#e84d4d',
-        options: { maxPlayers: 2, visibility: 'public' },
+        loadout: MIXED_LOADOUT,
+        options: { maxPlayers: 2, visibility: 'public', walls: 'open' },
       });
       // No conditional keys leaked into the body.
       const opts = (body as { options: Record<string, unknown> }).options;
@@ -194,6 +227,7 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
         onlineBotDifficulty: 'hard',
         onlineMaxWind: '5',
         onlineGravity: '0.25',
+        onlineWalls: 'reflective',
         onlineRounds: '4', // even -> forced to 5
         onlineInterestRate: '0.2',
         onlineSuddenDeath: '15',
@@ -206,13 +240,25 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       expect(body).toEqual({
         playerName: 'Alice',
         color: '#e84d4d',
+        loadout: DEFAULT_TANK_LOADOUT,
         // 1 CPU seat gets the first palette color NOT used by the creator (Blue).
-        bots: [{ name: 'CPU 1', color: '#4d8ce8', ai: 'hard' }],
+        bots: [{
+          name: 'CPU 1',
+          color: '#4d8ce8',
+          ai: 'hard',
+          loadout: {
+            treads: 'ranger',
+            hull: 'ranger',
+            turret: 'ranger',
+            barrel: 'ranger',
+          },
+        }],
         options: {
           maxPlayers: 3,
           visibility: 'private',
           maxWind: 5,
           gravity: 0.25,
+          walls: 'reflective',
           rounds: 5,
           interestRate: 0.2,
           suddenDeathTurn: 15,
@@ -294,7 +340,13 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       await internals(lobby).handleCreateRoom();
 
       expect(internals(lobby).waitingPlayers).toEqual([
-        { id: 'me', name: 'Solo', color: '#a855f7', ready: false },
+        {
+          id: 'me',
+          name: 'Solo',
+          color: '#a855f7',
+          ready: false,
+          loadout: DEFAULT_TANK_LOADOUT,
+        },
       ]);
       await flush();
     });
@@ -376,6 +428,7 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
         joinCode: 'wxyz',
         onlineName: 'Bob',
         joinColor: '#4d8ce8',
+        onlineLoadout: MIXED_LOADOUT,
       });
 
       await internals(lobby).handleJoinRoom();
@@ -383,7 +436,12 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const { url, body } = callAt(fetchMock);
       expect(url).toBe(fnUrl('join_room'));
-      expect(body).toEqual({ code: 'WXYZ', playerName: 'Bob', color: '#4d8ce8' });
+      expect(body).toEqual({
+        code: 'WXYZ',
+        playerName: 'Bob',
+        color: '#4d8ce8',
+        loadout: MIXED_LOADOUT,
+      });
     });
 
     it('SUCCESS: adopts room/seed/options/players + local code, persists token, transitions to waiting', async () => {
@@ -430,7 +488,12 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       await internals(lobby).handleJoinRoom();
 
       expect(internals(lobby).waitingSeed).toBe(0);
-      expect(internals(lobby).waitingOptions).toEqual({ maxPlayers: 2, maxWind: 10, gravity: 0.15 });
+      expect(internals(lobby).waitingOptions).toEqual({
+        maxPlayers: 2,
+        maxWind: 10,
+        gravity: 0.15,
+        walls: 'open',
+      });
       expect(internals(lobby).waitingPlayers).toEqual([]);
       await flush();
     });
@@ -616,8 +679,25 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
 
     it('SUCCESS (started): emits a network LobbyConfig built from waiting state', async () => {
       const players = [
-        { id: 'p-1', name: 'Alice', color: '#e84d4d', ready: true },
-        { id: 'p-2', name: 'Bob', color: '#4d8ce8', ready: true },
+        {
+          id: 'p-1',
+          name: 'Alice',
+          color: '#e84d4d',
+          ready: true,
+          loadout: MIXED_LOADOUT,
+        },
+        {
+          id: 'p-2',
+          name: 'Bob',
+          color: '#4d8ce8',
+          ready: true,
+          loadout: {
+            treads: 'bulwark',
+            hull: 'foundry',
+            turret: 'ranger',
+            barrel: 'bulwark',
+          },
+        },
       ];
       stubFetch({ json: () => ({ started: true, players }) });
       seedWaiting();
@@ -630,8 +710,23 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       expect(config).toEqual({
         mode: 'network',
         players: [
-          { id: 'p-1', name: 'Alice', color: '#e84d4d' },
-          { id: 'p-2', name: 'Bob', color: '#4d8ce8' },
+          {
+            id: 'p-1',
+            name: 'Alice',
+            color: '#e84d4d',
+            loadout: MIXED_LOADOUT,
+          },
+          {
+            id: 'p-2',
+            name: 'Bob',
+            color: '#4d8ce8',
+            loadout: {
+              treads: 'bulwark',
+              hull: 'foundry',
+              turret: 'ranger',
+              barrel: 'bulwark',
+            },
+          },
         ],
         playerNames: ['Alice', 'Bob'],
         roomCode: 'ABCD',
@@ -757,6 +852,27 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
 
       const { body } = callAt(fetchMock);
       expect(body).toEqual({ roomId: 'room-1', playerId: 'p-1', token: 'tok', color: '#4de87a' });
+    });
+
+    it('REQUEST (loadout only): POSTs the exact mixed four-part selection', async () => {
+      const fetchMock = stubFetch({ json: () => ({ error: 'stop-here' }) });
+      seedWaiting();
+      const loadout: TankLoadout = {
+        treads: 'bulwark',
+        hull: 'foundry',
+        turret: 'ranger',
+        barrel: 'bulwark',
+      };
+
+      await internals(lobby).updateMe({ loadout });
+
+      const { body } = callAt(fetchMock);
+      expect(body).toEqual({
+        roomId: 'room-1',
+        playerId: 'p-1',
+        token: 'tok',
+        loadout,
+      });
     });
 
     it('SUCCESS: adopts the returned players list', async () => {

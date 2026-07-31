@@ -41,11 +41,17 @@ interface NetworkNextRoundAction {
   type: 'next_round'
 }
 
+interface NetworkMoveAction {
+  type: 'move'
+  delta: number
+}
+
 export type NetworkAction =
   | NetworkFireAction
   | NetworkShieldAction
   | NetworkBuyAction
   | NetworkNextRoundAction
+  | NetworkMoveAction
 
 // ---------------------------------------------------------------------------
 // Known-weapon allowlist
@@ -78,6 +84,7 @@ export const WEAPON_TYPES: ReadonlySet<string> = new Set([
   'deaths_head',
   'riot_bomb',
   'hot_napalm',
+  'sandhog',
   'shield',
 ])
 
@@ -113,7 +120,7 @@ export type ValidationResult =
 export function validateActionShape(body: {
   roomId?: unknown
   playerId?: unknown
-  action?: { type?: unknown; angle?: unknown; power?: unknown; weapon?: unknown; accessory?: unknown; tankId?: unknown }
+  action?: { type?: unknown; angle?: unknown; power?: unknown; weapon?: unknown; accessory?: unknown; tankId?: unknown; delta?: unknown }
 }): ValidationResult {
   const { roomId, playerId, action } = body
 
@@ -137,12 +144,29 @@ export function validateActionShape(body: {
     action.type !== 'fire' &&
     action.type !== 'use_shield' &&
     action.type !== 'buy' &&
-    action.type !== 'next_round'
+    action.type !== 'next_round' &&
+    action.type !== 'move'
   ) {
     return {
       ok: false,
       status: 400,
-      error: 'Invalid input: action.type must be "fire", "use_shield", "buy", or "next_round"',
+      error: 'Invalid input: action.type must be "fire", "use_shield", "buy", "next_round", or "move"',
+    }
+  }
+
+  if (
+    action.type === 'move' &&
+    (
+      typeof action.delta !== 'number' ||
+      !Number.isInteger(action.delta) ||
+      action.delta === 0 ||
+      Math.abs(action.delta) > 8
+    )
+  ) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Invalid input: move delta must be a non-zero integer from -8 to 8',
     }
   }
 
@@ -207,7 +231,7 @@ export function validateActionShape(body: {
 export interface AuthorizeActionArgs {
   /** The action that has already passed validateActionShape. */
   action: {
-    type: 'fire' | 'use_shield' | 'buy' | 'next_round'
+    type: 'fire' | 'use_shield' | 'buy' | 'next_round' | 'move'
     tankId?: unknown
   }
   /** All players in the room (already fetched). */

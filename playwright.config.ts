@@ -20,7 +20,10 @@ import { defineConfig, devices } from '@playwright/test';
  */
 const liveURL = process.env['E2E_LIVE_URL'];
 const PORT = 4173;
-const localBaseURL = `http://localhost:${PORT}`;
+const requestedBase = process.env['VITE_BASE'] ?? '/';
+const trimmedBase = requestedBase.replace(/^\/+|\/+$/g, '');
+const localBasePath = trimmedBase === '' ? '/' : `/${trimmedBase}/`;
+const localBaseURL = `http://localhost:${PORT}${localBasePath}`;
 
 export default defineConfig({
   testDir: 'e2e',
@@ -50,7 +53,8 @@ export default defineConfig({
       },
 
   projects: [
-    // Roomy desktop window: not compact — expects the analog dials (gauge-row).
+    // Roomy desktop window: not compact; the transient arsenal drawer still
+    // starts closed so the fitted combat rail presents one stable hierarchy.
     {
       name: 'desktop-fine',
       use: {
@@ -59,7 +63,7 @@ export default defineConfig({
       },
     },
     // Phone in LANDSCAPE (the game blocks portrait via #portrait-warn). Coarse
-    // pointer + touch + small viewport => #app.is-compact => numeric readouts.
+    // pointer + touch + small viewport => #app.is-compact with strengthened gauges.
     // This is the viewport where the flex-crush regression actually reproduces
     // (the touch strip pushes #hud content past the panel height).
     {
@@ -71,9 +75,8 @@ export default defineConfig({
         isMobile: true,
       },
     },
-    // Small FINE-pointer desktop window — also below the compact threshold, so it
-    // exercises the numeric-readout path without touch. Guards the "small remote
-    // window" case the compact swap was built for.
+    // Small FINE-pointer desktop window — also below the compact threshold.
+    // The drawer starts closed and must stay in-bounds when opened.
     {
       name: 'small-window',
       use: {

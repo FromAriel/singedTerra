@@ -1,6 +1,10 @@
 import type { TankState, AmmoEntry, AiDifficulty } from '../types/GameState';
 import type { GameOptions } from '../types/GameOptions';
 import type { WeaponType } from './WeaponSystem';
+import {
+  normalizeTankLoadout,
+  type TankLoadout,
+} from '../types/TankLoadout';
 import { STARTING_CREDITS } from './WeaponSystem';
 import { CANVAS_WIDTH } from './Terrain';
 
@@ -27,7 +31,8 @@ export const BARREL_PIVOT_HEIGHT = 20;
 const DEFAULT_ANGLE = 45;
 const DEFAULT_POWER = 50;
 const DEFAULT_HEALTH = 100;
-const DEFAULT_FUEL = 0;
+/** Fresh per-round movement fuel. Movement spends one unit per horizontal pixel. */
+export const DEFAULT_FUEL = 100;
 const DEFAULT_WEAPON: WeaponType = 'baby_missile';
 /** Baseline firing-power cap; bought Batteries raise a tank's powerCap above this (SE-parity). */
 export const DEFAULT_POWER_CAP = 100;
@@ -56,6 +61,7 @@ const START_AMMO: Record<Exclude<WeaponType, 'baby_missile'>, number> = {
   mirv:            0, // premium — buy from the store
   deaths_head:     0, // premium — buy from the store
   hot_napalm:      0, // premium — buy from the store
+  sandhog:         1, // signature terrain-drill round
 };
 
 /** Horizontal placement fractions for the two MVP0 tanks. */
@@ -99,6 +105,7 @@ function defaultInventory(): Record<WeaponType, AmmoEntry> {
     deaths_head: limited(START_AMMO.deaths_head),
     riot_bomb: limited(START_AMMO.riot_bomb),
     hot_napalm: limited(START_AMMO.hot_napalm),
+    sandhog: limited(START_AMMO.sandhog),
     shield: limited(START_AMMO.shield),
   };
 }
@@ -120,6 +127,7 @@ export function createTank(
   terrain: number[],
   color: string,
   ai: AiDifficulty | null = null,
+  loadout?: TankLoadout,
 ): TankState {
   return {
     id,
@@ -134,6 +142,7 @@ export function createTank(
     selectedWeapon: DEFAULT_WEAPON,
     inventory: defaultInventory(),
     color: color,
+    loadout: normalizeTankLoadout(loadout),
     alive: true,
     shieldHp: 0, // no shield until activated
     credits: STARTING_CREDITS,
@@ -159,10 +168,10 @@ export function placeTwoTanks(
   void opts;
   const leftX = Math.round(CANVAS_WIDTH * LEFT_TANK_FRACTION);
   const rightX = Math.round(CANVAS_WIDTH * RIGHT_TANK_FRACTION);
-  return [
+  return orientTanksTowardNearestOpponent([
     createTank('p1', 'Player 1', leftX, terrain, TANK_COLORS[0]),
     createTank('p2', 'Player 2', rightX, terrain, TANK_COLORS[1]),
-  ];
+  ]);
 }
 
 /**
@@ -178,7 +187,12 @@ export function placeTwoTanks(
  */
 export function placeTanks(
   terrain: number[],
-  players: Array<{ name: string; color: string; ai?: AiDifficulty }>,
+  players: Array<{
+    name: string;
+    color: string;
+    ai?: AiDifficulty;
+    loadout?: TankLoadout;
+  }>,
   opts?: GameOptions,
 ): TankState[] {
   void opts;
@@ -194,7 +208,37 @@ export function placeTanks(
     const x = Math.round(CANVAS_WIDTH * frac);
     const player = players[i];
     const color = player.color ?? MULTI_TANK_COLORS[i % MULTI_TANK_COLORS.length];
-    tanks.push(createTank(`p${i + 1}`, player.name, x, terrain, color, player.ai ?? null));
+    tanks.push(createTank(
+      `p${i + 1}`,
+      player.name,
+      x,
+      terrain,
+      color,
+      player.ai ?? null,
+      player.loadout,
+    ));
+  }
+  return orientTanksTowardNearestOpponent(tanks);
+}
+
+/**
+ * Point each fresh tank toward its nearest opponent. Array order is the
+ * deterministic tie-break, so a centered tank aims left when neighbors are
+ * equidistant. Placement and every round reset share this path.
+ */
+function orientTanksTowardNearestOpponent(tanks: TankState[]): TankState[] {
+  for (const tank of tanks) {
+    let nearest: TankState | undefined;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const candidate of tanks) {
+      if (candidate.id === tank.id) continue;
+      const distance = Math.abs(candidate.x - tank.x);
+      if (distance < nearestDistance) {
+        nearest = candidate;
+        nearestDistance = distance;
+      }
+    }
+    if (nearest) tank.angle = nearest.x < tank.x ? 135 : 45;
   }
   return tanks;
 }

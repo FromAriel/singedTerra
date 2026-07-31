@@ -13,10 +13,9 @@ import {
   windMagnitudeLabel,
   windDirectionSymbol,
 } from './gaugeMath';
-import {
-  COMPACT_TOUCH_QUERY,
-  resolveInitialArsenalCollapsed,
-} from './arsenalPreference';
+import { resolveInitialArsenalCollapsed } from './arsenalPreference';
+import { makeHudGlyph, makeHudIcon } from './hudIcons';
+import { makeWeaponIcon } from './weaponIcons';
 
 /**
  * What a store Buy click requests: exactly one of a weapon bundle or an accessory, mirroring the
@@ -26,13 +25,13 @@ import {
  */
 export type StorePurchase = { weapon?: WeaponType; accessory?: AccessoryType };
 
-/** Accessories sold in the store, in stable record order (currently just Battery). */
+/** Accessories sold in the store, in stable catalog order. */
 const STORE_ACCESSORIES: AccessoryType[] = Object.keys(ACCESSORIES) as AccessoryType[];
 
 /**
  * Weapons shown in the strip: only `implemented` ones, in stable WeaponSystem
  * key order. This MUST stay literally identical to InputHandler's
- * IMPLEMENTED_WEAPONS predicate+order so the active-highlight tracks Tab/Q
+ * IMPLEMENTED_WEAPONS predicate+order so the active-highlight tracks Q
  * cycling. Defined locally (not imported) to keep UI modules decoupled.
  */
 const STRIP_WEAPONS: WeaponType[] = (Object.keys(WEAPONS) as WeaponType[])
@@ -96,6 +95,9 @@ function aimReadout(angle: number): string {
  * listeners, keeping per-frame work cheap and leak-free.
  */
 export class HUD {
+  /** Per-document suffix for unique aria-controls relationships in remounted HUDs. */
+  private static arsenalDrawerSequence = 0;
+
   /** Side-panel root (#hud) — status widgets stack here, off the canvas. */
   private readonly root: HTMLElement;
   /** On-canvas overlay root (#game-overlay) — controls legend + liveness widgets. */
@@ -121,12 +123,15 @@ export class HUD {
   /** Callback fired when the player starts the next round from the ROUND_OVER shop. */
   private nextRoundCb: (() => void) | null = null;
 
-  // Touch-aim strip callbacks (M2 mobile). Invoked by the on-screen stepper buttons;
+  // Coarse-pointer command callbacks. Invoked by the on-screen dock buttons;
   // main.ts wires these to InputHandler's public step methods.
   private touchAngleCb: ((delta: number) => void) | null = null;
   private touchPowerCb: ((delta: number) => void) | null = null;
-  private touchFireCb: (() => void) | null = null;
   private touchWeaponCb: (() => void) | null = null;
+  /** Callback fired by the shared rail action (projectile fire or shield activation). */
+  private primaryActionCb: (() => void) | null = null;
+  /** Callback fired by one semantic mobility-rocker activation. */
+  private moveCb: ((delta: number) => void) | null = null;
 
   /** Whether the store panel is currently open. */
   private storeOpen = false;
@@ -138,7 +143,7 @@ export class HUD {
   private playersEl!: HTMLElement;
   private weaponValueEl!: HTMLElement;
   private aimEl!: HTMLElement;
-  /** Aim readout sub-node: the "Sending..." text line shown during firing. */
+  /** Aim readout sub-node: pending / flight / resolving progress text. */
   private aimTextEl!: HTMLElement;
   /** "Round N of M" indicator (side panel); hidden in single-round matches. */
   private roundEl!: HTMLElement;
@@ -167,10 +172,14 @@ export class HUD {
   private stripEl!: HTMLElement;
   /** Collapse/expand control for the arsenal strip + its persisted state. */
   private stripToggleEl!: HTMLButtonElement;
+  private stripToggleLabelEl!: HTMLElement;
   private stripCollapsed = false;
-  private arsenalPreferenceExplicit = false;
-  private compactTouchMedia: MediaQueryList | null = null;
   private storeBtnEl!: HTMLButtonElement;
+  private storeBtnLabelEl!: HTMLElement;
+  private commandConsoleEl!: HTMLElement;
+  private turnActionsEl!: HTMLElement;
+  private primaryActionBtnEl!: HTMLButtonElement;
+  private primaryActionLabelEl!: HTMLElement;
   private storeEl!: HTMLElement;
   private storeCreditsEl!: HTMLElement;
   // Networked liveness widgets (P1-6): a persistent connection banner (shown only
@@ -212,21 +221,24 @@ export class HUD {
   // Power gauge SVG nodes:
   private gaugePowerArc!: SVGPathElement;
   private gaugePowerLabel!: SVGTextElement;
-  // Mobile numeric readouts (coarse-pointer). The analog dials' thin gold strokes
-  // dissolve to sub-pixel when the whole #app is zoom-scaled down on a phone, so on
-  // touch devices we hide the dials and show these bold numeric values instead. They
-  // mirror the SVG label strings verbatim (populated in syncWind / syncAim), so both
-  // representations always agree — CSS decides which one is visible.
-  private numElevValue!: HTMLElement;
-  private numWindValue!: HTMLElement;
-  private numPowerValue!: HTMLElement;
   // Active-player name row (replaces old aimTextEl player portion):
   private activePlayerEl!: HTMLElement;
+  private turnStatusEl!: HTMLElement;
+  private turnOwnerEl!: HTMLElement;
+  private weaponIconEl!: HTMLElement;
+  private selectedWeaponIconType: WeaponType | null = null;
+  private moveLeftBtnEl!: HTMLButtonElement;
+  private moveRightBtnEl!: HTMLButtonElement;
+  private fuelValueEl!: HTMLElement;
+  private fuelMeterEl!: HTMLElement;
+  /** Last turn actually presented in the owner row; resets between games. */
+  private lastPresentedTurnKey: string | null = null;
 
-  // Touch-aim strip (M2 mobile): fire + weapon buttons need per-frame sync.
+  // Coarse-pointer dock: weapon button needs per-frame sync.
   private touchStripEl!: HTMLElement;
-  private touchFireBtnEl!: HTMLButtonElement;
   private touchWeaponBtnEl!: HTMLButtonElement;
+  private touchWeaponLabelEl!: HTMLElement;
+  private touchCommandBtns: HTMLButtonElement[] = [];
 
   constructor(root: HTMLElement, overlayRoot: HTMLElement, modalRoot: HTMLElement) {
     this.root = root;
@@ -268,24 +280,43 @@ export class HUD {
     this.armsLevel = level;
   }
 
-  // Touch-aim strip registrations (M2 mobile).
+  // Coarse-pointer command registrations.
   onTouchAngle(cb: (delta: number) => void): void { this.touchAngleCb = cb; }
   onTouchPower(cb: (delta: number) => void): void { this.touchPowerCb = cb; }
-  onTouchFire(cb: () => void): void { this.touchFireCb = cb; }
   onTouchWeapon(cb: () => void): void { this.touchWeaponCb = cb; }
+  /** Register the shared Fire / Activate shield action. */
+  onPrimaryAction(cb: () => void): void { this.primaryActionCb = cb; }
+  /** Register one bounded left/right movement commitment. */
+  onMove(cb: (delta: number) => void): void { this.moveCb = cb; }
 
   /** Update the overlay to reflect the latest game state (called every frame). */
-  update(state: GameState, isFiring = false): void {
+  update(state: GameState, isFiring = false, canControl = true): void {
     if (!this.built) this.build();
 
+    const hasActiveTurn = state.phase === 'PLAYER_TURN' ||
+      state.phase === 'FIRING' ||
+      state.phase === 'RESOLVING';
+    const activeTank = state.tanks.find((tank) => tank.id === state.activePlayerId);
+    const validActiveId = hasActiveTurn && activeTank?.alive
+      ? state.activePlayerId
+      : null;
+    const presentedTurnKey = validActiveId !== null &&
+      state.phase === 'PLAYER_TURN' &&
+      !isFiring
+      ? `${state.round}:${state.turn}:${validActiveId}`
+      : null;
+    const isHandoff = presentedTurnKey !== null &&
+      presentedTurnKey !== this.lastPresentedTurnKey;
     this.syncRound(state);
-    this.syncPlayers(state);
+    this.syncPlayers(state, isHandoff);
     this.syncWind(state.wind);
-    this.syncAim(state, isFiring);
-    this.syncStrip(state, isFiring);
+    this.syncAim(state, isFiring, isHandoff);
+    this.syncMobility(state, isFiring, canControl);
+    this.syncStrip(state, isFiring, canControl);
     this.syncStore(state);
     this.syncRoundOver(state);
     this.syncOverlay(state);
+    if (presentedTurnKey !== null) this.lastPresentedTurnKey = presentedTurnKey;
   }
 
   /**
@@ -313,7 +344,8 @@ export class HUD {
   /** Build the static DOM scaffold + inject styles. Runs once (idempotent). */
   private build(): void {
     HUD.injectStyle();
-    this.root.classList.add('st-hud');
+    this.root.classList.add('st-hud', 'st-ui-shell');
+    this.root.dataset['ui'] = 'combat-rail';
     this.root.innerHTML = '';
 
     this.buildPlayers();
@@ -323,20 +355,35 @@ export class HUD {
     const controls = this.buildControlsLegend();
     this.buildArsenal();
     this.buildStore();
+    this.buildTurnActions();
+    this.buildCommandConsole();
     this.buildEndScreens();
     this.buildRoundShop();
     const menu = this.buildMenu();
     this.buildLiveness();
     this.buildTouchStrip();
 
-    // Touch strip goes into the HUD side panel, NOT the canvas overlay, so it
-    // can never overlap the play field. margin-top:auto (via CSS) pushes it to
-    // the bottom of the panel column.
-    this.root.append(menu, this.roundEl, this.playersEl, instruments, this.activePlayerEl, this.aimEl, this.storeBtnEl, this.stripEl, this.touchStripEl);
-    // Controls and liveness widgets stay on the canvas overlay. The controls card
-    // is pinned to the upper-left sky so it never forces side-panel scrolling or
-    // obscures the lower terrain/tanks.
-    this.overlayRoot.append(controls, this.connBannerEl, this.toastEl, this.turnWatchEl);
+    this.root.append(
+      menu,
+      this.roundEl,
+      this.playersEl,
+      instruments,
+      this.commandConsoleEl,
+      this.stripEl,
+    );
+    // buildArsenal resolves the persisted state before the rail children exist;
+    // re-apply it now so a stored-open drawer also isolates covered controls.
+    this.applyStripCollapsed();
+    // Pointer-specific command surfaces share the upper-left sky position. CSS
+    // shows the keyboard deck on fine pointers and the interactive dock on coarse
+    // pointers, preserving the narrow rail for live telemetry.
+    this.overlayRoot.append(
+      controls,
+      this.touchStripEl,
+      this.connBannerEl,
+      this.toastEl,
+      this.turnWatchEl,
+    );
     this.modalRoot.append(this.storeEl, this.overlayEl, this.roundOverEl, this.pauseEl);
     this.built = true;
   }
@@ -345,27 +392,28 @@ export class HUD {
   private buildPlayers(): void {
     // Player health-bar column (top-left).
     this.playersEl = document.createElement('div');
-    this.playersEl.className = 'st-hud__players';
+    this.playersEl.className = 'st-hud__players st-ui-section st-ui-section--roster';
   }
 
   /** Round indicator (side panel): "Round N of M". */
   private buildRound(): void {
     // Round indicator (side panel): "Round N of M" — hidden in single-round matches.
     this.roundEl = document.createElement('div');
-    this.roundEl.className = 'st-hud__round st-hud__round--hidden';
+    this.roundEl.className =
+      'st-hud__round st-hud__round--hidden st-ui-section st-ui-section--round';
   }
 
-  /** Cockpit instrument cluster (#44): three SVG gauges + mobile numeric readouts. */
+  /** Responsive analog fire-control console (#44). */
   private buildInstrumentCluster(): HTMLElement {
-    // ── Cockpit instrument cluster (#44) ────────────────────────────────
-    // One framed panel holding three SVG gauges in a row: Elevation, Wind, Power.
-    // All needle/fill geometry is driven by gaugeMath helpers; nothing inline here.
+    // One inset console with large elevation/power dials and a wide wind rail.
+    // All volatile geometry remains driven by the pure gaugeMath helpers.
 
     const instruments = document.createElement('div');
-    instruments.className = 'st-hud__instruments';
+    instruments.className =
+      'st-hud__instruments st-ui-section st-ui-section--instrument';
     const instrTitle = document.createElement('div');
     instrTitle.className = 'st-hud__instr-title';
-    instrTitle.textContent = 'Instruments';
+    instrTitle.textContent = 'Ballistic Computer';
 
     // ── Elevation gauge (semicircular dial, 180° arc) ──
     // Needle pivots at center of a 72×44 SVG.  Arc: 180° semicircle, flat edge down.
@@ -419,100 +467,93 @@ export class HUD {
     this.gaugeElevLabel.textContent = '0° ▶';
     elevSvg.append(elevTrack, elevTicks, elevPivot, this.gaugeElevNeedle, this.gaugeElevLabel);
     const elevCell = document.createElement('div');
-    elevCell.className = 'st-hud__gauge-cell';
+    elevCell.className = 'st-hud__gauge-cell st-hud__gauge-cell--elevation';
     const elevCellTitle = document.createElement('div');
     elevCellTitle.className = 'st-hud__gauge-cell-title';
-    elevCellTitle.textContent = 'Elev';
+    elevCellTitle.textContent = 'Elevation';
     elevCell.append(elevCellTitle, elevSvg);
 
     // ── Wind gauge (horizontal center-zero track) ──
-    // Track: 64px wide, center at x=32. Marker slides left/right by windNeedleOffset×28px.
-    const windSvg = HUD.makeSvg(72, 56);
+    // Wide center-zero rail. The marker traverses 116px while remaining in-frame.
+    const windSvg = HUD.makeSvg(144, 52);
     windSvg.setAttribute('aria-label', 'Wind gauge');
     // Track background bar
     const windTrack = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    windTrack.setAttribute('x', '4');
-    windTrack.setAttribute('y', '22');
-    windTrack.setAttribute('width', '64');
+    windTrack.setAttribute('x', '8');
+    windTrack.setAttribute('y', '18');
+    windTrack.setAttribute('width', '128');
     windTrack.setAttribute('height', '6');
     windTrack.setAttribute('rx', '3');
     windTrack.setAttribute('class', 'st-hud__gauge-track-rect');
     // Center tick
     const windCenter = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    windCenter.setAttribute('x1', '36');
-    windCenter.setAttribute('y1', '18');
-    windCenter.setAttribute('x2', '36');
-    windCenter.setAttribute('y2', '34');
+    windCenter.setAttribute('x1', '72');
+    windCenter.setAttribute('y1', '14');
+    windCenter.setAttribute('x2', '72');
+    windCenter.setAttribute('y2', '30');
     windCenter.setAttribute('class', 'st-hud__gauge-ticks');
     // End ticks
     const windTickL = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    windTickL.setAttribute('x1', '4'); windTickL.setAttribute('y1', '20');
-    windTickL.setAttribute('x2', '4'); windTickL.setAttribute('y2', '32');
+    windTickL.setAttribute('x1', '8'); windTickL.setAttribute('y1', '16');
+    windTickL.setAttribute('x2', '8'); windTickL.setAttribute('y2', '28');
     windTickL.setAttribute('class', 'st-hud__gauge-ticks');
     const windTickR = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    windTickR.setAttribute('x1', '68'); windTickR.setAttribute('y1', '20');
-    windTickR.setAttribute('x2', '68'); windTickR.setAttribute('y2', '32');
+    windTickR.setAttribute('x1', '136'); windTickR.setAttribute('y1', '16');
+    windTickR.setAttribute('x2', '136'); windTickR.setAttribute('y2', '28');
     windTickR.setAttribute('class', 'st-hud__gauge-ticks');
     // Moving marker (diamond shape via rect rotated 45°, centered on track center y=25)
     this.gaugeWindMarker = document.createElementNS('http://www.w3.org/2000/svg', 'rect') as SVGRectElement;
-    this.gaugeWindMarker.setAttribute('x', '32');
-    this.gaugeWindMarker.setAttribute('y', '22');
+    this.gaugeWindMarker.setAttribute('x', '68');
+    this.gaugeWindMarker.setAttribute('y', '18');
     this.gaugeWindMarker.setAttribute('width', '8');
     this.gaugeWindMarker.setAttribute('height', '8');
     this.gaugeWindMarker.setAttribute('rx', '1');
-    this.gaugeWindMarker.setAttribute('transform', 'rotate(45, 36, 25)');
+    this.gaugeWindMarker.setAttribute('transform', 'rotate(45, 72, 22)');
     this.gaugeWindMarker.setAttribute('class', 'st-hud__gauge-needle-rect');
     // Label
     this.gaugeWindLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text') as SVGTextElement;
-    this.gaugeWindLabel.setAttribute('x', '36');
-    this.gaugeWindLabel.setAttribute('y', '52');
+    this.gaugeWindLabel.setAttribute('x', '72');
+    this.gaugeWindLabel.setAttribute('y', '46');
     this.gaugeWindLabel.setAttribute('text-anchor', 'middle');
     this.gaugeWindLabel.setAttribute('class', 'st-hud__gauge-label');
     this.gaugeWindLabel.textContent = '• 0.0';
     windSvg.append(windTrack, windTickL, windTickR, windCenter, this.gaugeWindMarker, this.gaugeWindLabel);
     const windCell = document.createElement('div');
-    windCell.className = 'st-hud__gauge-cell';
+    windCell.className = 'st-hud__gauge-cell st-hud__gauge-cell--wind';
     const windCellTitle = document.createElement('div');
     windCellTitle.className = 'st-hud__gauge-cell-title';
-    windCellTitle.textContent = 'Wind';
+    windCellTitle.textContent = 'Wind Vector';
     windCell.append(windCellTitle, windSvg);
 
     // ── Power gauge (arc fill driven by stroke-dasharray) ──
-    // Arc: 220° sweep from bottom-left to bottom-right (like a fuel gauge).
-    // SVG 80×56. Center (40,48). Radius 28. Start angle = 200° from positive-x (bottom-left).
-    // We use a fixed-length path and manipulate stroke-dasharray to fill it.
-    // Arc length ≈ 2π×28×(220/360) ≈ 107.5 — we'll compute precisely.
+    // Match the elevation dial's 72×56 frame, center, radius, and semicircle so
+    // the two primary controls read as one balanced instrument pair.
     const pwrSvg = HUD.makeSvg(72, 56);
     pwrSvg.setAttribute('aria-label', 'Power gauge');
-    const PWR_R = 26; const PWR_CX = 36; const PWR_CY = 46;
-    // Start angle: 200° (bottom-left), end angle: 340° (bottom-right) — 140° sweep total
-    // Using CSS convention: 0° = top, clockwise. For SVG path arcs we use standard math angles.
-    // Start: 200° from SVG +x axis (measured clockwise from top = 110° from +x counter-clockwise)
-    // Let's use the sweep directly: start at SVG angle 200° CW from top:
-    // SVG +x is 3 o'clock. Our start = -140° from +x (i.e. 220° CW from +x).
-    // Simpler: start = lower-left, end = lower-right with a 220° sweep going CCW through top.
-    // In SVG large-arc=1, sweep=0 (CCW):
-    //   start point at angle 160° from +x (going CCW means angle decreasing for CW motion)
-    // Actually let's use: start = 200° from +x (CCW / standard math = bottom-left area)
-    //   start: (cx + r*cos(200°), cy - r*sin(200°))  [SVG y flipped]
-    //   = (36 + 26*cos(200°), 46 - 26*sin(200°))
-    //   = (36 + 26*(-0.940), 46 - 26*(-0.342))
-    //   = (36 - 24.44, 46 + 8.89) = (11.56, 54.89) → ~(12, 55)
-    //   end: angle -20° from +x (= 340°): (cx + r*cos(-20°), cy - r*sin(-20°))
-    //   = (36 + 26*0.940, 46 + 26*0.342) = (60.44, 54.89) → ~(60, 55)
-    // sweep = 140° (from 200° going CW: 200→340 = 140°)
-    // large-arc: 140° < 180° so large-arc=0
-    const psx = PWR_CX + PWR_R * Math.cos((200 * Math.PI) / 180);
-    const psy = PWR_CY - PWR_R * Math.sin((200 * Math.PI) / 180);
-    const pex = PWR_CX + PWR_R * Math.cos((-20 * Math.PI) / 180);
-    const pey = PWR_CY - PWR_R * Math.sin((-20 * Math.PI) / 180);
-    const pwrArcD = `M ${psx.toFixed(2)} ${psy.toFixed(2)} A ${PWR_R} ${PWR_R} 0 0 1 ${pex.toFixed(2)} ${pey.toFixed(2)}`;
-    // Arc circumference for a 140° sweep
-    const PWR_ARC_LEN = 2 * Math.PI * PWR_R * (140 / 360);
+    const PWR_R = 30;
+    const PWR_CX = 36;
+    const PWR_CY = 40;
+    const pwrArcD = 'M 6 40 A 30 30 0 0 1 66 40';
+    const PWR_ARC_LEN = Math.PI * PWR_R;
     // Track (full arc, dim)
     const pwrTrack = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     pwrTrack.setAttribute('d', pwrArcD);
     pwrTrack.setAttribute('class', 'st-hud__gauge-track');
+    const pwrTicks = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    pwrTicks.setAttribute('class', 'st-hud__gauge-ticks');
+    for (const deg of [0, 45, 90, 135, 180]) {
+      const rad = ((180 - deg) * Math.PI) / 180;
+      const x1 = PWR_CX + PWR_R * Math.cos(rad);
+      const y1 = PWR_CY - PWR_R * Math.sin(rad);
+      const x2 = PWR_CX + (PWR_R - 5) * Math.cos(rad);
+      const y2 = PWR_CY - (PWR_R - 5) * Math.sin(rad);
+      const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      tick.setAttribute('x1', String(x1));
+      tick.setAttribute('y1', String(y1));
+      tick.setAttribute('x2', String(x2));
+      tick.setAttribute('y2', String(y2));
+      pwrTicks.append(tick);
+    }
     // Fill arc (same path, stroke-dasharray driven by gaugeFraction × ARC_LEN)
     this.gaugePowerArc = document.createElementNS('http://www.w3.org/2000/svg', 'path') as SVGPathElement;
     this.gaugePowerArc.setAttribute('d', pwrArcD);
@@ -522,29 +563,32 @@ export class HUD {
     this.gaugePowerArc.dataset['arcLen'] = String(PWR_ARC_LEN.toFixed(4));
     // End-cap dot at start position (low end)
     const pwrDotL = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    pwrDotL.setAttribute('cx', psx.toFixed(2));
-    pwrDotL.setAttribute('cy', psy.toFixed(2));
+    pwrDotL.setAttribute('cx', '6');
+    pwrDotL.setAttribute('cy', '40');
     pwrDotL.setAttribute('r', '2.5');
     pwrDotL.setAttribute('class', 'st-hud__gauge-pivot');
     const pwrDotR = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    pwrDotR.setAttribute('cx', pex.toFixed(2));
-    pwrDotR.setAttribute('cy', pey.toFixed(2));
+    pwrDotR.setAttribute('cx', '66');
+    pwrDotR.setAttribute('cy', '40');
     pwrDotR.setAttribute('r', '2.5');
     pwrDotR.setAttribute('class', 'st-hud__gauge-pivot');
     // Numeric label
     this.gaugePowerLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text') as SVGTextElement;
     this.gaugePowerLabel.setAttribute('x', '36');
-    // y=50 seats the number INSIDE the arch's open interior. The arc is only a 140°
-    // sweep, so near the horizontal centre the curve still descends through the ~y44
-    // band and the number collided with the stroke (hard to read); y=50 clears the
-    // stroke above and the base pivots below.
-    this.gaugePowerLabel.setAttribute('y', '50');
+    this.gaugePowerLabel.setAttribute('y', '52');
     this.gaugePowerLabel.setAttribute('text-anchor', 'middle');
     this.gaugePowerLabel.setAttribute('class', 'st-hud__gauge-label st-hud__gauge-label--lg');
     this.gaugePowerLabel.textContent = '0';
-    pwrSvg.append(pwrTrack, this.gaugePowerArc, pwrDotL, pwrDotR, this.gaugePowerLabel);
+    pwrSvg.append(
+      pwrTrack,
+      pwrTicks,
+      this.gaugePowerArc,
+      pwrDotL,
+      pwrDotR,
+      this.gaugePowerLabel,
+    );
     const pwrCell = document.createElement('div');
-    pwrCell.className = 'st-hud__gauge-cell';
+    pwrCell.className = 'st-hud__gauge-cell st-hud__gauge-cell--power';
     const pwrCellTitle = document.createElement('div');
     pwrCellTitle.className = 'st-hud__gauge-cell-title';
     pwrCellTitle.textContent = 'Power';
@@ -553,47 +597,33 @@ export class HUD {
     // Assemble the instrument cluster row
     const gaugeRow = document.createElement('div');
     gaugeRow.className = 'st-hud__gauge-row';
-    gaugeRow.append(elevCell, windCell, pwrCell);
+    gaugeRow.append(elevCell, pwrCell, windCell);
 
-    // Mobile numeric readouts — same three values as bold text, shown INSTEAD of the
-    // dials on coarse-pointer (see the field comment). Each cell is a dim title + a
-    // big value node that syncWind/syncAim keep in lockstep with the SVG labels.
-    const gaugeNums = document.createElement('div');
-    gaugeNums.className = 'st-hud__gauge-nums';
-    const mkNumCell = (title: string, initial: string): { cell: HTMLElement; value: HTMLElement } => {
-      const cell = document.createElement('div');
-      cell.className = 'st-hud__gauge-num';
-      const t = document.createElement('div');
-      t.className = 'st-hud__gauge-num-title';
-      t.textContent = title;
-      const value = document.createElement('div');
-      value.className = 'st-hud__gauge-num-value';
-      value.textContent = initial;
-      cell.append(t, value);
-      return { cell, value };
-    };
-    const elevNumCell = mkNumCell('Elev', '0° ▶');
-    const windNumCell = mkNumCell('Wind', '• 0.0');
-    const powerNumCell = mkNumCell('Power', '0');
-    this.numElevValue = elevNumCell.value;
-    this.numWindValue = windNumCell.value;
-    this.numPowerValue = powerNumCell.value;
-    gaugeNums.append(elevNumCell.cell, windNumCell.cell, powerNumCell.cell);
-
-    instruments.append(instrTitle, gaugeRow, gaugeNums);
+    instruments.append(instrTitle, gaugeRow);
     return instruments;
   }
 
-  /** Active-player + weapon readout row, plus the firing "Sending..." strip. */
+  /** Active-player + weapon readout row, plus shot-progress status. */
   private buildActiveRow(): void {
     // ── Active player + weapon name row (replaces aim text + old wind/weapon blocks) ──
     // This shows "PlayerName  ·  WeaponName" in one compact row. It persists below the
-    // gauges and is hidden during the firing "Sending..." state (replaced by aimTextEl).
+    // gauges and is hidden while the shot-progress status is shown.
     this.activePlayerEl = document.createElement('div');
     this.activePlayerEl.className = 'st-hud__active-row';
-    // aimEl is the "Sending..." firing strip — shown only during isFiring state.
+    this.turnStatusEl = document.createElement('div');
+    this.turnStatusEl.className = 'st-hud__turn-status';
+    this.turnStatusEl.setAttribute('role', 'status');
+    this.turnStatusEl.setAttribute('aria-live', 'polite');
+    this.turnStatusEl.setAttribute('aria-atomic', 'true');
+    this.turnStatusEl.setAttribute('aria-label', 'No active turn.');
+    // aimEl announces transport, flight, and resolution progress without changing
+    // the compact rail's height.
     this.aimEl = document.createElement('div');
     this.aimEl.className = 'st-hud__aim';
+    this.aimEl.setAttribute('role', 'status');
+    this.aimEl.setAttribute('aria-live', 'polite');
+    this.aimEl.setAttribute('aria-atomic', 'true');
+    this.aimEl.setAttribute('aria-label', 'No shot in progress.');
     this.aimTextEl = document.createElement('span');
     this.aimTextEl.className = 'st-hud__aim-text';
     this.aimEl.append(this.aimTextEl);
@@ -601,29 +631,134 @@ export class HUD {
 
     // Active weapon readout — kept as a text row (not a gauge; SPEC says "may be
     // repositioned"). Placed inside activePlayerEl alongside the player name.
+    const owner = document.createElement('div');
+    owner.className = 'st-hud__turn-identity';
+    const ownerKicker = document.createElement('span');
+    ownerKicker.className = 'st-hud__turn-kicker';
+    ownerKicker.textContent = 'Active turn';
+    this.turnOwnerEl = document.createElement('span');
+    this.turnOwnerEl.className = 'st-hud__turn-owner';
+    owner.append(ownerKicker, this.turnOwnerEl);
+
     const weapon = document.createElement('div');
     weapon.className = 'st-hud__weapon';
+    this.weaponIconEl = document.createElement('span');
+    this.weaponIconEl.className = 'st-hud__weapon-icon';
+    this.weaponIconEl.setAttribute('aria-hidden', 'true');
+    const weaponCopy = document.createElement('span');
+    weaponCopy.className = 'st-hud__weapon-copy';
     const weaponLabel = document.createElement('span');
     weaponLabel.className = 'st-hud__weapon-label';
     weaponLabel.textContent = 'Weapon';
     this.weaponValueEl = document.createElement('span');
     this.weaponValueEl.className = 'st-hud__weapon-value';
-    weapon.append(weaponLabel, this.weaponValueEl);
-    // Active player row: player name + weapon readout, shown when not firing.
-    // Sits directly below the instrument cluster.
-    this.activePlayerEl.append(weapon);
+    weaponCopy.append(weaponLabel, this.weaponValueEl);
+    weapon.append(this.weaponIconEl, weaponCopy);
+
+    const mobility = document.createElement('div');
+    mobility.className = 'st-hud__mobility';
+    mobility.setAttribute('role', 'group');
+    mobility.setAttribute('aria-label', 'Tank movement');
+    const makeMoveButton = (
+      delta: -8 | 8,
+      label: string,
+      direction: string,
+      key: string,
+    ): HTMLButtonElement => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'st-hud__move-btn';
+      button.dataset['move'] = String(delta);
+      button.setAttribute('aria-label', label);
+      const directionEl = document.createElement('span');
+      directionEl.className = 'st-hud__move-direction';
+      directionEl.setAttribute('aria-hidden', 'true');
+      directionEl.textContent = direction;
+      const keyEl = document.createElement('kbd');
+      keyEl.setAttribute('aria-hidden', 'true');
+      keyEl.textContent = key;
+      button.append(directionEl, keyEl);
+      button.addEventListener('click', () => this.moveCb?.(delta));
+      return button;
+    };
+    this.moveLeftBtnEl = makeMoveButton(-8, 'Move tank left, 8 fuel maximum', '‹', 'A');
+    this.moveRightBtnEl = makeMoveButton(8, 'Move tank right, 8 fuel maximum', '›', 'D');
+    const fuel = document.createElement('div');
+    fuel.className = 'st-hud__fuel';
+    const fuelReadout = document.createElement('div');
+    fuelReadout.className = 'st-hud__fuel-readout';
+    const fuelLabel = document.createElement('span');
+    fuelLabel.className = 'st-hud__fuel-label';
+    fuelLabel.textContent = 'Fuel';
+    this.fuelValueEl = document.createElement('span');
+    this.fuelValueEl.className = 'st-hud__fuel-value';
+    fuelReadout.append(this.fuelValueEl, fuelLabel);
+    this.fuelMeterEl = document.createElement('div');
+    this.fuelMeterEl.className = 'st-hud__fuel-meter st-hud__fuel-dial';
+    this.fuelMeterEl.setAttribute('role', 'progressbar');
+    this.fuelMeterEl.setAttribute('aria-label', 'Movement fuel');
+    this.fuelMeterEl.setAttribute('aria-valuemin', '0');
+    this.fuelMeterEl.setAttribute('aria-valuemax', '100');
+    this.fuelMeterEl.append(fuelReadout);
+    fuel.append(this.fuelMeterEl);
+    mobility.append(this.moveLeftBtnEl, fuel, this.moveRightBtnEl);
+
+    const tactical = document.createElement('div');
+    tactical.className = 'st-hud__tactical-row';
+    tactical.append(weapon, mobility);
+
+    // Identity owns the full primary row. Weapon, fuel, and movement share a
+    // separate tactical row instead of competing with and truncating the player.
+    this.turnStatusEl.append(owner);
+    this.activePlayerEl.append(this.turnStatusEl, tactical);
   }
 
-  /** Controls legend (bottom-right; built once, never updated). */
+  /** Fine-pointer command deck (upper-left overlay; built once). */
   private buildControlsLegend(): HTMLElement {
-    // Controls legend (bottom-right, unobtrusive; built once, never updated).
     const controls = document.createElement('div');
     controls.className = 'st-hud__controls';
-    controls.innerHTML =
-      '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>&larr;</kbd><kbd>&rarr;</kbd></span><span>Aim</span></span>' +
-      '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>&uarr;</kbd><kbd>&darr;</kbd></span><span>Power</span></span>' +
-      '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>Tab</kbd><kbd>Q</kbd></span><span>Weapon</span></span>' +
-      '<span class="st-hud__control-cell"><span class="st-hud__keypair"><kbd>Space</kbd><kbd>Enter</kbd></span><span>Fire</span></span>';
+    controls.setAttribute('role', 'region');
+    controls.setAttribute('aria-label', 'Keyboard commands');
+    controls.dataset['ui'] = 'command-deck';
+
+    const header = document.createElement('div');
+    header.className = 'st-hud__controls-header';
+    const title = document.createElement('span');
+    title.className = 'st-hud__controls-title';
+    title.textContent = 'Command Deck';
+    const mode = document.createElement('span');
+    mode.className = 'st-hud__controls-mode';
+    mode.textContent = 'Keyboard';
+    header.append(title, mode);
+
+    const grid = document.createElement('div');
+    grid.className = 'st-hud__control-grid';
+    const definitions = [
+      { command: 'aim', label: 'Aim', glyph: 'aim', keys: ['←', '→'] },
+      { command: 'power', label: 'Power', glyph: 'power', keys: ['↑', '↓'] },
+      { command: 'move', label: 'Move', glyph: 'move', keys: ['A', 'D'] },
+      { command: 'weapon', label: 'Weapon', glyph: 'weapon', keys: ['Q'] },
+      { command: 'fire', label: 'Fire', glyph: 'fire', keys: ['Space', 'Enter'], primary: true },
+    ] as const;
+    for (const definition of definitions) {
+      const cell = document.createElement('div');
+      cell.className = 'st-hud__control-cell';
+      if ('primary' in definition) cell.classList.add('st-hud__control-cell--primary');
+      cell.dataset['command'] = definition.command;
+      const label = document.createElement('span');
+      label.className = 'st-hud__control-label';
+      label.textContent = definition.label;
+      const keypair = document.createElement('span');
+      keypair.className = 'st-hud__keypair';
+      for (const key of definition.keys) {
+        const hint = document.createElement('kbd');
+        hint.textContent = key;
+        keypair.append(hint);
+      }
+      cell.append(makeHudGlyph(definition.glyph, 15), label, keypair);
+      grid.append(cell);
+    }
+    controls.append(header, grid);
     return controls;
   }
 
@@ -633,25 +768,34 @@ export class HUD {
     // and a 2-column grid of buttons, each showing name + live ammo count.
     // Listeners attached ONCE here.
     this.stripEl = document.createElement('div');
-    this.stripEl.className = 'st-hud__strip';
+    this.stripEl.className =
+      'st-hud__strip st-ui-section st-ui-section--arsenal';
+    this.stripEl.dataset['ui'] = 'arsenal-drawer';
     // Header row: "Arsenal" title + a collapse/expand toggle. Collapsing folds the
     // grid away to reclaim vertical space (mobile especially); the state persists.
     const stripHeader = document.createElement('div');
     stripHeader.className = 'st-hud__strip-header';
     const stripTitle = document.createElement('div');
     stripTitle.className = 'st-hud__strip-title';
-    stripTitle.textContent = 'Arsenal';
-    const scrollHint = document.createElement('span');
-    scrollHint.className = 'st-hud__strip-scroll-hint';
-    scrollHint.textContent = 'Swipe panel to scroll';
+    const stripTitleText = document.createElement('span');
+    stripTitleText.textContent = 'Arsenal';
+    stripTitle.append(makeHudGlyph('arsenal', 15), stripTitleText);
     const stripToggle = document.createElement('button');
     stripToggle.type = 'button';
-    stripToggle.className = 'st-hud__strip-toggle';
+    stripToggle.className = 'st-hud__strip-toggle st-ui-icon-action';
+    const stripToggleLabel = document.createElement('span');
+    stripToggleLabel.className = 'st-hud__strip-toggle-label';
+    stripToggle.append(makeHudIcon('disclosure', 16), stripToggleLabel);
     stripToggle.addEventListener('click', () => this.toggleStripCollapsed());
-    stripHeader.append(stripTitle, scrollHint, stripToggle);
+    stripHeader.append(stripTitle, stripToggle);
     this.stripToggleEl = stripToggle;
+    this.stripToggleLabelEl = stripToggleLabel;
     const stripGrid = document.createElement('div');
     stripGrid.className = 'st-hud__strip-grid';
+    stripGrid.id = `st-hud-arsenal-drawer-${HUD.arsenalDrawerSequence++}`;
+    stripGrid.setAttribute('role', 'region');
+    stripGrid.setAttribute('aria-label', 'Weapon arsenal');
+    stripToggle.setAttribute('aria-controls', stripGrid.id);
     for (const type of STRIP_WEAPONS) {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -662,27 +806,24 @@ export class HUD {
       nameSpan.textContent = WEAPONS[type].name;
       const ammoSpan = document.createElement('span');
       ammoSpan.className = 'st-hud__weapon-btn-ammo';
-      btn.append(nameSpan, ammoSpan);
+      btn.append(makeWeaponIcon(type, 14), nameSpan, ammoSpan);
       // Capture `type` per-iteration (for-of/const). Listener attached once.
       btn.addEventListener('click', () => this.weaponSelectCb?.(type));
       this.weaponCells.set(type, { el: btn, ammo: ammoSpan });
       stripGrid.append(btn);
     }
     this.stripEl.append(stripHeader, stripGrid);
-    const stored = readStoredArsenalPreference();
-    this.arsenalPreferenceExplicit = stored === '0' || stored === '1';
-    this.compactTouchMedia = typeof matchMedia === 'function'
-      ? matchMedia(COMPACT_TOUCH_QUERY)
-      : null;
-    this.stripCollapsed = resolveInitialArsenalCollapsed(
-      stored,
-      this.compactTouchMedia?.matches ?? false,
-    );
-    this.compactTouchMedia?.addEventListener('change', (event) => {
-      if (this.arsenalPreferenceExplicit) return;
-      this.stripCollapsed = event.matches;
+    this.stripEl.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || this.stripCollapsed) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.stripCollapsed = true;
+      writeArsenalCollapsed(true);
       this.applyStripCollapsed();
+      this.stripToggleEl.focus();
     });
+    const stored = readStoredArsenalPreference();
+    this.stripCollapsed = resolveInitialArsenalCollapsed(stored);
     this.applyStripCollapsed();
   }
 
@@ -692,7 +833,10 @@ export class HUD {
     // Clicking the button opens/closes the modal; buying is wired per-row below.
     this.storeBtnEl = document.createElement('button');
     this.storeBtnEl.type = 'button';
-    this.storeBtnEl.className = 'st-hud__store-btn';
+    this.storeBtnEl.className = 'st-hud__store-btn st-ui-action';
+    this.storeBtnLabelEl = document.createElement('span');
+    this.storeBtnLabelEl.className = 'st-hud__store-btn-label';
+    this.storeBtnEl.append(makeHudGlyph('store', 15), this.storeBtnLabelEl);
     this.storeBtnEl.addEventListener('click', () => this.toggleStore());
 
     this.storeEl = document.createElement('div');
@@ -720,9 +864,12 @@ export class HUD {
       const nm = document.createElement('span');
       nm.className = 'st-hud__store-name';
       nm.textContent = def.name;
+      const nameLine = document.createElement('div');
+      nameLine.className = 'st-hud__store-name-line';
+      nameLine.append(makeWeaponIcon(type, 16), nm);
       const owned = document.createElement('span');
       owned.className = 'st-hud__store-owned';
-      info.append(nm, owned);
+      info.append(nameLine, owned);
 
       const buyBtn = document.createElement('button');
       buyBtn.type = 'button';
@@ -785,6 +932,42 @@ export class HUD {
     this.storeEl.addEventListener('click', (e) => {
       if (e.target === this.storeEl) this.toggleStore(false);
     });
+  }
+
+  /** One bounded action row: economy on the left, turn commitment on the right. */
+  private buildTurnActions(): void {
+    this.turnActionsEl = document.createElement('div');
+    this.turnActionsEl.className = 'st-hud__turn-actions';
+
+    this.primaryActionBtnEl = document.createElement('button');
+    this.primaryActionBtnEl.type = 'button';
+    this.primaryActionBtnEl.className =
+      'st-hud__primary-action st-ui-action';
+    this.primaryActionLabelEl = document.createElement('span');
+    this.primaryActionLabelEl.className = 'st-hud__primary-action-label';
+    this.primaryActionBtnEl.append(
+      makeHudGlyph('fire', 17),
+      this.primaryActionLabelEl,
+    );
+    // Click deliberately owns every activation. Pointerdown would double-dispatch
+    // on touch when the browser follows it with the button's semantic click.
+    this.primaryActionBtnEl.addEventListener('click', () => this.primaryActionCb?.());
+
+    this.turnActionsEl.append(this.storeBtnEl, this.primaryActionBtnEl);
+  }
+
+  /** One semantic surface for identity, progress, tactics, economy, and Fire. */
+  private buildCommandConsole(): void {
+    this.commandConsoleEl = document.createElement('section');
+    this.commandConsoleEl.className =
+      'st-hud__command-console st-ui-section st-ui-section--active';
+    this.commandConsoleEl.setAttribute('role', 'region');
+    this.commandConsoleEl.setAttribute('aria-label', 'Turn command console');
+    this.commandConsoleEl.append(
+      this.activePlayerEl,
+      this.aimEl,
+      this.turnActionsEl,
+    );
   }
 
   /** GAME_OVER overlay + the non-destructive PAUSE overlay. */
@@ -931,8 +1114,11 @@ export class HUD {
     // Persistent Quit/Menu button (top of the side panel) — returns to the lobby.
     const menu = document.createElement('button');
     menu.type = 'button';
-    menu.className = 'st-hud__menu';
-    menu.textContent = '⤺ Menu';
+    menu.className = 'st-hud__menu st-ui-action st-ui-action--quiet';
+    menu.setAttribute('aria-label', 'Menu');
+    const label = document.createElement('span');
+    label.textContent = 'Menu';
+    menu.append(makeHudGlyph('menu', 14), label);
     // Opens the non-destructive PAUSE overlay (Resume / Quit), NOT a direct quit —
     // so the player can get back into the live game (review #5).
     menu.addEventListener('click', () => this.togglePause(true));
@@ -954,20 +1140,34 @@ export class HUD {
     this.turnWatchEl.className = 'st-hud__turnwatch st-hud__turnwatch--hidden';
   }
 
-  /** Touch-aim strip (M2 mobile): angle/power/weapon/fire buttons. */
+  /** Coarse-pointer command dock: angle/power steppers and weapon cycle. */
   private buildTouchStrip(): void {
-    // Touch-aim strip (M2 mobile): angle, power, weapon-cycle, fire buttons along
-    // the bottom of #game-overlay. Shown only on coarse-pointer (touch) devices via
-    // CSS. Each stepper uses hold-to-repeat: tap = immediate step; hold 400ms = fast
-    // repeat at 80ms intervals, matching keyboard auto-repeat feel.
     this.touchStripEl = document.createElement('div');
     this.touchStripEl.className = 'st-hud__touch-strip';
+    this.touchStripEl.setAttribute('role', 'toolbar');
+    this.touchStripEl.setAttribute('aria-label', 'Touch commands');
 
-    const mkTouchBtn = (label: string, extra?: string): HTMLButtonElement => {
+    const mkTouchBtn = (
+      command: string,
+      ariaLabel: string,
+      symbol: string | SVGElement,
+      label: string,
+      extra?: string,
+    ): HTMLButtonElement => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = `st-hud__touch-btn${extra ? ` ${extra}` : ''}`;
-      b.textContent = label;
+      b.dataset['command'] = command;
+      b.setAttribute('aria-label', ariaLabel);
+      const symbolEl = document.createElement('span');
+      symbolEl.className = 'st-hud__touch-symbol';
+      symbolEl.setAttribute('aria-hidden', 'true');
+      if (typeof symbol === 'string') symbolEl.textContent = symbol;
+      else symbolEl.append(symbol);
+      const labelEl = document.createElement('span');
+      labelEl.className = 'st-hud__touch-label';
+      labelEl.textContent = label;
+      b.append(symbolEl, labelEl);
       return b;
     };
 
@@ -977,12 +1177,22 @@ export class HUD {
     const wireRepeater = (btn: HTMLButtonElement, action: () => void): void => {
       let holdTimer: ReturnType<typeof setTimeout> | null = null;
       let repeatTimer: ReturnType<typeof setInterval> | null = null;
-      const stop = (): void => {
+      let activePointerId: number | null = null;
+      const stop = (event?: PointerEvent): void => {
+        if (
+          event
+          && activePointerId !== null
+          && event.pointerId !== activePointerId
+        ) return;
         if (holdTimer !== null) { clearTimeout(holdTimer); holdTimer = null; }
         if (repeatTimer !== null) { clearInterval(repeatTimer); repeatTimer = null; }
+        activePointerId = null;
       };
       btn.addEventListener('pointerdown', (e) => {
+        if (activePointerId !== null) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
         e.preventDefault();
+        activePointerId = e.pointerId;
         btn.setPointerCapture(e.pointerId);
         action();
         holdTimer = setTimeout(() => {
@@ -992,26 +1202,43 @@ export class HUD {
       });
       btn.addEventListener('pointerup', stop);
       btn.addEventListener('pointercancel', stop);
+      btn.addEventListener('lostpointercapture', stop);
+      // Pointer taps already step on pointerdown. A synthetic click with detail 0
+      // is keyboard activation, so support it without double-stepping a tap.
+      btn.addEventListener('click', (event) => {
+        if (event.detail === 0) action();
+      });
     };
 
-    const touchAngleL = mkTouchBtn('◀\nAim');
-    const touchAngleR = mkTouchBtn('Aim\n▶');
-    const touchPowerD = mkTouchBtn('▼\nPwr');
-    const touchPowerU = mkTouchBtn('Pwr\n▲');
-    this.touchWeaponBtnEl = mkTouchBtn('⇄\nWeapon', 'st-hud__touch-weapon');
-    this.touchFireBtnEl = mkTouchBtn('🔥 FIRE', 'st-hud__touch-fire');
+    const touchAngleL = mkTouchBtn('aim-left', 'Aim barrel left', '◀', 'Aim');
+    const touchAngleR = mkTouchBtn('aim-right', 'Aim barrel right', '▶', 'Aim');
+    const touchPowerD = mkTouchBtn('power-down', 'Decrease power', '−', 'Power');
+    const touchPowerU = mkTouchBtn('power-up', 'Increase power', '+', 'Power');
+    this.touchWeaponBtnEl = mkTouchBtn(
+      'weapon',
+      'Cycle weapon, current Baby Missile',
+      makeHudIcon('weapon', 18),
+      'Baby Missile',
+      'st-hud__touch-weapon',
+    );
+    this.touchWeaponLabelEl = this.touchWeaponBtnEl.querySelector(
+      '.st-hud__touch-label',
+    )!;
 
-    wireRepeater(touchAngleL, () => this.touchAngleCb?.(-3));
-    wireRepeater(touchAngleR, () => this.touchAngleCb?.(3));
+    wireRepeater(touchAngleL, () => this.touchAngleCb?.(3));
+    wireRepeater(touchAngleR, () => this.touchAngleCb?.(-3));
     wireRepeater(touchPowerD, () => this.touchPowerCb?.(-3));
     wireRepeater(touchPowerU, () => this.touchPowerCb?.(3));
     this.touchWeaponBtnEl.addEventListener('click', () => this.touchWeaponCb?.());
-    this.touchFireBtnEl.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      this.touchFireCb?.();
-    });
 
-    this.touchStripEl.append(touchAngleL, touchAngleR, touchPowerD, touchPowerU, this.touchWeaponBtnEl, this.touchFireBtnEl);
+    this.touchCommandBtns = [
+      touchAngleL,
+      touchAngleR,
+      touchPowerD,
+      touchPowerU,
+      this.touchWeaponBtnEl,
+    ];
+    this.touchStripEl.append(...this.touchCommandBtns);
   }
 
   /**
@@ -1111,7 +1338,11 @@ export class HUD {
     const credits = active?.credits ?? 0;
     const canAct = state.phase === 'PLAYER_TURN';
 
-    this.storeBtnEl.textContent = `⛁ Store · $${credits.toLocaleString()}`;
+    const storeLabel = `Store · $${credits.toLocaleString()}`;
+    if (this.storeBtnLabelEl.textContent !== storeLabel) {
+      this.storeBtnLabelEl.textContent = storeLabel;
+    }
+    this.storeBtnEl.setAttribute('aria-label', storeLabel);
     this.storeCreditsEl.textContent = `Credits: $${credits.toLocaleString()}`;
 
     for (const [type, cell] of this.storeCells) {
@@ -1126,7 +1357,7 @@ export class HUD {
       cell.buyBtn.classList.toggle('st-hud__store-buy--disabled', !buyable);
     }
 
-    // Accessory rows: owned-readout is the effect (battery => current power cap), gated by arms level.
+    // Accessory rows show the live resource each purchase improves.
     for (const [key, cell] of this.storeAccessoryCells) {
       const acc = ACCESSORIES[key];
       const locked = acc.armsLevel > this.armsLevel;
@@ -1134,7 +1365,7 @@ export class HUD {
         ? `🔒 Arms Lv ${acc.armsLevel}`
         : key === 'battery'
           ? `Cap ${active?.powerCap ?? 100}`
-          : '';
+          : `Fuel ${Math.max(0, Math.floor(active?.fuel ?? 0))}`;
       if (cell.owned.textContent !== label) cell.owned.textContent = label;
       const buyable = canAct && !locked && credits >= acc.price;
       cell.buyBtn.disabled = !buyable;
@@ -1143,7 +1374,7 @@ export class HUD {
   }
 
   /** Reconcile the per-player health bars against `state.tanks`. */
-  private syncPlayers(state: GameState): void {
+  private syncPlayers(state: GameState, isHandoff: boolean): void {
     const seen = new Set<string>();
 
     for (const tank of state.tanks) {
@@ -1154,7 +1385,13 @@ export class HUD {
         this.rows.set(tank.id, row);
         this.playersEl.append(row.el);
       }
-      this.syncRow(row, tank, tank.id === state.activePlayerId, state.totalRounds);
+      this.syncRow(
+        row,
+        tank,
+        tank.id === state.activePlayerId,
+        state.totalRounds,
+        isHandoff,
+      );
     }
 
     // Remove rows for tanks that disappeared (defensive; tanks normally persist).
@@ -1200,7 +1437,13 @@ export class HUD {
   }
 
   /** Mutate a player row's volatile bits (hp text, bar width, alive/active classes). */
-  private syncRow(row: PlayerRow, tank: TankState, active: boolean, totalRounds: number): void {
+  private syncRow(
+    row: PlayerRow,
+    tank: TankState,
+    active: boolean,
+    totalRounds: number,
+    isHandoff: boolean,
+  ): void {
     const health = Math.max(0, Math.round(tank.health));
     const dead = !tank.alive || health <= 0;
 
@@ -1241,79 +1484,157 @@ export class HUD {
     row.fill.style.width = `${Math.max(0, Math.min(100, health))}%`;
     row.el.classList.toggle('st-hud__player--dead', dead);
     row.el.classList.toggle('st-hud__player--active', active && !dead);
+    if (!active) {
+      row.el.classList.remove('st-hud__player--handoff');
+    } else if (isHandoff && !dead) {
+      row.el.classList.remove('st-hud__player--handoff');
+      void row.el.offsetWidth;
+      row.el.classList.add('st-hud__player--handoff');
+    }
   }
 
   /**
    * Update the wind SVG gauge: slide the marker horizontally and refresh the label.
    * The half-track half-width is 32px (track spans x=4..68, center=36, half=32).
-   * windNeedleOffset returns [-1,1]; marker center starts at x=36.
+   * windNeedleOffset returns [-1,1]; marker center starts at x=72.
    * The marker is a rotated rect with natural center at (x+4, y+4) after the 45° rotate
-   * around (x+4, y+4) = (36, 25). We translate it by offset×30px.
+   * around (x+4, y+4) = (72, 22). We translate it by offset×58px.
    */
   private syncWind(wind: number): void {
     const offset = windNeedleOffset(wind, MAX_WIND); // [-1, 1]
-    const tx = offset * 26; // ±26px keeps the 8px diamond inside the 4..68 track at max wind
-    // Marker: rect x=32 y=22 w=8 h=8, rotated 45° around its center (36,26).
-    // Translate center by tx: new center at (36+tx, 26). Update transform.
-    const cx = 36 + tx;
+    const tx = offset * 58;
+    // Marker: rect x=68 y=18 w=8 h=8, rotated around its center (72,22).
+    const cx = 72 + tx;
     this.gaugeWindMarker.setAttribute('x', String(cx - 4));
-    this.gaugeWindMarker.setAttribute('transform', `rotate(45, ${cx}, 26)`);
+    this.gaugeWindMarker.setAttribute('transform', `rotate(45, ${cx}, 22)`);
     // Label: "→ 3.2" / "← 3.2" / "• 0.0"
     const sym = windDirectionSymbol(wind);
     const mag = windMagnitudeLabel(wind);
     const lbl = `${sym} ${mag}`;
     if (this.gaugeWindLabel.textContent !== lbl) this.gaugeWindLabel.textContent = lbl;
-    if (this.numWindValue.textContent !== lbl) this.numWindValue.textContent = lbl;
   }
 
   /** Update the active tank's SVG gauges + weapon/player name row. */
-  private syncAim(state: GameState, isFiring = false): void {
-    const tank = state.tanks.find((t) => t.id === state.activePlayerId);
+  private syncAim(state: GameState, isFiring = false, isHandoff = false): void {
+    const hasActiveTurn = state.phase === 'PLAYER_TURN' ||
+      state.phase === 'FIRING' ||
+      state.phase === 'RESOLVING';
+    const activeTank = hasActiveTurn
+      ? state.tanks.find((candidate) => candidate.id === state.activePlayerId)
+      : undefined;
+    // PLAYER_TURN names only a living seat owner. During FIRING/RESOLVING the
+    // same id identifies the shooter, who may have died to their own blast while
+    // the deterministic engine still settles terrain for the surviving seats.
+    const tank = activeTank &&
+      (state.phase !== 'PLAYER_TURN' || activeTank.alive)
+      ? activeTank
+      : undefined;
     if (!tank) {
-      // No active tank: blank gauges, hide active row.
-      this.activePlayerEl.classList.remove('st-hud__active-row--hidden');
-      this.aimEl.classList.add('st-hud__aim--hidden');
-      this.weaponValueEl.textContent = '—';
+      // No active tank: blank gauges and clear identity rather than leaving a
+      // stale player named through a terminal or defensive state.
+      this.activePlayerEl.classList.toggle('st-hud__active-row--hidden', true);
+      this.aimEl.classList.toggle('st-hud__aim--hidden', true);
+      if (this.turnOwnerEl.textContent !== '') this.turnOwnerEl.textContent = '';
+      if (this.weaponValueEl.textContent !== '—') this.weaponValueEl.textContent = '—';
+      if (this.selectedWeaponIconType !== null) {
+        this.weaponIconEl.replaceChildren();
+        this.selectedWeaponIconType = null;
+      }
+      if (this.aimTextEl.textContent !== '') this.aimTextEl.textContent = '';
+      if (this.turnStatusEl.getAttribute('aria-label') !== 'No active turn.') {
+        this.turnStatusEl.setAttribute('aria-label', 'No active turn.');
+      }
+      if (this.aimEl.getAttribute('aria-label') !== 'No shot in progress.') {
+        this.aimEl.setAttribute('aria-label', 'No shot in progress.');
+      }
+      if (this.activePlayerEl.style.getPropertyValue('--st-turn-color') !== '') {
+        this.activePlayerEl.style.removeProperty('--st-turn-color');
+      }
       // Zero out gauges
       this.gaugeElevNeedle.setAttribute('transform', '');
       if (this.gaugeElevLabel.textContent !== '0° ▶') this.gaugeElevLabel.textContent = '0° ▶';
-      if (this.numElevValue.textContent !== '0° ▶') this.numElevValue.textContent = '0° ▶';
-      this.gaugeWindMarker.setAttribute('x', '32');
-      this.gaugeWindMarker.setAttribute('transform', 'rotate(45, 36, 26)');
+      this.gaugeWindMarker.setAttribute('x', '68');
+      this.gaugeWindMarker.setAttribute('transform', 'rotate(45, 72, 22)');
       if (this.gaugeWindLabel.textContent !== '• 0.0') this.gaugeWindLabel.textContent = '• 0.0';
-      if (this.numWindValue.textContent !== '• 0.0') this.numWindValue.textContent = '• 0.0';
       const arcLen = parseFloat(this.gaugePowerArc.dataset['arcLen'] ?? '0');
       this.gaugePowerArc.setAttribute('stroke-dasharray', `0 ${arcLen.toFixed(2)}`);
       if (this.gaugePowerLabel.textContent !== '0') this.gaugePowerLabel.textContent = '0';
-      if (this.numPowerValue.textContent !== '0') this.numPowerValue.textContent = '0';
       return;
     }
 
-    if (isFiring) {
-      // Firing: show "Sending…" in the aim strip; hide the normal active-player row.
-      this.aimTextEl.textContent = `${tank.playerName}  ·  Sending...`;
-      this.aimEl.classList.remove('st-hud__aim--hidden');
-      this.activePlayerEl.classList.add('st-hud__active-row--hidden');
-      // Keep gauges frozen at their last values during flight — no update.
+    const ownerLabel = HUD.playerLabel(tank);
+    const progress = state.phase === 'FIRING'
+      ? {
+          text: `${ownerLabel} · Shot in flight...`,
+          label: `${ownerLabel}'s shot is in flight.`,
+        }
+      : state.phase === 'RESOLVING'
+        ? {
+            text: `${ownerLabel} · Terrain settling...`,
+            label: `${ownerLabel}'s shot is resolving.`,
+          }
+        : isFiring
+          ? {
+              text: `${ownerLabel} · Sending shot...`,
+              label: `${ownerLabel} is sending a shot.`,
+            }
+          : null;
+
+    if (progress) {
+      if (this.aimTextEl.textContent !== progress.text) {
+        this.aimTextEl.textContent = progress.text;
+      }
+      if (this.aimEl.getAttribute('aria-label') !== progress.label) {
+        this.aimEl.setAttribute('aria-label', progress.label);
+      }
+      this.aimEl.classList.toggle('st-hud__aim--hidden', false);
+      this.activePlayerEl.classList.toggle('st-hud__active-row--hidden', true);
+      // Keep gauges frozen at their last values while a shot is progressing.
       return;
     }
 
     // Normal PLAYER_TURN state: show active player + weapon row, hide aim strip.
-    this.aimEl.classList.add('st-hud__aim--hidden');
-    this.activePlayerEl.classList.remove('st-hud__active-row--hidden');
+    this.aimEl.classList.toggle('st-hud__aim--hidden', true);
+    this.activePlayerEl.classList.toggle('st-hud__active-row--hidden', false);
     const weaponName = WEAPONS[tank.selectedWeapon]?.name ?? tank.selectedWeapon;
-    this.weaponValueEl.textContent = weaponName;
+    if (this.turnOwnerEl.textContent !== ownerLabel) {
+      this.turnOwnerEl.textContent = ownerLabel;
+    }
+    if (this.turnOwnerEl.title !== ownerLabel) {
+      this.turnOwnerEl.title = ownerLabel;
+    }
+    if (this.weaponValueEl.textContent !== weaponName) {
+      this.weaponValueEl.textContent = weaponName;
+    }
+    if (this.selectedWeaponIconType !== tank.selectedWeapon) {
+      this.weaponIconEl.replaceChildren(makeWeaponIcon(tank.selectedWeapon, 19));
+      this.selectedWeaponIconType = tank.selectedWeapon;
+    }
+    if (
+      this.activePlayerEl.style.getPropertyValue('--st-turn-color') !== tank.color
+    ) {
+      this.activePlayerEl.style.setProperty('--st-turn-color', tank.color);
+    }
+    const activeLabel =
+      `${ownerLabel}'s turn. Weapon ${weaponName}. ${Math.max(0, Math.floor(tank.fuel))} fuel remaining.`;
+    if (this.turnStatusEl.getAttribute('aria-label') !== activeLabel) {
+      this.turnStatusEl.setAttribute('aria-label', activeLabel);
+    }
+    if (isHandoff) {
+      this.activePlayerEl.classList.remove('st-hud__active-row--handoff');
+      void this.activePlayerEl.offsetWidth;
+      this.activePlayerEl.classList.add('st-hud__active-row--handoff');
+    }
 
     // ── Elevation gauge ──
     // elevationNeedleDeg(angle) gives [0,180]: 0=right, 90=up, 180=left.
-    // The needle SVG natural position (no transform) points up (from y=40 to y=12),
-    // which corresponds to dial 90°. So we rotate by (needleDeg - 90)° around the pivot.
+    // The needle SVG natural position points up. Positive SVG rotation moves it
+    // clockwise toward screen-right, so a rightward 45° barrel needs +45°.
     const needleDeg = elevationNeedleDeg(tank.angle);
-    const needleRot = needleDeg - 90; // 0→−90° (right), 90→0° (up), 180→+90° (left)
+    const needleRot = 90 - needleDeg; // 0→+90° (right), 90→0° (up), 180→−90° (left)
     this.gaugeElevNeedle.setAttribute('transform', `rotate(${needleRot}, 36, 40)`);
     const elevLbl = `${elevationDegrees(tank.angle)}° ${aimDirectionGlyph(tank.angle)}`;
     if (this.gaugeElevLabel.textContent !== elevLbl) this.gaugeElevLabel.textContent = elevLbl;
-    if (this.numElevValue.textContent !== elevLbl) this.numElevValue.textContent = elevLbl;
 
     // ── Power gauge (arc fill) ──
     const fraction = gaugeFraction(tank.power, 0, tank.powerCap ?? 100);
@@ -1324,32 +1645,111 @@ export class HUD {
     this.gaugePowerArc.setAttribute('stroke-dasharray', dasharrayVal);
     const pwrLbl = powerLabel(tank.power);
     if (this.gaugePowerLabel.textContent !== pwrLbl) this.gaugePowerLabel.textContent = pwrLbl;
-    if (this.numPowerValue.textContent !== pwrLbl) this.numPowerValue.textContent = pwrLbl;
+  }
+
+  /** Reconcile the authoritative fuel readout and bounded movement controls. */
+  private syncMobility(state: GameState, isFiring: boolean, canControl: boolean): void {
+    const tank = state.tanks.find((candidate) => candidate.id === state.activePlayerId);
+    const fuel = tank ? Math.max(0, Math.floor(tank.fuel)) : 0;
+    const visibleValue = tank ? String(fuel) : '—';
+    if (this.fuelValueEl.textContent !== visibleValue) {
+      this.fuelValueEl.textContent = visibleValue;
+    }
+    const fuelLabel = tank ? `${fuel} fuel remaining` : 'No active fuel';
+    if (this.fuelValueEl.getAttribute('aria-label') !== fuelLabel) {
+      this.fuelValueEl.setAttribute('aria-label', fuelLabel);
+    }
+    const fuelTier = fuel > 0 ? Math.floor((fuel - 1) / 100) : 0;
+    const tierFuel = fuel > 0 ? fuel - fuelTier * 100 : 0;
+    const fuelLevel = `${tierFuel}%`;
+    if (this.fuelMeterEl.style.getPropertyValue('--st-fuel-level') !== fuelLevel) {
+      this.fuelMeterEl.style.setProperty('--st-fuel-level', fuelLevel);
+    }
+    const fuelFloor = String(fuelTier * 100);
+    if (this.fuelMeterEl.getAttribute('aria-valuemin') !== fuelFloor) {
+      this.fuelMeterEl.setAttribute('aria-valuemin', fuelFloor);
+    }
+    const fuelCeiling = String(Math.max(100, (fuelTier + 1) * 100));
+    if (this.fuelMeterEl.getAttribute('aria-valuemax') !== fuelCeiling) {
+      this.fuelMeterEl.setAttribute('aria-valuemax', fuelCeiling);
+    }
+    const fuelNow = String(fuel);
+    if (this.fuelMeterEl.getAttribute('aria-valuenow') !== fuelNow) {
+      this.fuelMeterEl.setAttribute('aria-valuenow', fuelNow);
+    }
+    if (this.fuelMeterEl.getAttribute('aria-valuetext') !== fuelLabel) {
+      this.fuelMeterEl.setAttribute('aria-valuetext', fuelLabel);
+    }
+    const fuelBand = fuelTier > 0
+      ? 'reserve'
+      : fuel <= 0
+        ? 'empty'
+        : fuel <= 25
+          ? 'low'
+          : 'normal';
+    if (this.fuelMeterEl.dataset['fuelBand'] !== fuelBand) {
+      this.fuelMeterEl.dataset['fuelBand'] = fuelBand;
+    }
+    const fuelTierValue = String(fuelTier);
+    if (this.fuelMeterEl.dataset['fuelTier'] !== fuelTierValue) {
+      this.fuelMeterEl.dataset['fuelTier'] = fuelTierValue;
+    }
+    const fuelTone = fuelTier === 0
+      ? 'base'
+      : fuelTier === 1
+        ? 'reserve'
+        : 'deep-reserve';
+    if (this.fuelMeterEl.dataset['fuelTone'] !== fuelTone) {
+      this.fuelMeterEl.dataset['fuelTone'] = fuelTone;
+    }
+
+    const canMove = canControl &&
+      !isFiring &&
+      state.phase === 'PLAYER_TURN' &&
+      !!tank?.alive &&
+      !tank.buried &&
+      fuel > 0;
+    const disabled = !canMove;
+    for (const button of [this.moveLeftBtnEl, this.moveRightBtnEl]) {
+      if (button.disabled !== disabled) button.disabled = disabled;
+      const ariaDisabled = String(disabled);
+      if (button.getAttribute('aria-disabled') !== ariaDisabled) {
+        button.setAttribute('aria-disabled', ariaDisabled);
+      }
+    }
   }
 
   /** Flip and persist the arsenal-collapsed preference. */
   private toggleStripCollapsed(): void {
-    this.arsenalPreferenceExplicit = true;
     this.stripCollapsed = !this.stripCollapsed;
     writeArsenalCollapsed(this.stripCollapsed);
     this.applyStripCollapsed();
+    if (this.stripCollapsed) this.stripToggleEl.focus();
   }
 
   /** Reflect the collapsed state onto the strip DOM + toggle affordance. */
   private applyStripCollapsed(): void {
     this.stripEl.classList.toggle('st-hud__strip--collapsed', this.stripCollapsed);
-    // ▸ points right when collapsed (click to open), ▾ down when expanded.
-    this.stripToggleEl.textContent = this.stripCollapsed ? '▸' : '▾';
+    this.stripEl.classList.toggle('st-hud__strip--open', !this.stripCollapsed);
     this.stripToggleEl.setAttribute('aria-expanded', String(!this.stripCollapsed));
     this.stripToggleEl.setAttribute(
       'aria-label',
       this.stripCollapsed ? 'Expand arsenal' : 'Collapse arsenal',
     );
+    this.stripToggleLabelEl.textContent = this.stripCollapsed ? 'Expand' : 'Close';
+    for (const child of [...this.root.children]) {
+      if (child !== this.stripEl) (child as HTMLElement).inert = !this.stripCollapsed;
+    }
+    if (this.touchStripEl) this.touchStripEl.inert = !this.stripCollapsed;
   }
 
   /** Reconcile the weapon strip: owned-only visibility, active highlight, live ammo. No DOM rebuild. */
-  private syncStrip(state: GameState, isFiring: boolean): void {
+  private syncStrip(state: GameState, isFiring: boolean, canControl: boolean): void {
     const tank = state.tanks.find((t) => t.id === state.activePlayerId);
+    const canAct = canControl && !isFiring && !!tank && state.phase === 'PLAYER_TURN';
+    const selectedInventory = tank?.inventory[tank.selectedWeapon];
+    const selectedUsable = !!selectedInventory &&
+      (selectedInventory.unlimited || selectedInventory.count > 0);
     for (const [type, cell] of this.weaponCells) {
       const entry = tank?.inventory[type];
       const unlimited = entry?.unlimited ?? false;
@@ -1364,21 +1764,34 @@ export class HUD {
       cell.el.classList.toggle('st-hud__weapon-btn--hidden', !visible);
       cell.ammo.textContent = unlimited ? AMMO_UNLIMITED_GLYPH : `${count}`;
       cell.el.classList.toggle('st-hud__weapon-btn--active', selected);
+      cell.el.setAttribute('aria-pressed', String(selected));
       cell.el.classList.toggle('st-hud__weapon-btn--depleted', depleted);
       // Disable while firing, when no active tank, or when depleted, so a click
       // cannot emit a select for an unusable weapon. (Engine still re-validates;
       // this is UX only.)
-      cell.el.disabled = isFiring || !tank || depleted;
+      cell.el.disabled = !canAct || depleted;
     }
-    // Sync touch-aim strip: fire disabled while firing/no tank; weapon label = current weapon.
-    const canAct = !isFiring && !!tank && state.phase === 'PLAYER_TURN';
-    this.touchFireBtnEl.disabled = !canAct;
-    this.touchWeaponBtnEl.disabled = !canAct;
+    // Sync the shared primary action and touch weapon stepper from the same
+    // explicit local-ownership state.
+    for (const button of this.touchCommandBtns) {
+      button.disabled = !canAct;
+      button.setAttribute('aria-disabled', String(!canAct));
+    }
     const weaponName = tank ? (WEAPONS[tank.selectedWeapon]?.name ?? tank.selectedWeapon) : 'Weapon';
-    const touchWeaponLabel = `⇄\n${weaponName}`;
-    if (this.touchWeaponBtnEl.textContent !== touchWeaponLabel) {
-      this.touchWeaponBtnEl.textContent = touchWeaponLabel;
+    const isShield = tank?.selectedWeapon === 'shield';
+    const actionLabel = isShield ? 'Activate shield' : 'Fire';
+    const actionAccessibleName = isShield ? actionLabel : `${actionLabel} ${weaponName}`;
+    if (this.primaryActionLabelEl.textContent !== actionLabel) {
+      this.primaryActionLabelEl.textContent = actionLabel;
     }
+    this.primaryActionBtnEl.setAttribute('aria-label', actionAccessibleName);
+    const canCommit = canAct && selectedUsable;
+    this.primaryActionBtnEl.disabled = !canCommit;
+    this.primaryActionBtnEl.setAttribute('aria-disabled', String(!canCommit));
+    if (this.touchWeaponLabelEl.textContent !== weaponName) {
+      this.touchWeaponLabelEl.textContent = weaponName;
+    }
+    this.touchWeaponBtnEl.setAttribute('aria-label', `Cycle weapon, current ${weaponName}`);
   }
 
   /** Tracks whether the GAME_OVER panel is currently shown, so its content (winner
@@ -1420,6 +1833,13 @@ export class HUD {
     this.overlayShown = false;
     this.roundOverEl.classList.add('st-hud__overlay--hidden');
     this.roundOverShown = false;
+    this.lastPresentedTurnKey = null;
+    if (this.built) {
+      this.activePlayerEl.classList.remove('st-hud__active-row--handoff');
+      for (const row of this.rows.values()) {
+        row.el.classList.remove('st-hud__player--handoff');
+      }
+    }
   }
 
   /**
@@ -1478,7 +1898,7 @@ export class HUD {
         ? `🔒 Lv ${acc.armsLevel}`
         : key === 'battery'
           ? `cap ${tank?.powerCap ?? 100}`
-          : '';
+          : `fuel ${Math.max(0, Math.floor(tank?.fuel ?? 0))}`;
       cell.buyBtn.disabled = !tank || locked || tank.credits < acc.price;
     }
   }
@@ -1551,34 +1971,35 @@ export class HUD {
 .st-hud {
   font-family: var(--font-sans);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--ui-type-title);
 }
 .st-hud__players {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 0;
 }
 .st-hud__player {
   position: relative;
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 4px 8px;
-  border-radius: 5px;
-  background:
-    linear-gradient(90deg, rgba(255, 210, 63, 0.055), rgba(12, 7, 22, 0.68) 32%),
-    rgba(12, 7, 22, 0.62);
-  border: 1px solid rgba(255, 210, 63, 0.18);
+  padding: 5px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-line);
+  border-radius: 0;
+  background: transparent;
   font-size: 13px;
   transition: box-shadow 160ms ease, background 160ms ease, opacity 220ms ease;
 }
 .st-hud__player--active {
   background:
-    linear-gradient(90deg, rgba(255, 210, 63, 0.16), rgba(142, 47, 83, 0.42) 42%, rgba(12, 7, 22, 0.72)),
-    rgba(142, 47, 83, 0.42);
-  border-color: var(--gold);
-  box-shadow: 0 0 0 1px var(--gold), 0 0 14px rgba(255, 210, 63, 0.38), inset 0 0 18px rgba(255, 122, 31, 0.10);
-  animation: st-hud-pulse 1.6s ease-in-out infinite;
+    linear-gradient(90deg, var(--ui-surface-active), rgba(142, 47, 83, 0.16) 58%, transparent);
+  border-left: 2px solid var(--ui-action);
+  padding-left: 6px;
+  box-shadow: inset 10px 0 18px rgba(255, 122, 31, 0.06);
+}
+.st-hud__player--handoff {
+  animation: st-hud-roster-handoff 560ms ease-out;
 }
 .st-hud__player--dead {
   opacity: 0.45;
@@ -1624,111 +2045,229 @@ export class HUD {
   transition: width 160ms ease;
 }
 .st-hud__weapon {
-  display: flex;
+  display: grid;
+  grid-template-columns: 23px minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 7px;
-  padding: 6px 10px;
-  border-radius: 6px;
+  gap: 4px;
+  min-width: 0;
+  padding: 5px 4px;
+  border: 1px solid rgba(255, 210, 63, 0.16);
+  border-radius: 5px;
   background:
-    linear-gradient(90deg, rgba(255, 210, 63, 0.07), rgba(12, 7, 22, 0.62) 46%),
-    rgba(12, 7, 22, 0.55);
-  border: 1px solid rgba(255, 210, 63, 0.20);
-  font-size: 13px;
+    linear-gradient(180deg, rgba(255, 210, 63, 0.055), rgba(7, 4, 12, 0.42));
+  font-size: var(--ui-type-title);
+}
+.st-hud__weapon-icon {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border-radius: 4px;
+  color: var(--gold);
+  background: rgba(255, 210, 63, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 210, 63, 0.14);
+}
+.st-hud__weapon-icon .st-weapon-icon {
+  width: 17px;
+  height: 17px;
+}
+.st-hud__weapon-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+.st-hud__turn-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 2px;
+}
+.st-hud__turn-status {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+.st-hud__turn-kicker {
+  color: var(--ui-muted);
+  font-family: var(--font-display);
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 1.7px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.st-hud__turn-owner {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--ui-copy);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: 0.45px;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--st-turn-color) 62%, transparent);
+  white-space: nowrap;
 }
 .st-hud__menu {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--ui-space-2);
   width: 100%;
   pointer-events: auto;
   cursor: pointer;
-  padding: 7px 10px;
-  border: 1px solid rgba(255, 210, 63, 0.38);
-  border-radius: 5px;
-  background: linear-gradient(180deg, rgba(255, 210, 63, 0.08), rgba(12, 7, 22, 0.76));
-  color: var(--text-gold);
+  padding: 7px 2px 9px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ui-muted);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--ui-type-body);
   letter-spacing: 0.5px;
   transition: background 130ms ease, border-color 130ms ease;
 }
-.st-hud__menu:hover { background: rgba(255, 122, 31, 0.3); border-color: var(--ember); }
+.st-hud__menu:hover { background: var(--ui-surface-active); color: var(--ui-action); }
 .st-hud__weapon-label {
-  opacity: 0.65;
+  color: var(--ui-muted);
   text-transform: uppercase;
-  letter-spacing: 1px;
-  font-size: 10px;
+  letter-spacing: 1.2px;
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1;
 }
 .st-hud__weapon-value {
+  display: block;
+  min-width: 0;
   font-family: var(--font-display);
   font-weight: bold;
-  letter-spacing: 0.5px;
+  font-size: 10px;
+  line-height: 1.15;
+  letter-spacing: 0.25px;
   color: var(--gold);
+  white-space: nowrap;
 }
 .st-hud__controls {
   position: absolute;
   top: 14px;
   left: 14px;
+  width: 208px;
+  box-sizing: border-box;
+  padding: 8px;
+  border-radius: 9px;
+  background:
+    radial-gradient(110% 90% at 0% 0%, rgba(122, 215, 255, 0.10), transparent 48%),
+    linear-gradient(180deg, rgba(31, 18, 51, 0.92), rgba(9, 5, 16, 0.92));
+  border: 1px solid rgba(255, 210, 63, 0.32);
+  box-shadow:
+    inset 0 0 0 1px rgba(8, 4, 13, 0.78),
+    inset 0 0 22px rgba(255, 122, 31, 0.06),
+    0 10px 28px rgba(0, 0, 0, 0.35);
+  color: var(--ui-muted);
+}
+.st-hud__controls-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 20px;
+  margin-bottom: 6px;
+  padding: 0 2px 5px;
+  border-bottom: 1px solid rgba(255, 210, 63, 0.22);
+}
+.st-hud__controls-title {
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 1.7px;
+  text-transform: uppercase;
+}
+.st-hud__controls-mode {
+  padding: 2px 5px;
+  border: 1px solid rgba(122, 215, 255, 0.25);
+  border-radius: 99px;
+  color: var(--tank-blue-lite, #7ad7ff);
+  font-family: var(--font-mono);
+  font-size: 6px;
+  letter-spacing: 0.8px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.st-hud__control-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 5px;
-  width: 168px;
-  box-sizing: border-box;
-  padding: 8px 9px 9px;
-  border-radius: 6px;
-  background:
-    linear-gradient(180deg, rgba(22, 13, 46, 0.54), rgba(12, 7, 22, 0.68)),
-    rgba(12, 7, 22, 0.62);
-  border: 1px solid rgba(255, 210, 63, 0.14);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22), inset 0 0 14px rgba(255, 122, 31, 0.04);
-  color: rgba(233, 228, 242, 0.76);
-  font-size: 10px;
-  line-height: 1.45;
-  letter-spacing: 0.02em;
-}
-.st-hud__controls::before {
-  content: 'Commands';
-  grid-column: 1 / -1;
-  margin-bottom: 2px;
-  padding-bottom: 3px;
-  border-bottom: 1px solid rgba(255, 210, 63, 0.14);
-  color: var(--text-dim);
-  font-family: var(--font-display);
-  font-size: 8px;
-  letter-spacing: 2px;
-  text-align: center;
-  text-transform: uppercase;
 }
 .st-hud__control-cell {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-height: 30px;
+  gap: 0 5px;
+  min-height: 38px;
   min-width: 0;
-  padding: 4px 2px;
-  border: 1px solid rgba(255, 210, 63, 0.10);
-  border-radius: 4px;
-  background: rgba(255, 210, 63, 0.035);
-  text-align: center;
+  padding: 4px 5px;
+  border: 1px solid rgba(255, 210, 63, 0.14);
+  border-radius: 5px;
+  background:
+    linear-gradient(145deg, rgba(255, 233, 168, 0.045), transparent 52%),
+    rgba(9, 5, 17, 0.68);
+  box-shadow: inset 0 1px 0 rgba(255, 233, 168, 0.04);
+}
+.st-hud__control-cell .st-ui-glyph {
+  grid-row: 1 / 3;
+  width: 25px;
+  height: 25px;
+}
+.st-hud__control-label {
+  align-self: end;
+  color: var(--ui-copy);
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.45px;
+  line-height: 1;
+  text-transform: uppercase;
 }
 .st-hud__keypair {
   display: flex;
-  justify-content: center;
-  gap: 3px;
-  width: 100%;
+  align-items: center;
+  align-self: start;
+  gap: 2px;
   min-width: 0;
 }
 .st-hud__controls kbd {
   display: inline-block;
-  min-width: 12px;
-  padding: 1px 3px;
-  border-radius: 3px;
-  background: rgba(255, 210, 63, 0.18);
-  border: 1px solid rgba(255, 210, 63, 0.18);
-  color: var(--text-gold);
+  min-width: 10px;
+  padding: 1px 2px;
+  border: 1px solid rgba(255, 210, 63, 0.22);
+  border-radius: 2px;
+  background: rgba(255, 210, 63, 0.08);
+  color: var(--ui-muted);
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: 6.5px;
+  line-height: 1.2;
   text-align: center;
+}
+.st-hud__control-cell--primary {
+  grid-column: 1 / -1;
+  grid-template-columns: 25px minmax(0, 1fr) auto;
+  grid-template-rows: 1fr;
+  min-height: 34px;
+  border-color: rgba(255, 122, 31, 0.34);
+  background:
+    linear-gradient(90deg, rgba(255, 122, 31, 0.13), transparent 70%),
+    rgba(9, 5, 17, 0.78);
+}
+.st-hud__control-cell--primary .st-ui-glyph { grid-row: 1; }
+.st-hud__control-cell--primary .st-hud__control-label { align-self: center; }
+.st-hud__control-cell--primary .st-hud__keypair {
+  align-self: center;
+  justify-self: end;
 }
 .st-hud__aim {
   display: flex;
@@ -1739,7 +2278,7 @@ export class HUD {
   background: rgba(12, 7, 22, 0.55);
   border: 1px solid rgba(255, 210, 63, 0.14);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--ui-type-body);
   line-height: 1.5;
   color: var(--text-gold);
 }
@@ -1763,29 +2302,48 @@ export class HUD {
   gap: 8px;
 }
 .st-hud__strip-title {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
   font-family: var(--font-display);
-  font-size: 10px;
+  font-size: var(--ui-type-label);
   font-weight: bold;
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--text-dim);
 }
-.st-hud__strip-scroll-hint { display: none; }
 .st-hud__strip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   pointer-events: auto;
   cursor: pointer;
   flex: 0 0 auto;
   min-width: 22px;
   min-height: 22px;
   padding: 0 4px;
-  border: 1px solid rgba(255, 210, 63, 0.22);
-  border-radius: 4px;
-  background: rgba(12, 7, 22, 0.7);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
   color: var(--text-gold);
   font-size: 11px;
   line-height: 1;
 }
-.st-hud__strip-toggle:hover { border-color: var(--gold); color: var(--gold); }
+.st-hud__strip-toggle:hover { background: var(--ui-surface-active); color: var(--gold); }
+.st-hud__strip-toggle .st-ui-icon {
+  margin: 0;
+  transition: transform 130ms ease;
+}
+.st-hud__strip-toggle-label {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.st-hud__strip--open .st-hud__strip-toggle .st-ui-icon {
+  transform: rotate(180deg);
+}
 .st-hud__strip-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1807,11 +2365,11 @@ export class HUD {
   width: 100%;
   box-sizing: border-box;
   padding: 5px 9px;
-  border: 1px solid rgba(255, 210, 63, 0.18);
-  border-radius: 5px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-sm);
   background:
     linear-gradient(180deg, rgba(255, 210, 63, 0.035), rgba(12, 7, 22, 0.74)),
-    rgba(12, 7, 22, 0.7);
+    var(--ui-surface);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 11px;
@@ -1833,6 +2391,34 @@ export class HUD {
 }
 .st-hud__weapon-btn--depleted { opacity: 0.4; }
 .st-hud__weapon-btn:disabled { cursor: default; }
+.st-weapon-icon {
+  display: block;
+  flex: 0 0 auto;
+  color: var(--ui-muted);
+  stroke: currentColor;
+  filter: drop-shadow(0 0 3px rgba(255, 233, 168, 0.08));
+}
+.st-hud__weapon-btn .st-weapon-icon,
+.st-hud__store-name-line .st-weapon-icon {
+  width: 18px;
+  height: 18px;
+}
+.st-weapon-icon[data-family='nuclear'],
+.st-weapon-icon[data-family='death'] { color: var(--tank-red-lite); }
+.st-weapon-icon[data-family='fire'],
+.st-weapon-icon[data-family='volatile'] { color: var(--ember); }
+.st-weapon-icon[data-family='defense'] { color: var(--tank-blue-lite); }
+.st-weapon-icon[data-family='terrain'] { color: #c49359; }
+.st-weapon-icon[data-family='drill'] { color: #f3a83b; }
+.st-hud__weapon-btn--active .st-weapon-icon {
+  color: var(--gold);
+  filter: drop-shadow(0 0 4px rgba(255, 210, 63, 0.42));
+}
+.st-hud__weapon-btn-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+}
 .st-hud__weapon-btn-ammo {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -1966,26 +2552,90 @@ export class HUD {
 }
 .st-hud__restart--ghost:hover { background: rgba(255, 210, 63, 0.16); }
 
-/* ---- Store ---- */
+/* ---- Turn actions + Store ---- */
+.st-hud__turn-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 8px 7px;
+  border-top: 1px solid rgba(255, 210, 63, 0.14);
+  background: rgba(6, 3, 11, 0.34);
+  flex-shrink: 0;
+}
+.st-hud__turn-actions .st-hud__store-btn {
+  width: auto;
+  min-width: 0;
+  flex: 0.9;
+}
+.st-hud__primary-action {
+  min-width: 0;
+  min-height: 42px;
+  flex: 1.35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  pointer-events: auto;
+  cursor: pointer;
+  border: 1px solid var(--ui-action);
+  border-radius: var(--ui-radius-md);
+  background:
+    linear-gradient(180deg, rgba(212, 86, 42, 0.72), rgba(115, 30, 57, 0.86));
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--ui-type-body);
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 233, 168, 0.24),
+    0 0 14px rgba(255, 122, 31, 0.18);
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+}
+.st-hud__primary-action:hover:not(:disabled) {
+  border-color: var(--gold);
+  background:
+    linear-gradient(180deg, rgba(234, 101, 43, 0.86), rgba(142, 47, 83, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 233, 168, 0.32),
+    0 0 18px rgba(255, 122, 31, 0.28);
+}
+.st-hud__primary-action:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.st-hud__primary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+  filter: saturate(0.45);
+  box-shadow: none;
+}
 .st-hud__store-btn {
+  display: flex;
+  align-items: center;
   width: 100%;
   pointer-events: auto;
   cursor: pointer;
-  padding: 9px 10px;
-  margin-top: 4px;
-  border: 1px solid rgba(122, 215, 255, 0.46);
-  border-radius: 6px;
-  background:
-    linear-gradient(90deg, rgba(122, 215, 255, 0.08), rgba(12, 7, 22, 0.70)),
-    rgba(12, 7, 22, 0.7);
-  color: var(--tank-blue-lite, #7ad7ff);
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 7px 8px;
+  margin: 0;
+  border: 1px solid rgba(255, 210, 63, 0.20);
+  border-radius: var(--ui-radius-md);
+  background: rgba(255, 210, 63, 0.035);
+  color: var(--ui-muted);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--ui-type-body);
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
   transition: background 130ms ease, border-color 130ms ease;
 }
-.st-hud__store-btn:hover { background: rgba(122, 215, 255, 0.18); border-color: #7ad7ff; }
+.st-hud__store-btn:hover { background: var(--ui-surface-active); color: var(--ui-action); }
 .st-hud__store {
   position: absolute;
   inset: 0;
@@ -2037,6 +2687,12 @@ export class HUD {
   background: rgba(255, 255, 255, 0.03);
 }
 .st-hud__store-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.st-hud__store-name-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
 .st-hud__store-name { color: var(--text-gold); font-size: 13px; }
 .st-hud__store-owned {
   opacity: 0.6;
@@ -2171,69 +2827,129 @@ export class HUD {
   from { opacity: 1; }
   to { opacity: 0; }
 }
+@keyframes st-hud-turn-handoff {
+  0% {
+    filter: brightness(1.65);
+    box-shadow: inset 3px 0 var(--st-turn-color), 0 0 18px rgba(255, 210, 63, 0.34);
+  }
+  100% {
+    filter: brightness(1);
+    box-shadow: inset 3px 0 transparent, 0 0 0 rgba(255, 210, 63, 0);
+  }
+}
+@keyframes st-hud-roster-handoff {
+  0% { filter: brightness(1.55); }
+  100% { filter: brightness(1); }
+}
 @media (prefers-reduced-motion: reduce) {
   .st-hud__player--active { animation: none; }
+  .st-hud__player--handoff,
+  .st-hud__active-row--handoff { animation: none; }
   .st-hud__player--hit::after { animation: none; opacity: 0; }
   .st-hud__bar-fill,
   .st-hud__weapon-btn,
-  .st-hud__restart { transition: none; }
+  .st-hud__restart,
+  .st-hud__touch-btn { transition: none; }
 }
 
-/* ===== Touch-aim strip (M2 mobile) ===================================== */
-/* Hidden on precise-pointer (mouse) devices; shown on coarse (touch). */
+/* ===== Coarse-pointer command dock ===================================== */
+/* Hidden on precise pointers; replaces the keyboard deck on touch. */
 .st-hud__touch-strip {
+  position: absolute;
+  top: 14px;
+  left: 14px;
   display: none;
-  /* Push to the bottom of the #hud flex column by consuming leftover space above. */
-  margin-top: auto;
-  width: 100%;
-  flex-shrink: 0;
-  gap: 4px;
-  padding: 6px 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  width: min(560px, calc(100% - 28px));
+  /* 72 logical px resolves to 45 rendered px at the supported 0.625 phone scale. */
+  padding: 6px;
   box-sizing: border-box;
-  background: rgba(12, 7, 22, 0.88);
-  border-top: 1px solid rgba(255, 210, 63, 0.22);
+  border: 1px solid rgba(255, 210, 63, 0.32);
+  border-radius: 10px;
+  background:
+    radial-gradient(100% 120% at 0% 0%, rgba(122, 215, 255, 0.10), transparent 52%),
+    linear-gradient(180deg, rgba(28, 16, 47, 0.94), rgba(8, 5, 15, 0.94));
+  box-shadow:
+    inset 0 0 0 1px rgba(8, 4, 13, 0.78),
+    0 10px 28px rgba(0, 0, 0, 0.38);
   pointer-events: auto;
   /* Prevent touch gestures (scroll, pinch) hijacking button presses. */
   touch-action: none;
 }
 @media (pointer: coarse) {
-  .st-hud__touch-strip { display: flex; }
+  .st-hud__touch-strip { display: grid; }
 }
+.st-hud__touch-strip[inert] { display: none; }
 .st-hud__touch-btn {
-  flex: 1;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  place-items: center;
+  gap: 4px;
+  min-width: 0;
   cursor: pointer;
   /* 52px ensures ~40px effective height even at 0.78× game scale on phones. */
-  min-height: 52px;
-  padding: 4px 2px;
-  border: 1px solid rgba(255, 210, 63, 0.28);
+  min-height: 72px;
+  padding: 5px 6px;
+  border: 1px solid rgba(255, 210, 63, 0.27);
   border-radius: 6px;
-  background: rgba(12, 7, 22, 0.82);
+  background:
+    linear-gradient(145deg, rgba(255, 233, 168, 0.07), transparent 50%),
+    rgba(10, 6, 18, 0.86);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 233, 168, 0.06),
+    0 2px 7px rgba(0, 0, 0, 0.24);
   color: var(--text-gold);
-  font-family: var(--font-sans);
-  font-size: 10px;
-  line-height: 1.3;
-  text-align: center;
-  white-space: pre-line;
   -webkit-tap-highlight-color: transparent;
   touch-action: none;
-  transition: background 60ms ease;
+  transition:
+    background 70ms ease,
+    border-color 70ms ease,
+    transform 70ms ease;
 }
-.st-hud__touch-btn:active:not(:disabled) { background: rgba(255, 122, 31, 0.32); }
+.st-hud__touch-symbol {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(255, 210, 63, 0.20);
+  border-radius: 5px;
+  background: rgba(255, 210, 63, 0.08);
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+.st-hud__touch-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-copy);
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.35px;
+  line-height: 1.05;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+.st-hud__touch-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  border-color: rgba(255, 122, 31, 0.58);
+  background:
+    linear-gradient(145deg, rgba(255, 122, 31, 0.20), transparent 58%),
+    rgba(16, 8, 24, 0.94);
+}
 .st-hud__touch-btn:disabled { opacity: 0.38; cursor: not-allowed; }
 .st-hud__touch-weapon {
-  border-color: rgba(122, 215, 255, 0.4);
+  border-color: rgba(122, 215, 255, 0.42);
   color: var(--tank-blue-lite, #7ad7ff);
 }
-.st-hud__touch-fire {
-  background: rgba(142, 47, 83, 0.55);
-  border-color: var(--ember);
-  color: var(--text);
-  font-weight: bold;
-  font-size: 13px;
-  flex: 1.4;
+.st-hud__touch-weapon .st-hud__touch-symbol {
+  border-color: rgba(122, 215, 255, 0.30);
+  background: rgba(122, 215, 255, 0.08);
+  color: var(--tank-blue-lite, #7ad7ff);
 }
-.st-hud__touch-fire:active:not(:disabled) { background: rgba(212, 86, 42, 0.65); }
-
 /* ===== Coarse-pointer (touch) overrides ================================ */
 /* Enlarge interactive targets to ≥44px and hide the keyboard legend. */
 @media (pointer: coarse) {
@@ -2244,195 +2960,459 @@ export class HUD {
   .st-hud__restart    { min-height: 48px; padding-top: 12px; padding-bottom: 12px; }
   .st-hud__menu       { min-height: 44px; }
   .st-hud__store-btn  { min-height: 44px; }
+  /* #app zoom reaches 0.625 at the supported phone-landscape viewport, so
+     72 logical px preserves a >=44 CSS-pixel hit target after scaling. */
+  .st-hud__primary-action { min-height: 72px; }
   .st-hud__store-close { min-height: 44px; }
   .st-hud__turnwatch-leave { min-height: 44px; padding: 0 14px; }
 }
 
-/* ===== Cockpit instrument cluster (#44) ================================ */
-/* A single bordered panel holding three SVG gauges in a row. All sizing is
- * box-sizing:border-box and width:100% so nothing overflows the 264px panel. */
+/* ===== Ballistic fire-control console ================================== */
 .st-hud__instruments {
+  position: relative;
   box-sizing: border-box;
   width: 100%;
-  padding: 9px 9px 10px;
+  padding: 8px 10px;
   background:
-    radial-gradient(90% 80% at 50% 0%, rgba(255, 210, 63, 0.10), rgba(255, 210, 63, 0) 58%),
-    linear-gradient(180deg, rgba(28, 16, 50, 0.88), rgba(12, 7, 22, 0.76));
-  border: 1px solid rgba(255, 210, 63, 0.40);
-  border-radius: 8px;
+    linear-gradient(135deg, rgba(255, 210, 63, 0.10), transparent 28%),
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 122, 31, 0.16), transparent 62%),
+    linear-gradient(180deg, #241535 0%, #0d0816 100%);
+  border: 2px solid rgba(255, 210, 63, 0.54);
+  border-radius: 7px;
   box-shadow:
-    inset 0 0 16px rgba(255, 122, 31, 0.10),
-    inset 0 -14px 22px rgba(0, 0, 0, 0.22),
-    0 5px 16px rgba(0, 0, 0, 0.34);
+    inset 0 0 0 2px rgba(8, 4, 13, 0.92),
+    inset 0 0 24px rgba(255, 122, 31, 0.12),
+    0 0 0 1px rgba(255, 233, 168, 0.10),
+    0 7px 18px rgba(0, 0, 0, 0.42);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   overflow: hidden;
-  /* flex-shrink:0 is load-bearing. #hud is a flex column; when the touch strip
-   * (coarse-pointer) pushes total content past the 600px panel, flex shrinks
-   * children — and overflow:hidden zeroes this panel's automatic minimum size
-   * (min-height:auto floors only overflow:visible items). Without this, the
-   * cluster is the sacrificial child: it crushes to title-height and clips the
-   * gauges AND the numeric readouts, leaving only "Instruments" visible on
-   * phones. Opting out of shrink lets #hud's own overflow-y:auto scroll instead. */
+  /* Keep the console physical; the fitted combat rail does not flex-crush it. */
   flex-shrink: 0;
+}
+.st-hud__instruments::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(255, 233, 168, 0.10);
+  border-radius: 3px;
+  pointer-events: none;
+}
+.st-hud__instruments::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #09050e;
+  border: 1px solid rgba(255, 233, 168, 0.30);
+  box-shadow: 222px 0 #09050e, 0 140px #09050e, 222px 140px #09050e;
+  pointer-events: none;
 }
 .st-hud__instr-title {
   font-family: var(--font-display);
-  font-size: 9px;
+  font-size: var(--ui-type-label);
   font-weight: bold;
-  letter-spacing: 3.2px;
+  letter-spacing: 2.6px;
   text-transform: uppercase;
-  color: rgba(255, 233, 168, 0.66);
+  color: var(--text-gold);
+  text-shadow: 0 0 8px rgba(255, 122, 31, 0.34);
   text-align: center;
-  padding-bottom: 5px;
-  border-bottom: 1px solid rgba(255, 210, 63, 0.18);
+  padding: 1px 12px 6px;
+  border-bottom: 1px solid rgba(255, 210, 63, 0.30);
 }
-/* Three equal-width gauge cells in a row, no overflow. */
 .st-hud__gauge-row {
-  display: flex;
-  flex-direction: row;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    'elevation power'
+    'wind wind';
+  gap: 6px;
   width: 100%;
-  overflow: hidden;
+  min-width: 0;
 }
 .st-hud__gauge-cell {
-  flex: 1 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
+  padding: 5px 6px 3px;
+  border: 1px solid rgba(255, 210, 63, 0.24);
+  border-radius: 5px;
+  background:
+    radial-gradient(circle at 50% 58%, rgba(255, 210, 63, 0.10), transparent 58%),
+    linear-gradient(180deg, rgba(7, 4, 12, 0.84), rgba(18, 10, 27, 0.78));
+  box-shadow:
+    inset 0 0 12px rgba(0, 0, 0, 0.72),
+    inset 0 1px 0 rgba(255, 233, 168, 0.08);
+}
+.st-hud__gauge-cell--elevation { grid-area: elevation; }
+.st-hud__gauge-cell--power { grid-area: power; }
+.st-hud__gauge-cell--wind {
+  grid-area: wind;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  padding: 3px 8px;
+}
+.st-hud__gauge-cell > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.st-hud__gauge-cell--elevation > svg,
+.st-hud__gauge-cell--power > svg {
+  width: 88%;
 }
 .st-hud__gauge-cell-title {
   font-family: var(--font-display);
-  font-size: 8px;
-  letter-spacing: 1.5px;
+  font-size: 9px;
+  letter-spacing: 1.3px;
   text-transform: uppercase;
-  color: var(--text-dim);
+  color: rgba(255, 233, 168, 0.70);
   text-align: center;
 }
-/* SVG gauge shared element styles — referenced by SVG class attributes. */
 .st-hud__gauge-track {
   fill: none;
-  stroke: rgba(255, 210, 63, 0.18);
-  stroke-width: 3;
+  stroke: rgba(255, 210, 63, 0.30);
+  stroke-width: 4;
   stroke-linecap: round;
+  filter: drop-shadow(0 0 2px rgba(255, 122, 31, 0.26));
 }
 .st-hud__gauge-track-rect {
-  fill: rgba(255, 210, 63, 0.12);
-  stroke: rgba(255, 210, 63, 0.22);
-  stroke-width: 1;
+  fill: rgba(255, 210, 63, 0.14);
+  stroke: rgba(255, 210, 63, 0.42);
+  stroke-width: 2;
 }
 .st-hud__gauge-ticks {
   fill: none;
-  stroke: rgba(255, 210, 63, 0.35);
-  stroke-width: 1;
+  stroke: rgba(255, 233, 168, 0.62);
+  stroke-width: 1.6;
   stroke-linecap: round;
 }
 .st-hud__gauge-pivot {
   fill: var(--gold);
+  filter: drop-shadow(0 0 3px rgba(255, 210, 63, 0.66));
 }
 .st-hud__gauge-needle {
   stroke: var(--gold);
-  stroke-width: 2;
+  stroke-width: 3;
   stroke-linecap: round;
+  filter: drop-shadow(0 0 3px rgba(255, 210, 63, 0.66));
 }
-/* Wind marker (rotated rect) */
 .st-hud__gauge-needle-rect {
   fill: var(--gold);
+  filter: drop-shadow(0 0 3px rgba(255, 210, 63, 0.72));
 }
-/* Power arc fill: gold→ember gradient effect via a single stroke color;
- * stroke-dasharray is set per-frame via JS. */
 .st-hud__gauge-power-fill {
   fill: none;
   stroke: var(--ember);
-  stroke-width: 4;
+  stroke-width: 5;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 3px rgba(255, 122, 31, 0.6));
+  filter: drop-shadow(0 0 4px rgba(255, 122, 31, 0.72));
 }
-/* On-gauge numeric labels: monospace, small, gold. */
 .st-hud__gauge-label {
   fill: var(--text-gold);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--ui-type-body);
+  font-weight: bold;
   font-variant-numeric: tabular-nums;
 }
 .st-hud__gauge-label--lg {
-  font-size: 11px;
+  font-size: var(--ui-type-title);
   fill: var(--gold);
-  font-weight: bold;
 }
-/* ── Mobile numeric readouts (coarse-pointer alternative to the dials) ──────
- * The analog dials' 1–3px gold strokes go sub-pixel and vanish when #app is
- * zoom-scaled down on a phone (leaving only the bold "Instruments" title
- * legible). On touch devices we hide the dials and show these bold numbers
- * instead. Hidden by default so fine-pointer (desktop) keeps the dials. */
-.st-hud__gauge-nums {
-  display: none;
-  gap: 4px;
-  width: 100%;
+#app.is-compact .st-hud__gauge-track { stroke-width: 5; }
+#app.is-compact .st-hud__gauge-ticks { stroke-width: 2; }
+#app.is-compact .st-hud__gauge-needle { stroke-width: 4; }
+#app.is-compact .st-hud__gauge-label { font-size: 12px; }
+@media (pointer: coarse) {
+  #app .st-hud__instruments {
+    gap: 1px;
+    padding: 0 7px;
+  }
+  #app .st-hud__instr-title {
+    padding: 0 8px;
+  }
+  #app .st-hud__gauge-row {
+    gap: 3px;
+  }
+  #app .st-hud__gauge-cell {
+    gap: 1px;
+    padding: 2px 5px 0;
+  }
+  #app .st-hud__gauge-cell--wind {
+    padding: 1px 6px;
+  }
 }
-.st-hud__gauge-num {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  padding: 3px 2px;
-  background: rgba(255, 210, 63, 0.06);
-  border-radius: 4px;
-}
-.st-hud__gauge-num-title {
-  font-family: var(--font-display);
-  font-size: 8px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.st-hud__gauge-num-value {
-  font-family: var(--font-mono);
-  font-size: 16px;
-  font-weight: bold;
-  color: var(--text-gold);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-  white-space: nowrap;
-}
-/* Dials -> numeric readouts is driven by the ACTUAL HUD scale, not pointer type:
- * main.ts flags #app.is-compact when the zoom drops below the dial-legibility
- * threshold, so small / remote FINE-pointer windows get numerics too, not just
- * touch devices (a pointer test left those users staring at dissolved dials).
- * The compound #app.is-compact selector easily outranks the base display rules. */
-#app.is-compact .st-hud__gauge-row  { display: none; }
-#app.is-compact .st-hud__gauge-nums { display: flex; }
 /* On touch devices, lift the touch controls up to sit right after the players
  * list (before the instruments) instead of being pinned to the bottom of the
- * scrollable panel. Every child from instruments onward gets order:1; the touch
+ * fitted panel. Every child from instruments onward gets order:1; the touch
  * strip keeps the default order:0, so (being the last DOM child of #hud) it
  * renders at the end of the order:0 group: after menu/round/players. */
 @media (pointer: coarse) {
   .st-hud__touch-strip { margin-top: 0; }
   .st-hud__instruments,
-  .st-hud__active-row,
-  .st-hud__aim,
-  .st-hud__store-btn,
+  .st-hud__command-console,
   .st-hud__strip { order: 1; }
 }
-/* Active player + weapon row (below the cluster). */
-.st-hud__active-row {
+/* One command surface: identity first, tactics second, commitment last. */
+.st-hud__command-console {
+  --ui-section-padding: 0;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  min-width: 0;
+  flex-shrink: 0;
   overflow: hidden;
-  /* Same flex-crush guard as .st-hud__instruments: this is the only other #hud
-   * flex child with overflow:hidden, so without it the name/weapon row is the
-   * next element squeezed to zero when the panel content overflows on touch. */
+}
+.st-hud__active-row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px 8px 6px 12px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--st-turn-color) 15%, transparent), transparent 62%);
   flex-shrink: 0;
 }
+.st-hud__tactical-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 94px;
+  align-items: stretch;
+  gap: 5px;
+  min-width: 0;
+}
+.st-hud__tactical-row .st-hud__weapon {
+  min-width: 0;
+}
+.st-hud__mobility {
+  display: grid;
+  grid-template-columns: 27px minmax(36px, 1fr) 27px;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  pointer-events: auto;
+}
+.st-hud__move-btn {
+  min-width: 0;
+  min-height: 34px;
+  padding: 2px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border: 1px solid rgba(122, 215, 255, 0.32);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgba(122, 215, 255, 0.12), rgba(12, 7, 22, 0.72));
+  color: var(--tank-blue-lite, #7ad7ff);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  line-height: 1;
+}
+.st-hud__move-direction {
+  color: var(--tank-blue-lite, #7ad7ff);
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 0.8;
+}
+.st-hud__move-btn kbd {
+  min-width: 12px;
+  padding: 1px 2px;
+  border: 1px solid rgba(122, 215, 255, 0.22);
+  border-radius: 2px;
+  background: rgba(122, 215, 255, 0.08);
+  color: rgba(183, 225, 255, 0.78);
+  font-family: var(--font-mono);
+  font-size: 6px;
+  line-height: 1;
+}
+.st-hud__move-btn:hover:not(:disabled) {
+  border-color: rgba(122, 215, 255, 0.68);
+  background:
+    linear-gradient(180deg, rgba(122, 215, 255, 0.24), rgba(12, 7, 22, 0.72));
+}
+.st-hud__move-btn:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.st-hud__move-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.36;
+}
+.st-hud__fuel {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 0 1px;
+}
+.st-hud__fuel-readout {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  pointer-events: none;
+}
+.st-hud__fuel-label {
+  color: var(--ui-muted);
+  font-family: var(--font-display);
+  font-size: 6px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.st-hud__fuel-value {
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.9;
+}
+.st-hud__fuel-meter {
+  --st-fuel-level: 0%;
+  --st-fuel-color: var(--gold);
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from -90deg,
+      var(--st-fuel-color) 0 var(--st-fuel-level),
+      rgba(255, 210, 63, 0.11) var(--st-fuel-level) 100%
+    );
+  box-shadow:
+    0 0 7px color-mix(in srgb, var(--st-fuel-color) 22%, transparent),
+    inset 0 0 0 1px rgba(255, 233, 168, 0.08);
+  isolation: isolate;
+}
+.st-hud__fuel-meter::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  z-index: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(69, 39, 77, 0.92), rgba(7, 4, 12, 0.98) 72%);
+  box-shadow: inset 0 0 0 1px rgba(255, 233, 168, 0.08);
+}
+.st-hud__fuel-meter[data-fuel-band="low"] {
+  --st-fuel-color: var(--ember);
+}
+.st-hud__fuel-meter[data-fuel-band="low"] .st-hud__fuel-value {
+  color: var(--ember);
+}
+.st-hud__fuel-meter[data-fuel-band="empty"] {
+  --st-fuel-color: rgba(154, 134, 184, 0.55);
+}
+.st-hud__fuel-meter[data-fuel-band="empty"] .st-hud__fuel-value {
+  color: var(--ui-muted);
+}
+.st-hud__fuel-meter[data-fuel-tone="reserve"] {
+  --st-fuel-color: var(--tank-blue-lite, #7fb0ff);
+}
+.st-hud__fuel-meter[data-fuel-tone="deep-reserve"] {
+  --st-fuel-color: #c084fc;
+}
+.st-hud__active-row::before {
+  content: '';
+  position: absolute;
+  inset: 5px auto 5px 2px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--st-turn-color, var(--ui-action));
+  box-shadow: 0 0 8px var(--st-turn-color, var(--ui-action));
+}
+#app.is-compact .st-hud__active-row {
+  gap: 3px;
+  padding-block: 2px;
+}
+#app.is-compact .st-hud__turn-actions {
+  padding: 3px 6px;
+}
+#app.is-compact .st-hud__move-btn {
+  min-height: 40px;
+}
+#app.is-compact .st-hud__fuel-label {
+  font-size: 7px;
+  letter-spacing: 0.35px;
+}
+#app.is-compact .st-hud__fuel-value {
+  font-size: 12px;
+}
+#app.is-compact .st-hud__controls-title {
+  font-size: 9.5px;
+}
+#app.is-compact .st-hud__control-label {
+  font-size: 9px;
+}
+#app.is-compact .st-hud__controls kbd {
+  font-size: 7.5px;
+}
+@media (pointer: coarse) {
+  #app .st-hud__active-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 94px;
+    grid-template-rows: auto auto;
+    gap: 3px 5px;
+    padding-block: 2px;
+  }
+  #app .st-hud__turn-status {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  #app .st-hud__turn-owner {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  #app .st-hud__tactical-row {
+    display: contents;
+  }
+  #app .st-hud__tactical-row .st-hud__weapon {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  #app .st-hud__mobility {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+  #app .st-hud__turn-actions {
+    padding: 3px 6px;
+  }
+  #app .st-hud__move-btn,
+  #app .st-hud__store-btn {
+    min-height: 56px;
+  }
+  #app.is-compact .st-hud__move-btn,
+  #app.is-compact .st-hud__store-btn,
+  #app.is-compact .st-hud__primary-action {
+    min-height: 78px;
+  }
+}
+.st-hud__active-row--handoff {
+  animation: st-hud-turn-handoff 560ms ease-out;
+}
 .st-hud__active-row--hidden { display: none; }
-/* The aim strip is only shown during "Sending..." (firing state). */
+/* Shot progress replaces the owner row during submit, flight, and resolution. */
 .st-hud__aim--hidden { display: none; }
 /* Gauges are reduced-motion-safe by construction: needle/marker/fill are driven by
    direct attribute mutation (transform / stroke-dasharray) with no CSS transition,

@@ -328,6 +328,7 @@ function fireShot(engine, { angle, power, weapon }) {
   } else {
     for (let i = 0; i < ex.length; i++) {
       const e = ex[i];
+      if (e.weaponType !== 'bouncing_betty') fail(`betty explosion[${i}] weaponType=${e.weaponType}, expected bouncing_betty`);
       if (e.style !== BETTY_DET.style) fail(`betty explosion[${i}] style=${e.style}, expected ${BETTY_DET.style}`);
       if (e.color !== BETTY_DET.color) fail(`betty explosion[${i}] color=${e.color}, expected ${BETTY_DET.color}`);
       if (e.durationFrames !== BETTY_DET.durationFrames) fail(`betty explosion[${i}] dur=${e.durationFrames}, expected ${BETTY_DET.durationFrames}`);

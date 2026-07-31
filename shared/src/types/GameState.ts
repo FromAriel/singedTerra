@@ -1,4 +1,6 @@
 import type { WeaponType } from '../engine/WeaponSystem';
+import type { WallMode } from './GameOptions';
+import type { TankLoadout } from './TankLoadout';
 
 /** Turn-system phases (SPEC §4.3 / §6). */
 export type GamePhase =
@@ -23,7 +25,7 @@ export interface GameState {
    * `GameOptions.rounds` is 1 (the default / back-compat single-round mode). Bumped
    * by the engine when a round resolves and the match isn't over. Determinism: the
    * round's terrain + wind are derived from `seed` + this index, so every networked
-   * client regenerates the identical round. See docs/SPRINT6_MATCH_STRUCTURE.md.
+   * client regenerates the identical round. See docs/archive/SPRINT6_MATCH_STRUCTURE.md.
    */
   round: number;
   /** Best-of-N match length (echo of `GameOptions.rounds`, clamped to >= 1). */
@@ -39,6 +41,8 @@ export interface GameState {
   lastRoundWinnerId: string | null;
   /** Current wind value, range [-MAX_WIND, +MAX_WIND]. */
   wind: number;
+  /** Normalized horizontal boundary rule for engine, AI, and presentation. */
+  walls: WallMode;
   /**
    * Pixel terrain bitmap (Uint8Array of length CANVAS_WIDTH*CANVAS_HEIGHT,
    * index y*CANVAS_WIDTH + x, 0 = air, 1 = solid). Held by the engine and
@@ -95,6 +99,8 @@ export interface GameState {
    * `null` if none) for back-compat with consumers that read a single event.
    */
   explosions: ExplosionEvent[];
+  /** Wall contacts produced by the current shot, with monotonic cross-shot ids. */
+  wallImpacts: WallImpactEvent[];
   /**
    * Active napalm fire field — every terrain column currently burning, with the
    * ticks of burn each has remaining. `[]` whenever nothing is alight (the
@@ -117,8 +123,18 @@ export interface FireCell {
   life: number;
 }
 
+/** Authoritative contact emitted when a projectile reflects from a side rail. */
+export interface WallImpactEvent {
+  id: number;
+  side: 'left' | 'right';
+  x: number;
+  y: number;
+}
+
 /** Visual style of an explosion — drives the client's burst rendering. */
 export type ExplosionStyle = 'blast' | 'cluster';
+/** Authoritative surface struck by the projectile that produced an explosion. */
+export type ExplosionImpactType = 'ground' | 'tank';
 
 /**
  * Authoritative explosion record surfaced in {@link GameState.lastExplosion}
@@ -130,12 +146,19 @@ export type ExplosionStyle = 'blast' | 'cluster';
 export interface ExplosionEvent {
   /** Monotonically increasing id; the client dedupes bursts by this. */
   id: number;
+  /** Weapon whose replayed action produced this event; client cosmetic provenance. */
+  weaponType: WeaponType;
   /** Blast center x (canvas px). */
   cx: number;
   /** Blast center y (canvas px). */
   cy: number;
   /** Blast radius (px). */
   radius: number;
+  /**
+   * Surface struck by the projectile, when the explosion came from a swept
+   * collision. Air/flight-cap explosions intentionally omit this field.
+   */
+  impactType?: ExplosionImpactType;
   /** Visual style of the burst (e.g. single 'blast' vs 'cluster' bomblet). */
   style: ExplosionStyle;
   /** CSS color string for the burst (from the weapon definition). */
@@ -179,6 +202,8 @@ export interface TankState {
   inventory: Record<WeaponType, AmmoEntry>;
   /** CSS color string. */
   color: string;
+  /** Presentation-only authored part selection; simulation never reads it. */
+  loadout: TankLoadout;
   alive: boolean;
   /**
    * Remaining shield HP — a damage-absorbing force field (SPEC §4.5, Sprint 4
@@ -208,7 +233,7 @@ export interface TankState {
    * Rounds this tank has won in the current match (V1 match structure). Starts at 0,
    * incremented when this tank is the sole survivor of a round. The match ends when a
    * tank reaches ceil(totalRounds/2). Accumulates across rounds (unlike health, which
-   * resets). Deterministic integer. See docs/SPRINT6_MATCH_STRUCTURE.md.
+   * resets). Deterministic integer. See docs/archive/SPRINT6_MATCH_STRUCTURE.md.
    */
   roundWins: number;
   /**
@@ -262,4 +287,9 @@ export interface ProjectileState {
    * detonates immediately, preserving existing behavior.
    */
   bounces: number;
+  /**
+   * Remaining fixed underground drill steps for Sandhog. Absent during normal
+   * ballistic flight and on every other projectile type.
+   */
+  burrowTicksRemaining?: number;
 }

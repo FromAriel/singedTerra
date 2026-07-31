@@ -17,6 +17,8 @@
  * the pure helpers/constants already extracted into ../ui/lobbyValidation.
  */
 import type { AiDifficulty } from '@shared/types/GameState';
+import type { WallMode } from '@shared/types/GameOptions';
+import type { TankLoadout } from '@shared/types/TankLoadout';
 import { clamp } from '@shared/engine/math';
 import { callFunction, type EdgeResult } from '../lib/edgeFunctions';
 import {
@@ -40,6 +42,8 @@ export interface NetworkPlayer {
   ready: boolean;
   /** CPU difficulty for bot seats; absent => human. */
   ai?: AiDifficulty;
+  /** Presentation-only authored part selection; absent on legacy rooms. */
+  loadout?: TankLoadout;
 }
 
 /** Per-room engine options as stored on the room row / echoed by the Edge
@@ -49,6 +53,7 @@ export type RoomOptions = {
   maxPlayers: number;
   maxWind: number;
   gravity: number;
+  walls?: WallMode;
   rounds?: number;
   interestRate?: number;
   suddenDeathTurn?: number;
@@ -128,12 +133,19 @@ export interface FetchedRoom {
 export interface CreateRoomParams {
   playerName: string;
   color: string;
-  bots: Array<{ name: string; color: string; ai: AiDifficulty }>;
+  loadout: TankLoadout;
+  bots: Array<{
+    name: string;
+    color: string;
+    ai: AiDifficulty;
+    loadout: TankLoadout;
+  }>;
   maxPlayers: number;
   visibility: RoomVisibility;
   /** Raw advanced-settings inputs, exactly as typed into the UI. */
   maxWind: string;
   gravity: string;
+  walls: string;
   rounds: string;
   interestRate: string;
   suddenDeath: string;
@@ -145,6 +157,7 @@ export interface JoinRoomParams {
   code: string;
   playerName: string;
   color: string;
+  loadout: TankLoadout;
 }
 
 export interface SeatParams {
@@ -154,7 +167,7 @@ export interface SeatParams {
 }
 
 export interface UpdatePlayerParams extends SeatParams {
-  fields: { name?: string; color?: string };
+  fields: { name?: string; color?: string; loadout?: TankLoadout };
 }
 
 /**
@@ -172,10 +185,12 @@ export class LobbyTransport {
     const body: Record<string, unknown> = {
       playerName: params.playerName,
       color: params.color,
+      loadout: params.loadout,
       ...(params.bots.length > 0 ? { bots: params.bots } : {}),
       options: {
         maxPlayers: params.maxPlayers,
         visibility: params.visibility,
+        walls: params.walls === 'reflective' ? 'reflective' : 'open',
         ...(maxWind !== undefined ? { maxWind: clamp(maxWind, WIND_MIN, WIND_MAX) } : {}),
         ...(gravity !== undefined ? { gravity: clamp(gravity, GRAVITY_MIN, GRAVITY_MAX) } : {}),
         ...(rounds !== undefined ? { rounds } : {}),
@@ -191,6 +206,7 @@ export class LobbyTransport {
       code: params.code,
       playerName: params.playerName,
       color: params.color,
+      loadout: params.loadout,
     });
   }
 

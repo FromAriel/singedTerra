@@ -8,12 +8,13 @@
  * call), mirroring the fake-transport seam already used elsewhere in the
  * Lobby test suite.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Lobby, type LobbyConfig } from './Lobby';
 import { LobbyTransport, type FetchedRoom } from '../client/LobbyTransport';
 import { writeSession, readSession, type SessionDescriptor } from '../lib/sessionDescriptor';
 import { NetworkClient } from '../client/NetworkClient';
+import { DEFAULT_TANK_LOADOUT } from '@shared/types/TankLoadout';
 
 interface LobbyInternals {
   transport: LobbyTransport;
@@ -183,7 +184,7 @@ function makeFakeSupabase(actionsLog: unknown[]): { supabase: SupabaseClient } {
 describe('Lobby.handleRejoin (T-10, AC-06)', () => {
   let root: HTMLDivElement;
   let lobby: Lobby;
-  let onReady: ReturnType<typeof vi.fn>;
+  let onReady: Mock<(config: LobbyConfig) => void>;
 
   beforeEach(() => {
     try {
@@ -217,7 +218,7 @@ describe('Lobby.handleRejoin (T-10, AC-06)', () => {
 
     const room = activeRoom({
       seed: 7,
-      options: { maxPlayers: 2, maxWind: 12, gravity: 0.2, rounds: 3 },
+      options: { maxPlayers: 2, maxWind: 12, gravity: 0.2, walls: 'reflective', rounds: 3 },
       players: [
         { id: 'p-1', name: 'Alice', color: '#e84d4d', ready: true },
         { id: 'p-2', name: 'Bob', color: '#4d8ce8', ready: true },
@@ -241,10 +242,26 @@ describe('Lobby.handleRejoin (T-10, AC-06)', () => {
     expect(config.playerId).toBe('p-1');
     expect(config.token).toBe('secret-token-abc');
     expect(config.players).toEqual([
-      { id: 'p-1', name: 'Alice', color: '#e84d4d' },
-      { id: 'p-2', name: 'Bob', color: '#4d8ce8' },
+      {
+        id: 'p-1',
+        name: 'Alice',
+        color: '#e84d4d',
+        loadout: DEFAULT_TANK_LOADOUT,
+      },
+      {
+        id: 'p-2',
+        name: 'Bob',
+        color: '#4d8ce8',
+        loadout: DEFAULT_TANK_LOADOUT,
+      },
     ]);
-    expect(config.settings).toMatchObject({ seed: 7, maxWind: 12, gravity: 0.2, rounds: 3 });
+    expect(config.settings).toMatchObject({
+      seed: 7,
+      maxWind: 12,
+      gravity: 0.2,
+      walls: 'reflective',
+      rounds: 3,
+    });
   });
 
   it('the emitted config, fed into a NetworkClient against a fake Supabase with a committed action, restores the engine to the room\'s current (turn, activePlayerId, phase)', async () => {
@@ -310,7 +327,7 @@ describe('Lobby.handleRejoin (T-10, AC-06)', () => {
 describe('Lobby.handleRejoin stale-session handling (T-11, AC-07)', () => {
   let root: HTMLDivElement;
   let lobby: Lobby;
-  let onReady: ReturnType<typeof vi.fn>;
+  let onReady: Mock<(config: LobbyConfig) => void>;
 
   const candidateDescriptor: SessionDescriptor = { roomId: 'room-1', roomCode: 'ABCD', playerId: 'p-1' };
 

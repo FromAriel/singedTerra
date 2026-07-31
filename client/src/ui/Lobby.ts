@@ -1,6 +1,15 @@
 import type { AiDifficulty } from '@shared/types/GameState';
+import {
+  DEFAULT_TANK_LOADOUT,
+  TANK_KIT_IDS,
+  TANK_PART_SLOTS,
+  normalizeTankLoadout,
+  type TankKitId,
+  type TankLoadout,
+} from '@shared/types/TankLoadout';
 import { clamp } from '@shared/engine/math';
 import { armsLabel, roundsLabel, botLabel } from './browseLabels';
+import { buildRoomInviteUrl, readRoomInviteCode } from './roomInvite';
 import {
   LobbyTransport,
   type NetworkPlayer,
@@ -38,6 +47,7 @@ import {
   normalizeRoomCode,
   isValidRoomCode,
 } from './lobbyValidation';
+import { paintTankLoadoutPreview } from '../renderer/TankLoadoutPreview';
 
 export type { LobbySettings } from './lobbyValidation';
 // NetworkPlayer/AiDifficulty are used across the online flow (bots in rooms).
@@ -54,6 +64,8 @@ export interface LobbyPlayer {
   /** CPU difficulty when this seat is a computer opponent (hot-seat only);
    *  absent => human. */
   ai?: AiDifficulty;
+  /** Presentation-only authored part selection. */
+  loadout?: TankLoadout;
 }
 
 /** Configuration produced by the lobby once the player(s) are ready. */
@@ -120,6 +132,57 @@ const PALETTE: ReadonlyArray<{ name: string; value: string }> = [
   { name: 'Purple', value: '#a855f7' },
 ];
 
+const TANK_KIT_LABELS: Readonly<Record<TankKitId, string>> = {
+  foundry: 'Foundry',
+  ranger: 'Ranger',
+  bulwark: 'Bulwark',
+  jackal: 'Jackal',
+};
+const TANK_SLOT_LABELS: Readonly<Record<(typeof TANK_PART_SLOTS)[number], string>> = {
+  treads: 'Mobility',
+  hull: 'Hull',
+  turret: 'Turret',
+  barrel: 'Barrel',
+};
+const TANK_PART_VARIANT_LABELS: Readonly<Record<
+  (typeof TANK_PART_SLOTS)[number],
+  Readonly<Record<TankKitId, string>>
+>> = {
+  treads: {
+    foundry: 'Tracks',
+    ranger: 'Spider Legs',
+    bulwark: 'Hover',
+    jackal: 'Dune Wheels',
+  },
+  hull: {
+    foundry: 'Armor Hull',
+    ranger: 'Scout Hull',
+    bulwark: 'Siege Hull',
+    jackal: 'Raider Hull',
+  },
+  turret: {
+    foundry: 'Cupola',
+    ranger: 'Sensor Pod',
+    bulwark: 'Bunker',
+    jackal: 'Sensor Ring',
+  },
+  barrel: {
+    foundry: 'Cannon',
+    ranger: 'Railgun',
+    bulwark: 'Siege Gun',
+    jackal: 'Howitzer',
+  },
+};
+
+function presetLoadout(kit: TankKitId): TankLoadout {
+  return {
+    treads: kit,
+    hull: kit,
+    turret: kit,
+    barrel: kit,
+  };
+}
+
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 4;
 const STYLE_ID = 'lobby-style';
@@ -138,6 +201,8 @@ const SUDDEN_DEATH_DEFAULT = 0;
 interface SettingsState {
   maxWind: string;
   gravity: string;
+  /** Horizontal arena boundary behavior (blank = open). */
+  walls: string;
   seed: string;
   rounds: string;
   interestRate: string;
@@ -152,6 +217,7 @@ interface PlayerRowState {
   color: string;
   /** CPU difficulty for this seat, or undefined for a human. */
   ai?: AiDifficulty;
+  loadout: TankLoadout;
 }
 
 /** Active tab on the lobby. */
@@ -177,7 +243,7 @@ export class Lobby {
   private players: PlayerRowState[] = [];
 
   /** Raw working state for the advanced-settings inputs (blank = use default). */
-  private settings: SettingsState = { maxWind: '', gravity: '', seed: '', rounds: '', interestRate: '', suddenDeathTurn: '', armsLevel: '' };
+  private settings: SettingsState = { maxWind: '', gravity: '', walls: '', seed: '', rounds: '', interestRate: '', suddenDeathTurn: '', armsLevel: '' };
 
   /** Whether the advanced-settings <details> is open (persist across renders). */
   private settingsOpen = false;
@@ -189,9 +255,14 @@ export class Lobby {
   // Create form state
   private onlineName = '';
   private onlineColor = PALETTE[0].value;
+  private onlineLoadout: TankLoadout = { ...DEFAULT_TANK_LOADOUT };
+  /** Compact layouts expose one touch-sized Garage editor at a time. */
+  private openGarageOwner: string | null = null;
   private onlineMaxPlayers = 2;
   private onlineMaxWind = '';
   private onlineGravity = '';
+  /** Horizontal arena boundary behavior (blank = open). */
+  private onlineWalls = '';
   private onlineRounds = '';
   private onlineInterestRate = '';
   private onlineSuddenDeath = '';
@@ -236,6 +307,12 @@ export class Lobby {
     this.onReady = onReady;
     this.players = [defaultRow(0), defaultRow(1)];
     this.session = new LobbySession(this.transport, (event) => this.handleSessionEvent(event));
+    const inviteCode = readRoomInviteCode(window.location.href);
+    if (inviteCode) {
+      this.activeTab = 'online';
+      this.onlineSubView = 'join';
+      this.joinCode = inviteCode;
+    }
   }
 
   private handleSessionEvent(event: LobbySessionEvent): void {
@@ -369,8 +446,8 @@ export class Lobby {
     style.id = STYLE_ID;
     style.textContent = `
       /* Fill the whole 1200x600 stage (same size as the game field). The #app
-         gold frame + CRT overlay still frame it; content is vertically centred,
-         falling back to top-aligned + scroll when it would overflow. */
+         gold frame + CRT overlay still frame it. Primary lobby views fit the
+         stage without an inner scrollbar; dense online lists may still scroll. */
       #lobby .lobby-card {
         position: relative;
         width: 100%;
@@ -378,7 +455,7 @@ export class Lobby {
         max-width: none;
         margin: 0;
         box-sizing: border-box;
-        padding: 34px 56px;
+        padding: 26px 56px;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
@@ -490,65 +567,23 @@ export class Lobby {
       }
       #lobby .lobby-preview__tank {
         position: absolute;
-        left: calc(var(--slot, 0) * 88px + 28px);
+        left: calc(var(--slot, 0) * 108px + 22px);
         bottom: calc(var(--slot, 0) * -2px);
-        width: 70px;
-        height: 42px;
+        width: 90px;
+        height: 56px;
         animation: lobby-tank-roll 2.4s ease-in-out infinite;
         animation-delay: calc(var(--slot, 0) * -0.42s);
         filter: drop-shadow(0 11px 12px rgba(0, 0, 0, 0.42));
       }
-      #lobby .lobby-preview__barrel {
-        position: absolute;
-        left: 36px;
-        top: 4px;
-        width: 32px;
-        height: 7px;
-        border-radius: 999px;
-        background: linear-gradient(180deg, color-mix(in srgb, var(--tank-color) 52%, white), color-mix(in srgb, var(--tank-color) 55%, black));
-        border: 2px solid rgba(18, 8, 10, 0.95);
-        transform: rotate(-34deg);
-        transform-origin: 0 50%;
-      }
-      #lobby .lobby-preview__turret {
-        position: absolute;
-        left: 25px;
-        top: 15px;
-        width: 23px;
-        height: 12px;
-        border-radius: 10px 10px 3px 3px;
-        background: linear-gradient(180deg, color-mix(in srgb, var(--tank-color) 72%, white), color-mix(in srgb, var(--tank-color) 72%, black));
-        border: 2px solid rgba(18, 8, 10, 0.95);
-      }
-      #lobby .lobby-preview__body {
-        position: absolute;
-        left: 13px;
-        top: 23px;
-        width: 42px;
-        height: 15px;
-        border-radius: 4px 4px 2px 2px;
-        background:
-          linear-gradient(180deg, color-mix(in srgb, var(--tank-color) 70%, white) 0 28%, var(--tank-color) 28% 68%, color-mix(in srgb, var(--tank-color) 62%, black) 68%);
-        border: 2px solid rgba(18, 8, 10, 0.95);
-      }
-      #lobby .lobby-preview__tread {
-        position: absolute;
-        left: 7px;
-        top: 34px;
-        width: 55px;
-        height: 13px;
-        border-radius: 4px 4px 7px 7px;
-        background:
-          radial-gradient(circle at 15px 7px, #2a2118 0 4px, transparent 4.5px),
-          radial-gradient(circle at 28px 7px, #2a2118 0 4px, transparent 4.5px),
-          radial-gradient(circle at 41px 7px, #2a2118 0 4px, transparent 4.5px),
-          linear-gradient(180deg, color-mix(in srgb, var(--tank-color) 46%, black), #130908);
-        border: 2px solid rgba(18, 8, 10, 0.98);
+      #lobby .lobby-preview__canvas {
+        display: block;
+        width: 84px;
+        height: 48px;
       }
       #lobby .lobby-preview__name {
         position: absolute;
         left: 50%;
-        top: 52px;
+        top: 49px;
         transform: translateX(-50%);
         max-width: 80px;
         overflow: hidden;
@@ -572,8 +607,8 @@ export class Lobby {
         position: relative;
         z-index: 1;
         width: 100%;
-        max-width: 520px;
-        margin-left: 104px;
+        max-width: 600px;
+        margin-left: 32px;
         margin-right: auto;
       }
       #lobby .lobby-card > .lobby-preview {
@@ -589,7 +624,7 @@ export class Lobby {
         z-index: 2;
       }
       #lobby h1 {
-        margin: 0 0 2px; font-size: 48px; letter-spacing: 0.5px;
+        margin: 0 0 2px; font-size: 42px; line-height: 1; letter-spacing: 0.5px;
         font-family: var(--font-display); font-weight: bold;
         color: var(--gold);
         text-shadow:
@@ -597,12 +632,12 @@ export class Lobby {
           0 0 20px rgba(255, 122, 31, 0.48);
       }
       #lobby .lobby-sub {
-        margin: 0 0 22px;
+        margin: 0 0 14px;
         color: var(--text-dim);
         font-size: 13px;
         letter-spacing: 0.02em;
       }
-      #lobby .lobby-field { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+      #lobby .lobby-field { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
       #lobby .lobby-field > label { width: 92px; color: var(--text-dim); font-size: 13px; }
       #lobby select, #lobby input[type="text"] {
         background:
@@ -615,8 +650,9 @@ export class Lobby {
       #lobby select:focus, #lobby input[type="text"]:focus {
         outline: none; border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold);
       }
-      #lobby .lobby-rows { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 18px; }
+      #lobby .lobby-rows { display: flex; flex-direction: column; gap: 7px; margin: 5px 0 10px; }
       #lobby .lobby-row { display: flex; align-items: center; gap: 10px; }
+      #lobby .lobby-row { flex-wrap: wrap; }
       #lobby .lobby-row .lobby-name { flex: 1; }
       #lobby .lobby-row input[type="text"] { width: 100%; box-sizing: border-box; }
       #lobby .lobby-swatches { display: flex; gap: 6px; }
@@ -632,6 +668,142 @@ export class Lobby {
         cursor: pointer;
       }
       #lobby .lobby-control:hover { border-color: var(--ember, #ff7a1f); }
+      #lobby .lobby-garage {
+        flex: 1 0 100%;
+        display: grid;
+        grid-template-columns: 42px minmax(174px, auto) 1fr;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 7px;
+        box-sizing: border-box;
+        border: 1px solid rgba(255, 210, 63, 0.16);
+        border-radius: 7px;
+        background: linear-gradient(90deg, rgba(255, 210, 63, 0.055), rgba(12, 7, 22, 0.45));
+      }
+      #lobby .lobby-garage__heading {
+        color: var(--text-gold);
+        font: 700 10px/1 var(--font-display);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+      #lobby .lobby-garage__open,
+      #lobby .lobby-garage__close {
+        display: none;
+      }
+      #lobby .lobby-garage__presets,
+      #lobby .lobby-garage__slots {
+        display: flex;
+        gap: 3px;
+        min-width: 0;
+      }
+      #lobby .lobby-garage button {
+        min-height: 28px;
+        border: 1px solid rgba(255, 210, 63, 0.20);
+        border-radius: 5px;
+        background: rgba(12, 7, 22, 0.72);
+        color: var(--text-dim);
+        cursor: pointer;
+        font-family: var(--font-sans);
+      }
+      #lobby .lobby-garage button:hover,
+      #lobby .lobby-garage button:focus-visible {
+        border-color: var(--ember);
+        color: var(--text-gold);
+      }
+      #lobby .lobby-garage__preset {
+        padding: 4px 5px;
+        font-size: 9px;
+      }
+      #lobby .lobby-garage__preset.selected {
+        border-color: var(--gold);
+        color: var(--ink);
+        background: linear-gradient(180deg, #ffe478, #d99b21);
+      }
+      #lobby .lobby-garage__slot {
+        flex: 1;
+        min-width: 0;
+        padding: 3px 2px;
+        text-align: left;
+      }
+      #lobby .lobby-garage__slot span,
+      #lobby .lobby-garage__slot strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #lobby .lobby-garage__slot span {
+        color: rgba(255, 233, 168, 0.52);
+        font-size: 8px;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+      }
+      #lobby .lobby-garage__slot strong {
+        color: var(--text);
+        font-size: 9px;
+        font-weight: 700;
+      }
+      #lobby .lobby-hotseat.crowded .lobby-sub { display: none; }
+      #lobby .lobby-hotseat.crowded .lobby-field { margin-bottom: 4px; }
+      #lobby .lobby-rows.crowded {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px 8px;
+        margin: 2px 0 6px;
+      }
+      #lobby .lobby-rows.crowded .lobby-row {
+        display: grid;
+        grid-template-columns: minmax(68px, 1fr) auto 78px;
+        align-items: center;
+        gap: 4px;
+        padding: 4px;
+        min-width: 0;
+        border: 1px solid rgba(255, 210, 63, 0.13);
+        border-radius: 7px;
+        background: rgba(12, 7, 22, 0.36);
+      }
+      #lobby .lobby-rows.crowded .lobby-name { min-width: 0; }
+      #lobby .lobby-rows.crowded .lobby-row input[type="text"] {
+        padding: 6px 7px;
+        font-size: 11px;
+      }
+      #lobby .lobby-rows.crowded .lobby-swatches { gap: 2px; }
+      #lobby .lobby-rows.crowded .lobby-swatch {
+        width: 13px;
+        height: 13px;
+        border-width: 1px;
+        box-shadow: inset 0 -3px 4px rgba(0, 0, 0, 0.22);
+      }
+      #lobby .lobby-rows.crowded .lobby-control {
+        width: 78px;
+        min-width: 0;
+        padding: 6px 4px;
+        font-size: 9px;
+      }
+      #lobby .lobby-rows.crowded .lobby-garage {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        gap: 3px;
+        padding: 3px;
+      }
+      #lobby .lobby-rows.crowded .lobby-garage__heading { display: none; }
+      #lobby .lobby-rows.crowded .lobby-garage__presets,
+      #lobby .lobby-rows.crowded .lobby-garage__slots {
+        display: contents;
+      }
+      #lobby .lobby-rows.crowded .lobby-garage button {
+        min-height: 24px;
+        padding: 2px;
+        font-size: 0;
+        text-align: center;
+      }
+      #lobby .lobby-rows.crowded .lobby-garage button::after {
+        content: attr(data-short);
+        font-size: 9px;
+        font-weight: 700;
+      }
+      #lobby .lobby-rows.crowded .lobby-garage__slot > * { display: none; }
       #lobby .lobby-swatch {
         width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
         border: 2px solid transparent; padding: 0; background-clip: padding-box;
@@ -641,7 +813,131 @@ export class Lobby {
       #lobby .lobby-swatch:hover { transform: scale(1.12); }
       #lobby .lobby-swatch.selected { border-color: var(--gold); box-shadow: 0 0 8px rgba(255, 210, 63, 0.5); }
       #lobby .lobby-swatch.taken { opacity: 0.3; cursor: not-allowed; }
+      /* Below 0.8 stage scale, tiny inline controls become a single large
+         Garage trigger plus a focused editor. Logical dimensions account for
+         the whole-stage CSS zoom, preserving >=24 rendered-pixel targets. */
+      #app.is-compact #lobby .lobby-swatch,
+      #app.is-compact #lobby .lobby-rows.crowded .lobby-swatch {
+        width: 44px;
+        height: 44px;
+        border-width: 2px;
+      }
+      #app.is-compact #lobby .lobby-rows.crowded .lobby-row {
+        grid-template-columns: minmax(60px, 1fr) 68px 48px;
+      }
+      #app.is-compact #lobby .lobby-rows.crowded .lobby-swatches {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        justify-content: center;
+        gap: 4px;
+      }
+      #app.is-compact #lobby .lobby-rows.crowded .lobby-control {
+        grid-column: 2;
+        grid-row: 1;
+        width: 68px;
+      }
+      #app.is-compact #lobby .lobby-rows.crowded .lobby-garage:not(.editing) {
+        grid-column: 3;
+        grid-row: 1;
+      }
+      #app.is-compact #lobby .lobby-garage:not(.editing),
+      #app.is-compact #lobby .lobby-rows.crowded .lobby-garage:not(.editing) {
+        display: block;
+        padding: 0;
+        border: 0;
+        background: none;
+      }
+      #app.is-compact #lobby .lobby-garage:not(.editing) .lobby-garage__heading,
+      #app.is-compact #lobby .lobby-garage:not(.editing) .lobby-garage__presets,
+      #app.is-compact #lobby .lobby-garage:not(.editing) .lobby-garage__slots,
+      #app.is-compact #lobby .lobby-garage:not(.editing) .lobby-garage__close {
+        display: none;
+      }
+      #app.is-compact #lobby .lobby-garage:not(.editing) .lobby-garage__open {
+        display: flex;
+        width: 100%;
+        min-height: 48px;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 12px;
+        color: var(--text-gold);
+        font-size: 13px;
+        font-weight: 700;
+      }
+      #app.is-compact #lobby .lobby-rows.crowded
+        .lobby-garage:not(.editing) .lobby-garage__open {
+        padding: 4px;
+        font-size: 9px;
+        line-height: 1.05;
+      }
+      #app.is-compact #lobby .lobby-garage.editing {
+        position: fixed;
+        inset: 28px;
+        z-index: 100;
+        display: grid;
+        grid-template-columns: minmax(90px, 0.5fr) minmax(240px, 1fr);
+        grid-template-rows: auto 1fr auto;
+        align-content: center;
+        gap: 18px;
+        padding: 28px;
+        overflow: hidden;
+        border: 2px solid rgba(255, 210, 63, 0.66);
+        border-radius: 12px;
+        background:
+          radial-gradient(circle at 80% 20%, rgba(142, 47, 83, 0.24), transparent 38%),
+          linear-gradient(145deg, #160d2e, #0c0716 72%);
+        box-shadow: 0 24px 90px rgba(0, 0, 0, 0.78);
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__heading {
+        display: block;
+        grid-column: 1 / -1;
+        color: var(--gold);
+        font-size: 18px;
+        letter-spacing: 2px;
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__open {
+        display: none;
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__presets,
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__slots {
+        display: grid;
+        gap: 10px;
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__presets {
+        grid-template-columns: 1fr;
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__slots {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      #app.is-compact #lobby .lobby-garage.editing button {
+        min-height: 52px;
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+      #app.is-compact #lobby .lobby-garage.editing button::after {
+        content: none;
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__slot {
+        text-align: left;
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__slot > * {
+        display: block;
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__slot span {
+        font-size: 10px;
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__slot strong {
+        font-size: 13px;
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__close {
+        display: block;
+        grid-column: 1 / -1;
+        color: var(--ink);
+        font-weight: 800;
+        background: linear-gradient(180deg, #ffe478, #d99b21);
+      }
       #lobby .lobby-error { color: var(--tank-red); font-size: 13px; min-height: 18px; margin-bottom: 10px; }
+      #lobby .lobby-error:empty { display: none; }
       /* Rejoin affordance (T-09) — a prominent banner at the top of the lobby,
          shown only when a stored session validates as still live. */
       #lobby .lobby-rejoin-banner {
@@ -654,7 +950,7 @@ export class Lobby {
       #lobby .lobby-rejoin-text { color: var(--text-gold, #ffe9b0); font-size: 13px; }
       #lobby .lobby-rejoin-banner .lobby-btn { padding: 6px 14px; font-size: 13px; flex: 0 0 auto; }
       #lobby .lobby-start {
-        width: 100%; padding: 14px; font-size: 16px; font-weight: bold; cursor: pointer;
+        width: 100%; padding: 12px; font-size: 16px; font-weight: bold; cursor: pointer;
         background:
           linear-gradient(180deg, #ffe478, var(--gold) 52%, #d99b21);
         color: var(--ink); border: none; border-radius: 7px;
@@ -668,7 +964,7 @@ export class Lobby {
       }
       #lobby .lobby-start:active:not(:disabled) { transform: translateY(1px); }
       #lobby .lobby-start:disabled { background: rgba(255, 255, 255, 0.12); color: var(--text-dim); cursor: not-allowed; }
-      #lobby .lobby-advanced { margin: 0 0 16px; border-top: 1px solid rgba(255, 210, 63, 0.14); padding-top: 12px; }
+      #lobby .lobby-advanced { margin: 0 0 10px; border-top: 1px solid rgba(255, 210, 63, 0.14); padding-top: 8px; }
       #lobby .lobby-advanced > summary {
         cursor: pointer; color: var(--text-dim); font-size: 13px; list-style: none;
         user-select: none; margin-bottom: 4px;
@@ -685,7 +981,7 @@ export class Lobby {
 
       /* Tab bar */
       #lobby .lobby-tabs {
-        display: flex; gap: 6px; margin-bottom: 20px;
+        display: flex; gap: 6px; margin-bottom: 14px;
         padding: 4px;
         border: 1px solid rgba(255, 210, 63, 0.16);
         border-radius: 9px;
@@ -726,7 +1022,7 @@ export class Lobby {
         display: flex; align-items: center; gap: 16px; margin-top: 4px;
       }
       #lobby .online-code-display {
-        display: flex; gap: 8px; justify-content: center; margin: 12px 0 20px;
+        display: flex; gap: 8px; justify-content: center; margin: 12px 0;
       }
       #lobby .online-code-char {
         width: 40px; height: 44px; background: rgba(12, 7, 22, 0.8);
@@ -735,6 +1031,18 @@ export class Lobby {
         font-size: 24px; font-weight: 700; letter-spacing: 0; color: var(--gold);
         font-family: var(--font-mono);
       }
+      #lobby .online-invite {
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+        gap: 8px 12px; margin: 0 0 20px;
+      }
+      #lobby .online-invite-copy {
+        min-width: 164px;
+      }
+      #lobby .online-invite-status {
+        flex: 1 1 100%; min-height: 18px; margin: 0;
+        color: var(--ready); font-size: 12px; text-align: center;
+      }
+      #lobby .online-invite-status.error { color: var(--tank-red); }
       #lobby .online-player-list {
         list-style: none; margin: 0 0 16px; padding: 0;
         display: flex; flex-direction: column; gap: 6px;
@@ -766,11 +1074,21 @@ export class Lobby {
       /* Pre-canvas controls legend (P3-13b): non-blocking footer so keyboard
          players learn aim/power/fire before the play field is uncovered. */
       #lobby .lobby-controls {
-        display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
-        margin-top: 20px; padding: 12px 14px;
+        position: absolute;
+        right: 72px;
+        bottom: 72px;
+        left: auto;
+        z-index: 4;
+        width: min(478px, calc(42% - 30px));
+        max-width: none;
+        box-sizing: border-box;
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+        gap: 5px 12px;
+        margin: 0; padding: 9px 12px;
         border: 1px solid rgba(255, 210, 63, 0.16);
         border-radius: 8px;
-        background: rgba(12, 7, 22, 0.50);
+        background: rgba(12, 7, 22, 0.78);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
         color: var(--text-dim); font-size: 12px;
       }
       #lobby .lobby-controls .lobby-controls__title {
@@ -818,6 +1136,16 @@ export class Lobby {
     card.append(this.renderControlsLegend());
 
     this.root.append(card);
+    const activeGarage = this.root.querySelector<HTMLElement>(
+      '.lobby-garage.editing',
+    );
+    if (activeGarage) {
+      this.root.querySelectorAll<HTMLElement>(
+        'button, input, select, textarea, summary, a[href]',
+      ).forEach((control) => {
+        if (!activeGarage.contains(control)) control.setAttribute('inert', '');
+      });
+    }
   }
 
   /**
@@ -833,7 +1161,7 @@ export class Lobby {
       '<span class="lobby-controls__title">Controls</span>' +
       '<span><kbd>&larr;</kbd>/<kbd>&rarr;</kbd> Aim</span>' +
       '<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Power</span>' +
-      '<span><kbd>Tab</kbd>/<kbd>Q</kbd> Weapon</span>' +
+      '<span><kbd>Q</kbd> Weapon</span>' +
       '<span><kbd>Space</kbd>/<kbd>Enter</kbd> Fire</span>';
     return el;
   }
@@ -851,35 +1179,193 @@ export class Lobby {
     convoy.className = 'lobby-preview__convoy';
     const roster = this.activeTab === 'hotseat'
       ? this.players
-      : [{ name: this.onlineName || 'You', color: this.onlineColor }];
+      : this.onlineSubView === 'waiting' && this.waitingPlayers.length > 0
+        ? this.waitingPlayers
+        : [{
+            name: this.onlineName || 'You',
+            color: this.onlineSubView === 'create'
+              ? this.onlineColor
+              : this.joinColor,
+            loadout: this.onlineLoadout,
+          }];
     roster.slice(0, MAX_PLAYERS).forEach((player, index) => {
-      convoy.append(this.renderPreviewTank(player.name || `Player ${index + 1}`, player.color, index));
+      convoy.append(this.renderPreviewTank(
+        player.name || `Player ${index + 1}`,
+        player.color,
+        index,
+        normalizeTankLoadout(player.loadout),
+      ));
     });
 
     preview.append(label, convoy);
     return preview;
   }
 
-  private renderPreviewTank(name: string, color: string, index: number): HTMLElement {
+  private renderPreviewTank(
+    name: string,
+    color: string,
+    index: number,
+    loadout: TankLoadout,
+  ): HTMLElement {
     const tank = document.createElement('div');
     tank.className = 'lobby-preview__tank';
     tank.style.setProperty('--tank-color', color);
     tank.style.setProperty('--slot', String(index));
 
-    const barrel = document.createElement('div');
-    barrel.className = 'lobby-preview__barrel';
-    const turret = document.createElement('div');
-    turret.className = 'lobby-preview__turret';
-    const body = document.createElement('div');
-    body.className = 'lobby-preview__body';
-    const tread = document.createElement('div');
-    tread.className = 'lobby-preview__tread';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'lobby-preview__canvas';
+    canvas.setAttribute('aria-hidden', 'true');
+    paintTankLoadoutPreview(canvas, color, loadout);
     const label = document.createElement('div');
     label.className = 'lobby-preview__name';
     label.textContent = name.trim() || `Player ${index + 1}`;
 
-    tank.append(barrel, turret, body, tread, label);
+    tank.append(canvas, label);
     return tank;
+  }
+
+  /** Compact preset shortcut plus independent four-slot selectors. */
+  private renderGarage(
+    owner: string,
+    ownerLabel: string,
+    value: TankLoadout,
+    onChange: (next: TankLoadout) => void,
+  ): HTMLElement {
+    const loadout = normalizeTankLoadout(value);
+    const garage = document.createElement('section');
+    garage.className = 'lobby-garage';
+    garage.classList.toggle('editing', this.openGarageOwner === owner);
+    garage.dataset.owner = owner;
+    garage.setAttribute('aria-label', `${ownerLabel} tank Garage`);
+    if (this.openGarageOwner === owner) {
+      garage.setAttribute('role', 'dialog');
+      garage.setAttribute('aria-modal', 'true');
+    }
+
+    const heading = document.createElement('span');
+    heading.className = 'lobby-garage__heading';
+    heading.textContent = 'Garage';
+
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'lobby-garage__open';
+    open.textContent = 'Customize tank';
+    open.setAttribute('aria-label', `Customize ${ownerLabel} tank`);
+    open.addEventListener('click', () => {
+      this.openGarage(owner);
+    });
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'lobby-garage__close';
+    close.textContent = 'Done';
+    close.setAttribute('aria-label', 'Done customizing tank');
+    close.addEventListener('click', () => {
+      this.closeGarage(owner);
+    });
+
+    const presets = document.createElement('div');
+    presets.className = 'lobby-garage__presets';
+    for (const kit of TANK_KIT_IDS) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'lobby-garage__preset';
+      button.dataset.preset = kit;
+      button.dataset.short = kit.charAt(0).toUpperCase();
+      button.textContent = TANK_KIT_LABELS[kit];
+      const active = TANK_PART_SLOTS.every((slot) => loadout[slot] === kit);
+      button.classList.toggle('selected', active);
+      button.setAttribute('aria-pressed', String(active));
+      button.setAttribute(
+        'aria-label',
+        `Apply ${TANK_KIT_LABELS[kit]} preset to ${ownerLabel}`,
+      );
+      button.addEventListener('click', () => {
+        onChange(presetLoadout(kit));
+        this.focusGarageControl(owner, `[data-preset="${kit}"]`);
+      });
+      presets.append(button);
+    }
+
+    const slots = document.createElement('div');
+    slots.className = 'lobby-garage__slots';
+    for (const slot of TANK_PART_SLOTS) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'lobby-garage__slot';
+      button.dataset.slot = slot;
+      button.dataset.kit = loadout[slot];
+      button.dataset.short =
+        `${TANK_SLOT_LABELS[slot].slice(0, 2).toUpperCase()}\u00b7` +
+        loadout[slot].charAt(0).toUpperCase();
+      button.setAttribute(
+        'aria-label',
+        `Change ${ownerLabel} ${TANK_SLOT_LABELS[slot].toLowerCase()}, ` +
+        `currently ${TANK_PART_VARIANT_LABELS[slot][loadout[slot]]}`,
+      );
+      button.innerHTML =
+        `<span>${TANK_SLOT_LABELS[slot]}</span>` +
+        `<strong>${TANK_PART_VARIANT_LABELS[slot][loadout[slot]]}</strong>`;
+      button.addEventListener('click', () => {
+        const current = TANK_KIT_IDS.indexOf(loadout[slot]);
+        const nextKit = TANK_KIT_IDS[(current + 1) % TANK_KIT_IDS.length]!;
+        onChange({ ...loadout, [slot]: nextKit });
+        this.focusGarageControl(owner, `[data-slot="${slot}"]`);
+      });
+      slots.append(button);
+    }
+
+    garage.addEventListener('keydown', (event) => {
+      if (this.openGarageOwner !== owner) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.closeGarage(owner);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const controls = Array.from(garage.querySelectorAll<HTMLButtonElement>(
+        '[data-preset], [data-slot], .lobby-garage__close',
+      ));
+      const first = controls[0];
+      const last = controls.at(-1);
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+
+    garage.append(heading, open, presets, slots, close);
+    return garage;
+  }
+
+  private garageFor(owner: string): HTMLElement | undefined {
+    return Array.from(this.root.querySelectorAll<HTMLElement>('.lobby-garage'))
+      .find((garage) => garage.dataset.owner === owner);
+  }
+
+  private focusGarageControl(owner: string, selector: string): void {
+    this.garageFor(owner)
+      ?.querySelector<HTMLButtonElement>(selector)
+      ?.focus();
+  }
+
+  private openGarage(owner: string): void {
+    this.openGarageOwner = owner;
+    this.render();
+    this.focusGarageControl(owner, '[data-preset]');
+  }
+
+  private closeGarage(owner: string): void {
+    this.openGarageOwner = null;
+    this.render();
+    this.garageFor(owner)
+      ?.querySelector<HTMLButtonElement>('.lobby-garage__open')
+      ?.focus();
   }
 
   /**
@@ -944,7 +1430,13 @@ export class Lobby {
 
     const config: LobbyConfig = {
       mode: 'network',
-      players: liveRoom.players.map((p) => ({ id: p.id, name: p.name, color: p.color, ...(p.ai ? { ai: p.ai } : {}) })),
+      players: liveRoom.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        color: p.color,
+        loadout: normalizeTankLoadout(p.loadout),
+        ...(p.ai ? { ai: p.ai } : {}),
+      })),
       playerNames: liveRoom.players.map((p) => p.name),
       roomCode: liveRoom.code,
       roomId: liveRoom.id,
@@ -954,6 +1446,7 @@ export class Lobby {
         seed: liveRoom.seed,
         maxWind: liveRoom.options.maxWind,
         gravity: liveRoom.options.gravity,
+        ...(liveRoom.options.walls === 'reflective' ? { walls: 'reflective' as const } : {}),
         ...(liveRoom.options.rounds !== undefined ? { rounds: liveRoom.options.rounds } : {}),
         ...(liveRoom.options.interestRate !== undefined ? { interestRate: liveRoom.options.interestRate } : {}),
         ...(liveRoom.options.suddenDeathTurn !== undefined ? { suddenDeathTurn: liveRoom.options.suddenDeathTurn } : {}),
@@ -1023,6 +1516,7 @@ export class Lobby {
     // Per-player rows.
     const rows = document.createElement('div');
     rows.className = 'lobby-rows';
+    rows.classList.toggle('crowded', this.players.length >= 3);
     this.players.forEach((_, i) => rows.append(this.renderRow(i)));
     frag.append(rows);
 
@@ -1046,6 +1540,7 @@ export class Lobby {
       const players = this.players.map((p, i) => ({
         name: p.name.trim() || (p.ai ? `CPU ${i + 1}` : `Player ${i + 1}`),
         color: p.color,
+        loadout: normalizeTankLoadout(p.loadout),
         ...(p.ai ? { ai: p.ai } : {}),
       }));
       const settings = this.parseSettings();
@@ -1060,6 +1555,8 @@ export class Lobby {
 
     // Wrap in a container so we can return an Element
     const wrapper = document.createElement('div');
+    wrapper.className =
+      `lobby-hotseat${this.players.length >= 3 ? ' crowded' : ''}`;
     wrapper.append(frag);
     return wrapper;
   }
@@ -1099,6 +1596,15 @@ export class Lobby {
       (v) => { this.onlineName = v; },
       (v) => { this.onlineColor = v; this.render(); },
       /* takenColors */ [],
+    ));
+    frag.append(this.renderGarage(
+      'online-player',
+      'Your',
+      this.onlineLoadout,
+      (loadout) => {
+        this.onlineLoadout = loadout;
+        this.render();
+      },
     ));
 
     // Max players
@@ -1190,6 +1696,16 @@ export class Lobby {
         min: GRAVITY_MIN, max: GRAVITY_MAX, step: GRAVITY_STEP, placeholder: String(GRAVITY_DEFAULT),
         hint: `${GRAVITY_MIN}–${GRAVITY_MAX}`,
       }),
+      this.onlineChoiceField(
+        'Side walls',
+        this.onlineWalls,
+        (v) => { this.onlineWalls = v; },
+        [
+          { value: '', label: 'Open' },
+          { value: 'reflective', label: 'Reflective' },
+        ],
+        'bank shots rebound from the arena edges',
+      ),
       this.onlineNumberField('Rounds', this.onlineRounds, (v) => { this.onlineRounds = v; }, {
         min: ROUNDS_MIN, max: ROUNDS_MAX, step: 2, placeholder: String(ROUNDS_DEFAULT),
         hint: 'best-of-N, odd',
@@ -1262,22 +1778,36 @@ export class Lobby {
 
       // Build CPU seats with palette colors unique vs the creator + each other.
       const used = new Set<string>([this.onlineColor]);
-      const bots: Array<{ name: string; color: string; ai: AiDifficulty }> = [];
+      const bots: Array<{
+        name: string;
+        color: string;
+        ai: AiDifficulty;
+        loadout: TankLoadout;
+      }> = [];
       for (let i = 0; i < this.onlineBots; i++) {
         const c = PALETTE.find((p) => !used.has(p.value));
         if (!c) break; // ran out of distinct colors
         used.add(c.value);
-        bots.push({ name: `CPU ${i + 1}`, color: c.value, ai: this.onlineBotDifficulty });
+        bots.push({
+          name: `CPU ${i + 1}`,
+          color: c.value,
+          ai: this.onlineBotDifficulty,
+          loadout: presetLoadout(
+            TANK_KIT_IDS[(i + 1) % TANK_KIT_IDS.length]!,
+          ),
+        });
       }
 
       const { ok, data } = await this.transport.createRoom({
         playerName: name,
         color: this.onlineColor,
+        loadout: normalizeTankLoadout(this.onlineLoadout),
         bots,
         maxPlayers: this.onlineMaxPlayers,
         visibility: this.onlineVisibility,
         maxWind: this.onlineMaxWind,
         gravity: this.onlineGravity,
+        walls: this.onlineWalls,
         rounds: this.onlineRounds,
         interestRate: this.onlineInterestRate,
         suddenDeath: this.onlineSuddenDeath,
@@ -1314,6 +1844,7 @@ export class Lobby {
         name,
         color: this.onlineColor,
         ready: false,
+        loadout: normalizeTankLoadout(this.onlineLoadout),
       }];
       this.waitingOptions = {
         maxPlayers: this.onlineMaxPlayers,
@@ -1323,6 +1854,7 @@ export class Lobby {
         gravity: parseNumber(this.onlineGravity) !== undefined
           ? clamp(parseNumber(this.onlineGravity)!, GRAVITY_MIN, GRAVITY_MAX)
           : GRAVITY_DEFAULT,
+        walls: this.onlineWalls === 'reflective' ? 'reflective' : 'open',
         ...(rounds !== undefined ? { rounds } : {}),
         ...economy,
       };
@@ -1375,6 +1907,15 @@ export class Lobby {
       (v) => { this.onlineName = v; },
       (v) => { this.joinColor = v; this.render(); },
       [],
+    ));
+    frag.append(this.renderGarage(
+      'online-player',
+      'Your',
+      this.onlineLoadout,
+      (loadout) => {
+        this.onlineLoadout = loadout;
+        this.render();
+      },
     ));
 
     // Status / error
@@ -1441,7 +1982,12 @@ export class Lobby {
     this.render();
 
     try {
-      const { ok, data } = await this.transport.joinRoom({ code, playerName: name, color: this.joinColor });
+      const { ok, data } = await this.transport.joinRoom({
+        code,
+        playerName: name,
+        color: this.joinColor,
+        loadout: normalizeTankLoadout(this.onlineLoadout),
+      });
 
       if (!ok || data?.error) {
         this.onlineError = data?.error ?? 'Failed to join room.';
@@ -1466,7 +2012,7 @@ export class Lobby {
       writeSeatToken(data.playerId, data.token);
       writeSession({ roomId: this.waitingRoomId, roomCode: this.waitingRoomCode, playerId: this.waitingPlayerId });
       this.waitingSeed = data.seed ?? 0;
-      this.waitingOptions = data.options ?? { maxPlayers: 2, maxWind: 10, gravity: 0.15 };
+      this.waitingOptions = data.options ?? { maxPlayers: 2, maxWind: 10, gravity: 0.15, walls: 'open' };
       this.waitingPlayers = data.players ?? [];
       this.waitingThisPlayerReady = false;
       this.onlineSubView = 'waiting';
@@ -1552,6 +2098,15 @@ export class Lobby {
       (v) => { this.onlineName = v; },
       (v) => { this.joinColor = v; this.render(); },
       /* takenColors */ [],
+    ));
+    frag.append(this.renderGarage(
+      'online-player',
+      'Your',
+      this.onlineLoadout,
+      (loadout) => {
+        this.onlineLoadout = loadout;
+        this.render();
+      },
     ));
 
     // Status / error
@@ -1660,6 +2215,22 @@ export class Lobby {
       codeDisplay.append(charBox);
     }
     frag.append(codeDisplay);
+
+    const invite = document.createElement('div');
+    invite.className = 'online-invite';
+    const copyInvite = document.createElement('button');
+    copyInvite.type = 'button';
+    copyInvite.className = 'lobby-btn online-invite-copy';
+    copyInvite.textContent = 'Copy invite link';
+    const inviteStatus = document.createElement('p');
+    inviteStatus.className = 'online-invite-status';
+    inviteStatus.setAttribute('role', 'status');
+    inviteStatus.setAttribute('aria-live', 'polite');
+    copyInvite.addEventListener('click', () => {
+      void this.copyWaitingRoomInvite(copyInvite, inviteStatus);
+    });
+    invite.append(copyInvite, inviteStatus);
+    frag.append(invite);
 
     // Player list
     const listHeader = document.createElement('p');
@@ -1775,6 +2346,28 @@ export class Lobby {
     return frag;
   }
 
+  /** Copy a public-code-only room invite and report the result without a modal. */
+  private async copyWaitingRoomInvite(
+    button: HTMLButtonElement,
+    status: HTMLElement,
+  ): Promise<void> {
+    const inviteUrl = buildRoomInviteUrl(window.location.href, this.waitingRoomCode);
+    try {
+      if (!inviteUrl || !navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(inviteUrl);
+      button.textContent = 'Copy invite link';
+      status.classList.remove('error');
+      status.setAttribute('role', 'status');
+      status.textContent = 'Invite copied';
+    } catch {
+      button.textContent = 'Copy invite link';
+      status.classList.add('error');
+      status.setAttribute('role', 'alert');
+      status.textContent =
+        `Could not copy invite link. Share code ${this.waitingRoomCode} instead.`;
+    }
+  }
+
   private async subscribeWaitingRoom(): Promise<void> {
     return this.session.subscribeWaitingRoom();
   }
@@ -1790,7 +2383,13 @@ export class Lobby {
   private emitNetworkReady(room: { players: NetworkPlayer[]; seed: number; options: RoomOptions }): void {
     const config: LobbyConfig = {
       mode: 'network',
-      players: room.players.map((p) => ({ id: p.id, name: p.name, color: p.color, ...(p.ai ? { ai: p.ai } : {}) })),
+      players: room.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        color: p.color,
+        loadout: normalizeTankLoadout(p.loadout),
+        ...(p.ai ? { ai: p.ai } : {}),
+      })),
       playerNames: room.players.map((p) => p.name),
       roomCode: this.waitingRoomCode,
       roomId: this.waitingRoomId,
@@ -1800,6 +2399,7 @@ export class Lobby {
         seed: room.seed,
         maxWind: room.options.maxWind,
         gravity: room.options.gravity,
+        ...(room.options.walls === 'reflective' ? { walls: 'reflective' as const } : {}),
         // Best-of-N comes from the SYNCED room row so every client's engine agrees
         // (a per-client value would desync the deterministic lockstep). Absent on
         // pre-feature rooms => engine defaults to a single round.
@@ -1968,6 +2568,15 @@ export class Lobby {
       swatches.append(swatch);
     }
     wrapper.append(swatches);
+    wrapper.append(this.renderGarage(
+      'online-player',
+      'Your',
+      normalizeTankLoadout(me.loadout),
+      (loadout) => {
+        if (this.onlineBusy) return;
+        void this.updateMe({ loadout });
+      },
+    ));
 
     return wrapper;
   }
@@ -1978,7 +2587,11 @@ export class Lobby {
    * state. On success, adopt the returned players list for immediacy (Realtime
    * will also broadcast the same change to everyone).
    */
-  private async updateMe(fields: { name?: string; color?: string }): Promise<void> {
+  private async updateMe(fields: {
+    name?: string;
+    color?: string;
+    loadout?: TankLoadout;
+  }): Promise<void> {
     this.onlineBusy = true;
     this.onlineError = '';
     this.render();
@@ -2130,7 +2743,9 @@ export class Lobby {
     name.type = 'text';
     name.className = 'lobby-name';
     name.value = this.players[index].name;
-    name.maxLength = 16;
+    // Match online-room validators so hot-seat and networked player identity
+    // share one visible contract.
+    name.maxLength = 20;
     name.placeholder = `Player ${index + 1}`;
     name.addEventListener('input', () => {
       this.players[index].name = name.value;
@@ -2187,6 +2802,15 @@ export class Lobby {
     });
 
     row.append(name, swatches, control);
+    row.append(this.renderGarage(
+      `player-${index + 1}`,
+      `Player ${index + 1}`,
+      this.players[index].loadout,
+      (loadout) => {
+        this.players[index].loadout = loadout;
+        this.render();
+      },
+    ));
     return row;
   }
 
@@ -2223,6 +2847,15 @@ export class Lobby {
         placeholder: String(GRAVITY_DEFAULT),
         hint: `${GRAVITY_MIN}–${GRAVITY_MAX}`,
       }),
+      this.settingsChoiceField(
+        'Side walls',
+        'walls',
+        [
+          { value: '', label: 'Open' },
+          { value: 'reflective', label: 'Reflective' },
+        ],
+        'bank shots rebound from the arena edges',
+      ),
       this.numberField('Seed', 'seed', {
         step: 1,
         placeholder: 'default',
@@ -2292,6 +2925,66 @@ export class Lobby {
     return field;
   }
 
+  /** Build one labelled select bound to a hot-seat SettingsState key. */
+  private settingsChoiceField(
+    label: string,
+    key: keyof SettingsState,
+    choices: ReadonlyArray<{ value: string; label: string }>,
+    hintText: string,
+  ): HTMLElement {
+    return this.choiceField(`lobby-hotseat-${key}`, label, this.settings[key], (value) => {
+      this.settings[key] = value;
+    }, choices, hintText);
+  }
+
+  /** Build one labelled select for an online advanced setting. */
+  private onlineChoiceField(
+    label: string,
+    value: string,
+    onChange: (value: string) => void,
+    choices: ReadonlyArray<{ value: string; label: string }>,
+    hintText: string,
+  ): HTMLElement {
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    return this.choiceField(`lobby-online-${slug}`, label, value, onChange, choices, hintText);
+  }
+
+  private choiceField(
+    controlId: string,
+    label: string,
+    value: string,
+    onChange: (value: string) => void,
+    choices: ReadonlyArray<{ value: string; label: string }>,
+    hintText: string,
+  ): HTMLElement {
+    const field = document.createElement('div');
+    field.className = 'lobby-field';
+
+    const lab = document.createElement('label');
+    lab.textContent = label;
+    lab.htmlFor = controlId;
+
+    const select = document.createElement('select');
+    select.id = controlId;
+    for (const choice of choices) {
+      const option = document.createElement('option');
+      option.value = choice.value;
+      option.textContent = choice.label;
+      option.selected = choice.value === value;
+      select.append(option);
+    }
+    select.addEventListener('change', () => onChange(select.value));
+
+    const hint = document.createElement('span');
+    hint.className = 'lobby-hint';
+    hint.id = `${controlId}-hint`;
+    hint.textContent = hintText;
+    select.setAttribute('aria-describedby', hint.id);
+
+    field.append(lab, select, hint);
+    return field;
+  }
+
   /**
    * Parse the raw settings inputs into a LobbySettings, omitting blank/invalid
    * fields (so engine defaults hold). Returns undefined if nothing is set.
@@ -2326,6 +3019,7 @@ export class Lobby {
         this.players.push({
           name: this.players[i]?.name ?? `Player ${i + 1}`,
           color: this.firstFreeColor(),
+          loadout: { ...DEFAULT_TANK_LOADOUT },
         });
       }
     } else {
@@ -2371,5 +3065,6 @@ function defaultRow(i: number): PlayerRowState {
   return {
     name: `Player ${i + 1}`,
     color: PALETTE[i % PALETTE.length].value,
+    loadout: { ...DEFAULT_TANK_LOADOUT },
   };
 }

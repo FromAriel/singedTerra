@@ -17,6 +17,7 @@ function blankRaw(overrides: Partial<RawSettings> = {}): RawSettings {
     interestRate: '',
     suddenDeathTurn: '',
     armsLevel: '',
+    walls: '',
     ...overrides,
   };
 }
@@ -102,6 +103,13 @@ describe('coerceSettings', () => {
     expect(coerceSettings(blankRaw({ armsLevel: '2.7' }))).toEqual({ armsLevel: 2 });
   });
 
+  it('accepts only the reflective wall opt-in and otherwise keeps open default', () => {
+    expect(coerceSettings(blankRaw({ walls: 'reflective' })))
+      .toEqual({ walls: 'reflective' });
+    expect(coerceSettings(blankRaw({ walls: 'open' }))).toBeUndefined();
+    expect(coerceSettings(blankRaw({ walls: 'lava' }))).toBeUndefined();
+  });
+
   it('clamps rounds into range then forces odd (even in-range input)', () => {
     // 4 is in range [1,9] but even -> +1 => 5
     expect(coerceSettings(blankRaw({ rounds: '4' }))).toEqual({ rounds: 5 });
@@ -136,6 +144,7 @@ describe('coerceSettings', () => {
         interestRate: '0.25',
         suddenDeathTurn: '20',
         armsLevel: '3',
+        walls: 'reflective',
       }),
     ).toEqual({
       maxWind: 7,
@@ -145,6 +154,7 @@ describe('coerceSettings', () => {
       interestRate: 0.25,
       suddenDeathTurn: 20,
       armsLevel: 3,
+      walls: 'reflective',
     });
   });
 

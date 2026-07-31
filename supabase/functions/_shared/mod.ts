@@ -27,6 +27,17 @@ export type {
   StoredScoreEntry,
   RoomReapTrim,
 } from './database.types.ts'
+export {
+  DEFAULT_TANK_LOADOUT,
+  TANK_KIT_IDS,
+  TANK_PART_SLOTS,
+  parseTankLoadout,
+} from './tankLoadout.ts'
+export type {
+  TankKitId,
+  TankLoadout,
+  TankPartSlot,
+} from './tankLoadout.ts'
 
 // ---------------------------------------------------------------------------
 // CORS + request preamble
@@ -237,7 +248,7 @@ export const DEFAULT_MAX_WIND = 10
 /** Known non-weapon accessory buys. MUST match the `AccessoryType` union in
  *  shared/src/engine/WeaponSystem.ts. Adding an accessory to the engine without
  *  adding it here would 400/strip it over the network while hot-seat accepts it. */
-export const ACCESSORY_TYPES: ReadonlySet<string> = new Set(['battery'])
+export const ACCESSORY_TYPES: ReadonlySet<string> = new Set(['battery', 'fuel_tank'])
 
 /** 4-char A–Z0–9 room code from CSPRNG bytes (mod 36). */
 export function generateCode(): string {

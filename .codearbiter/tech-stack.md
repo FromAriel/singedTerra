@@ -21,8 +21,10 @@ Both workspace packages are `private: true`.
 
 ## Key libraries
 
-- **Vite** `^5.4.0` (client dev server + build).
+- **Vite** `6.4.3` (client dev server + build).
 - **@supabase/supabase-js** `^2.45.0` (browser client); Edge Functions use `@2` via esm.sh → `2.107.0`.
+- **lucide** `1.27.0` (client-only exact named SVG icon nodes). The package has
+  no runtime transitives; importing its all-icons registry is prohibited.
 - Canvas 2D — pure browser API, no rendering lib.
 - Root tooling: `concurrently`, `typescript`, `@types/node`.
 - **tsx** — used by the `check` script via `npx tsx` to run `.mjs` harnesses against TS engine sources directly (no build step). Not declared as a dep; resolved at runtime via npx.
@@ -54,13 +56,19 @@ Three test layers, by runtime:
   fastForward, strata, audioEdges, …).
 - **Edge Functions** — Deno `*.test.ts` (`npm run check:edge` → `deno test`), covering the pure
   referee logic (validate/authorize/coerce/reap) extracted from the handlers.
-- **Client (DOM + fetch)** — **Vitest** with the **jsdom** environment (`npm run test:client`),
+- **Client (DOM + fetch)** — **Vitest** `4.1.10` with the **jsdom** environment (`npm run test:client`),
   giving the DOM- and `fetch`-heavy client code (Lobby, HUD, NetworkClient) a seam the tsx harnesses
-  cannot reach. **Coverage:** v8 provider via `npm run coverage:client` — this is the command the
+  cannot reach. **Coverage:** `@vitest/coverage-v8` `4.1.10` via
+  `npm run coverage:client` — this is the command the
   `/ca:refactor` Phase-2 gate reads. Added 2026-07-03 to unblock the client refactor backlog
   (#85/#87/#91); vitest/vite/esbuild are dev-only (not in the shipped bundle).
+  Vitest 4 uses AST-aware v8 remapping, so percentages are not directly
+  comparable to Vitest 2 reports; the executable test set remains the governing
+  compatibility oracle until a global threshold is adopted.
 - CI runs all three layers (`.github/workflows/ci.yml`).
 
 ## License
 
-**Intended: MIT (open-source)** — confirmed with maintainer 2026-06-20. Not yet enacted: there is no `LICENSE` file or `license` field, and all packages are `private: true`. See `open-tasks.md` for the follow-up.
+**MIT (open-source).** The repository has a root `LICENSE` and all package
+manifests declare MIT. Third-party notices are retained in
+`THIRD_PARTY_NOTICES.md`.

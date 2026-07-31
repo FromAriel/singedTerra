@@ -1,12 +1,32 @@
-import { withCors, json, getServiceClient, generateCode, isValidColor, mintSeatToken, DEFAULT_GRAVITY, DEFAULT_MAX_WIND } from '../_shared/mod.ts'
-import { coerceEconomyOptions, coerceGravity, coerceMaxWind } from './validate.ts'
+import {
+  withCors,
+  json,
+  getServiceClient,
+  generateCode,
+  isValidColor,
+  mintSeatToken,
+  DEFAULT_GRAVITY,
+  DEFAULT_MAX_WIND,
+  DEFAULT_TANK_LOADOUT,
+  parseTankLoadout,
+  type TankLoadout,
+} from '../_shared/mod.ts'
+import { coerceEconomyOptions, coerceGravity, coerceMaxWind, coerceWallMode } from './validate.ts'
 
-export async function handleCreateRoom(body: unknown): Promise<Response> {
-  const { playerName, color, options, bots } = body as {
+interface CreateRoomDependencies {
+  serviceClient?: ReturnType<typeof getServiceClient>
+}
+
+async function handleCreateRoomWithDependencies(
+  body: unknown,
+  dependencies: CreateRoomDependencies,
+): Promise<Response> {
+  const { playerName, color, loadout, options, bots } = body as {
     playerName?: unknown
     color?: unknown
+    loadout?: unknown
     options?: {
-      maxPlayers?: unknown; maxWind?: unknown; gravity?: unknown; visibility?: unknown; rounds?: unknown
+      maxPlayers?: unknown; maxWind?: unknown; gravity?: unknown; visibility?: unknown; rounds?: unknown; walls?: unknown
       // SE-parity economy (optional, additive). Coerced by coerceEconomyOptions.
       interestRate?: unknown; suddenDeathTurn?: unknown; armsLevel?: unknown
     }
@@ -25,6 +45,12 @@ export async function handleCreateRoom(body: unknown): Promise<Response> {
   // Validate color (bounded hex; see isValidColor / appsec-003)
   if (!isValidColor(color)) {
     return json({ error: 'Invalid input: color' }, 400)
+  }
+  const playerLoadout = loadout === undefined
+    ? { ...DEFAULT_TANK_LOADOUT }
+    : parseTankLoadout(loadout)
+  if (playerLoadout === null) {
+    return json({ error: 'Invalid input: loadout' }, 400)
   }
 
   // Validate options.maxPlayers
@@ -50,7 +76,7 @@ export async function handleCreateRoom(body: unknown): Promise<Response> {
     visibility = options.visibility
   }
 
-  const supabase = getServiceClient()
+  const supabase = dependencies.serviceClient ?? getServiceClient()
 
   // Generate playerId
   const playerId = crypto.randomUUID()
@@ -83,20 +109,34 @@ export async function handleCreateRoom(body: unknown): Promise<Response> {
   // Validate + build any CPU seats. Bots are ready immediately and occupy seats,
   // so humans fill the remainder. At most maxPlayers-1 (≥1 human: the creator).
   const AI_LEVELS = new Set(['easy', 'medium', 'hard'])
-  interface BotIn { name?: unknown; color?: unknown; ai?: unknown }
+  interface BotIn { name?: unknown; color?: unknown; ai?: unknown; loadout?: unknown }
   const botsIn: BotIn[] = Array.isArray(bots) ? (bots as BotIn[]) : []
   if (botsIn.length > maxPlayers - 1) {
     return json({ error: `Too many CPU opponents (max ${maxPlayers - 1} for ${maxPlayers}-player room)` }, 400)
   }
   const usedColors = new Set<string>([color.trim()])
   const nowMs = Date.now()
-  const botSeats: Array<{ id: string; name: string; color: string; ready: boolean; lastSeen: number; ai: 'easy' | 'medium' | 'hard' }> = []
+  const botSeats: Array<{
+    id: string
+    name: string
+    color: string
+    ready: boolean
+    lastSeen: number
+    ai: 'easy' | 'medium' | 'hard'
+    loadout: TankLoadout
+  }> = []
   for (let i = 0; i < botsIn.length; i++) {
     const b = botsIn[i]
     const bColor = isValidColor(b.color) ? b.color.trim() : ''
     const bAi = typeof b.ai === 'string' ? b.ai : ''
     if (!bColor || !AI_LEVELS.has(bAi)) {
       return json({ error: 'Invalid CPU opponent (needs color + difficulty)' }, 400)
+    }
+    const botLoadout = b.loadout === undefined
+      ? { ...DEFAULT_TANK_LOADOUT }
+      : parseTankLoadout(b.loadout)
+    if (botLoadout === null) {
+      return json({ error: 'Invalid CPU opponent loadout' }, 400)
     }
     if (usedColors.has(bColor)) {
       return json({ error: 'CPU opponents must use distinct colors' }, 400)
@@ -109,6 +149,7 @@ export async function handleCreateRoom(body: unknown): Promise<Response> {
       ready: true,            // bots are always ready — they never block the start
       lastSeen: nowMs,
       ai: bAi as 'easy' | 'medium' | 'hard',
+      loadout: botLoadout,
     })
   }
 
@@ -120,6 +161,7 @@ export async function handleCreateRoom(body: unknown): Promise<Response> {
       color: color.trim(),
       ready: false,
       lastSeen: nowMs,
+      loadout: playerLoadout,
     },
     ...botSeats,
   ]
@@ -138,6 +180,7 @@ export async function handleCreateRoom(body: unknown): Promise<Response> {
     maxPlayers,
     maxWind: coerceMaxWind(options.maxWind, DEFAULT_MAX_WIND),
     gravity: coerceGravity(options.gravity, DEFAULT_GRAVITY),
+    walls: coerceWallMode(options.walls),
     visibility,
     ...(rounds !== undefined ? { rounds } : {}),
     // SE-parity economy — coerced + omitted-when-absent so every client builds an identical engine.
@@ -181,6 +224,16 @@ export async function handleCreateRoom(body: unknown): Promise<Response> {
   // Return the full players array so the client has the generated CPU seat ids
   // (and renders them in the waiting room) without waiting for a Realtime update.
   return json({ roomId: room.id, code, playerId, token, players }, 200)
+}
+
+export function createRoomHandler(
+  dependencies: CreateRoomDependencies,
+): (body: unknown) => Promise<Response> {
+  return (body) => handleCreateRoomWithDependencies(body, dependencies)
+}
+
+export async function handleCreateRoom(body: unknown): Promise<Response> {
+  return handleCreateRoomWithDependencies(body, {})
 }
 
 if (import.meta.main) {

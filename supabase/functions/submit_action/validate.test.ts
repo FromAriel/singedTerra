@@ -46,6 +46,10 @@ Deno.test("endsTurn: 'next_round' returns false", () => {
   assertEquals(endsTurn('next_round'), false)
 })
 
+Deno.test("endsTurn: 'move' returns false", () => {
+  assertEquals(endsTurn('move'), false)
+})
+
 // ---------------------------------------------------------------------------
 // validateActionShape — happy path + every 400 branch
 // ---------------------------------------------------------------------------
@@ -86,6 +90,32 @@ Deno.test('validateActionShape: valid next_round passes', () => {
   assertEquals(result, { ok: true })
 })
 
+Deno.test('validateActionShape: valid signed movement bounds pass', () => {
+  for (const delta of [-8, -1, 1, 8]) {
+    const result = validateActionShape({
+      roomId: 'room-1',
+      playerId: 'player-1',
+      action: { type: 'move', delta },
+    })
+    assertEquals(result, { ok: true })
+  }
+})
+
+Deno.test('validateActionShape: invalid movement deltas return 400', () => {
+  for (const delta of [undefined, 0, -9, 9, 1.5, NaN, Infinity, '8']) {
+    const result = validateActionShape({
+      roomId: 'room-1',
+      playerId: 'player-1',
+      action: { type: 'move', delta },
+    })
+    assertEquals(result, {
+      ok: false,
+      status: 400,
+      error: 'Invalid input: move delta must be a non-zero integer from -8 to 8',
+    })
+  }
+})
+
 // Weapon allowlist (#56) — unknown weapon strings must be rejected at the boundary
 // so they never enter the permanent log and brick every client's replay.
 Deno.test('validateActionShape: fire with a known non-default weapon passes', () => {
@@ -95,6 +125,21 @@ Deno.test('validateActionShape: fire with a known non-default weapon passes', ()
     action: { type: 'fire', angle: 45, power: 80, weapon: 'deaths_head' },
   })
   assertEquals(result, { ok: true })
+})
+
+Deno.test('validateActionShape: Sandhog fire and buy pass the network allowlist', () => {
+  const fire = validateActionShape({
+    roomId: 'room-1',
+    playerId: 'player-1',
+    action: { type: 'fire', angle: 45, power: 80, weapon: 'sandhog' },
+  })
+  const buy = validateActionShape({
+    roomId: 'room-1',
+    playerId: 'player-1',
+    action: { type: 'buy', weapon: 'sandhog' },
+  })
+  assertEquals(fire, { ok: true })
+  assertEquals(buy, { ok: true })
 })
 
 Deno.test('validateActionShape: fire with an unknown weapon returns 400', () => {
@@ -177,7 +222,7 @@ Deno.test('validateActionShape: bad action.type returns 400', () => {
   assertEquals(result, {
     ok: false,
     status: 400,
-    error: 'Invalid input: action.type must be "fire", "use_shield", "buy", or "next_round"',
+    error: 'Invalid input: action.type must be "fire", "use_shield", "buy", "next_round", or "move"',
   })
 })
 
@@ -331,6 +376,30 @@ Deno.test('authorizeAction: active human firing own shot passes', () => {
     activeIndex: 0,
   })
   assertEquals(result, { ok: true })
+})
+
+Deno.test('authorizeAction: active human movement passes under the normal turn gate', () => {
+  const result = authorizeAction({
+    action: { type: 'move' },
+    players: [PLAYER_A, PLAYER_B],
+    playerId: 'uid-a',
+    actingId: 'uid-a',
+    isRoundOver: false,
+    activeIndex: 0,
+  })
+  assertEquals(result, { ok: true })
+})
+
+Deno.test('authorizeAction: inactive human movement is rejected even with roundOver advisory', () => {
+  const result = authorizeAction({
+    action: { type: 'move' },
+    players: [PLAYER_A, PLAYER_B],
+    playerId: 'uid-a',
+    actingId: 'uid-a',
+    isRoundOver: true,
+    activeIndex: 1,
+  })
+  assertEquals(result, { ok: false, status: 403, error: 'Not your turn' })
 })
 
 // (2) next_round always passes (no turn gate)

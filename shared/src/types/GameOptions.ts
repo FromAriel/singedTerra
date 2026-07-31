@@ -1,4 +1,8 @@
 import type { AiDifficulty } from './GameState';
+import type { TankLoadout } from './TankLoadout';
+
+/** Horizontal battlefield boundary rule. */
+export type WallMode = 'open' | 'reflective';
 
 /**
  * Per-room game configuration set at room creation. Consumed by the engine
@@ -16,13 +20,21 @@ export interface GameOptions {
    * default two-tank layout. `maxPlayers` should agree with `players.length`.
    * `ai` marks a CPU-controlled seat at a difficulty (absent/undefined => human).
    */
-  players?: Array<{ name: string; color: string; ai?: AiDifficulty }>;
+  players?: Array<{
+    name: string;
+    color: string;
+    ai?: AiDifficulty;
+    /** Presentation-only authored part selection. */
+    loadout?: TankLoadout;
+  }>;
   /** Terrain RNG seed; same seed → same terrain. */
   seed?: number;
   /** Wind strength cap; defaults to MAX_WIND. */
   maxWind?: number;
   /** Gravity strength; defaults to GRAVITY. */
   gravity?: number;
+  /** Horizontal boundary behavior; defaults to open (legacy OOB miss). */
+  walls?: WallMode;
   /**
    * Best-of-N match length (V1 round system). Defaults to 1 — a single round, i.e.
    * the original "first elimination ends the game" behavior (full back-compat). For
@@ -30,7 +42,7 @@ export interface GameOptions {
    * are played); each round regenerates terrain from a seed DERIVED from `seed` +
    * the round index, so every networked client replays the same rounds with no new
    * action. Credits + purchased inventory carry between rounds; health/shield/fuel/
-   * position reset. See docs/SPRINT6_MATCH_STRUCTURE.md.
+   * position reset. See docs/archive/SPRINT6_MATCH_STRUCTURE.md.
    */
   rounds?: number;
   /**

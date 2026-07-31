@@ -18,8 +18,13 @@ describe('InputHandler public contract', () => {
     return handler;
   };
 
-  const dispatchKey = (key: string): KeyboardEvent => {
-    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key });
+  const dispatchKey = (key: string, repeat = false): KeyboardEvent => {
+    const event = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      key,
+      repeat,
+    });
     window.dispatchEvent(event);
     return event;
   };
@@ -105,16 +110,52 @@ describe('InputHandler public contract', () => {
     ]);
   });
 
+  it('maps A and D to one bounded movement action per physical key press', () => {
+    handler.attach();
+
+    for (const key of ['a', 'A', 'd', 'D']) dispatchKey(key);
+
+    expect(emitted()).toEqual([
+      { type: 'move', delta: -8 },
+      { type: 'move', delta: -8 },
+      { type: 'move', delta: 8 },
+      { type: 'move', delta: 8 },
+    ]);
+  });
+
+  it('suppresses movement auto-repeat while preserving repeatable aim', () => {
+    handler.attach();
+
+    const repeatedMove = dispatchKey('d', true);
+    const repeatedAim = dispatchKey('ArrowRight', true);
+
+    expect(repeatedMove.defaultPrevented).toBe(true);
+    expect(repeatedAim.defaultPrevented).toBe(true);
+    expect(emitted()).toEqual([{ type: 'set_angle', angle: 43 }]);
+  });
+
+  it('exposes the same discrete movement seam to semantic HUD buttons', () => {
+    handler.stepMove(-8);
+    handler.stepMove(8);
+
+    expect(emitted()).toEqual([
+      { type: 'move', delta: -8 },
+      { type: 'move', delta: 8 },
+    ]);
+  });
+
   it('cancels every handled key and passes unknown keys through', () => {
     handler.attach();
 
-    for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' ', 'Spacebar', 'Enter', 'Tab', 'q', 'Q']) {
+    for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'a', 'A', 'd', 'D', ' ', 'Spacebar', 'Enter', 'q', 'Q']) {
       expect(dispatchKey(key).defaultPrevented).toBe(true);
     }
 
+    const tab = dispatchKey('Tab');
     const unknown = dispatchKey('x');
+    expect(tab.defaultPrevented).toBe(false);
     expect(unknown.defaultPrevented).toBe(false);
-    expect(emitted()).toHaveLength(10);
+    expect(emitted()).toHaveLength(13);
   });
 
   it('clamps constructor and setAim seeds, suppresses bound no-ops, and emits inward steps', () => {
@@ -181,7 +222,7 @@ describe('InputHandler public contract', () => {
     handler.setWeapon('shield');
     dispatchKey(' ');
     handler.setWeapon('baby_missile');
-    for (const key of ['Tab', 'q', 'Q']) dispatchKey(key);
+    for (const key of ['q', 'Q']) dispatchKey(key);
 
     expect(emitted()).toEqual([
       { type: 'fire' },
@@ -190,8 +231,46 @@ describe('InputHandler public contract', () => {
       { type: 'use_shield' },
       { type: 'select_weapon', weapon: implementedWeapons[1] },
       { type: 'select_weapon', weapon: implementedWeapons[2] },
-      { type: 'select_weapon', weapon: implementedWeapons[3] },
     ]);
+  });
+
+  it('lets a focused native control own Space/Enter without a second global fire', () => {
+    const button = document.createElement('button');
+    const clicks = vi.fn();
+    button.addEventListener('click', clicks);
+    document.body.append(button);
+    handler.attach();
+
+    for (const key of [' ', 'Enter']) {
+      button.dispatchEvent(new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        key,
+      }));
+      // Model the browser's semantic activation that follows the key event.
+      button.click();
+    }
+
+    expect(emitted()).toEqual([]);
+    expect(clicks).toHaveBeenCalledTimes(2);
+    button.remove();
+  });
+
+  it('lets a focused native control own A/D without a global movement action', () => {
+    const button = document.createElement('button');
+    document.body.append(button);
+    handler.attach();
+
+    for (const key of ['a', 'A', 'd', 'D']) {
+      button.dispatchEvent(new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        key,
+      }));
+    }
+
+    expect(emitted()).toEqual([]);
+    button.remove();
   });
 
   it('maps CSS mouse coordinates to logical drag angle and power', () => {

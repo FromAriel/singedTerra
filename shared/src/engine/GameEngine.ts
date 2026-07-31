@@ -1,5 +1,6 @@
 import type {
   ExplosionEvent,
+  ExplosionImpactType,
   GameState,
   ProjectileState,
   TankState,
@@ -35,6 +36,8 @@ import {
   explosionDamage,
   surfaceNormalAt,
   reflectVelocity,
+  reflectSideWall,
+  MAX_FLIGHT_TICKS,
   MAX_WIND,
   WIND_DRIFT_STEP,
   MAX_DAMAGE,
@@ -51,8 +54,13 @@ import {
   BATTERY_BUNDLE_SIZE,
   BATTERY_POWER_PER_UNIT,
   BATTERY_ARMS_LEVEL,
+  FUEL_TANK_PRICE,
+  FUEL_TANK_FUEL,
+  FUEL_TANK_ARMS_LEVEL,
 } from './WeaponSystem';
 import { createRng } from './Random';
+import { blastReachRadius } from './BlastGeometry';
+import { resolveTankMove } from './Movement';
 
 /**
  * Burial safety valve (#15): the maximum number of turns a tank may stay trapped under
@@ -100,16 +108,6 @@ function deriveRoundSeed(baseSeed: number, round: number): number {
  *  tick does not re-collide with the same solid pixel. */
 const BOUNCE_EPS = 1.5;
 
-/** Hard cap on a projectile's airborne lifetime (ticks). Once a shell has flown
- *  this long it is force-detonated where it is, bounding worst-case ANIMATION length
- *  — without this, a bounding mine's hop kick can keep it skipping for ~700 ticks
- *  (12s @60fps), leaving the player watching a shell crawl across the field. (The fire
- *  watchdog itself clears on the committed echo, not animation, so this is a UX +
- *  runaway guard, not a network-timeout fix.) Every LEGIT ballistic arc resolves by
- *  ~224 ticks (flightticks.mjs grid), so this only fires on an anomalous skip, never a
- *  normal shot. Playtest-tunable (sibling to the combat-feel rebalance, issue #45). */
-const MAX_FLIGHT_TICKS = 240;
-
 /** Aim-input clamps (SPEC §6: angle degrees 0=right..180=left; power 0–100). */
 const ANGLE_MIN = 0;
 const ANGLE_MAX = 180;
@@ -149,6 +147,8 @@ export class GameEngine {
 
   /** Monotonic explosion id source — drives ExplosionEvent.id dedupe. */
   private explosionSeq = 0;
+  /** Monotonic sidewall-contact id source for renderer/audio dedupe. */
+  private wallImpactSeq = 0;
 
   /**
    * Active napalm fire field — working store of burning column x → ticks of burn
@@ -326,6 +326,7 @@ export class GameEngine {
     // Arms level: a finite level clamped to [0,4], else 4 (everything / back-compat).
     const al = options?.armsLevel;
     this.armsLevel = Number.isFinite(al) ? clamp(Math.floor(al as number), 0, 4) : 4;
+    const walls = options?.walls === 'reflective' ? 'reflective' : 'open';
     this.turnAtRoundStart = 0; // opening round begins at the turn-0 baseline
     this.options = options;
 
@@ -350,6 +351,7 @@ export class GameEngine {
       activePlayerId: tanks[0]?.id ?? '',
       // Opening turn's wind: drift from a 0 baseline, advancing the stream once.
       wind: this.nextWind(0),
+      walls,
       // SAME reference as this.terrain — getState() returns the live bitmap by
       // reference, no per-snapshot copy/sync.
       terrain: this.terrain,
@@ -359,6 +361,7 @@ export class GameEngine {
       projectile: null,
       lastExplosion: null,
       explosions: [],
+      wallImpacts: [],
       fire: [],
       winner: null,
     };
@@ -436,6 +439,7 @@ export class GameEngine {
 
     // --- Scalar / primitive fields ---
     c.explosionSeq  = this.explosionSeq;
+    c.wallImpactSeq = this.wallImpactSeq;
     c.fireCenter    = this.fireCenter;
     c.shooterId     = this.shooterId;
     c.shotDamage    = this.shotDamage;
@@ -484,6 +488,7 @@ export class GameEngine {
       return {
         ...t,
         inventory: inv as typeof t.inventory,
+        loadout: { ...t.loadout },
       };
     });
 
@@ -508,6 +513,7 @@ export class GameEngine {
       lastRoundWinnerId: s.lastRoundWinnerId,
       activePlayerId:    s.activePlayerId,
       wind:              s.wind,
+      walls:             s.walls,
       terrain:           c.terrain,   // points to the clone's own bitmap
       terrainVersion:    s.terrainVersion,
       tanks:             cloneTanks,
@@ -515,6 +521,7 @@ export class GameEngine {
       projectile:        cloneProjectile,
       lastExplosion:     cloneLastExp,
       explosions:        cloneExplosions,
+      wallImpacts:       s.wallImpacts.map((event) => ({ ...event })),
       fire:              cloneFire,
       winner:            s.winner,
     };
@@ -537,9 +544,10 @@ export class GameEngine {
   }
 
   /**
-   * Apply a player input. Aim changes (set_angle/set_power) are honored only
-   * while aiming (PLAYER_TURN). `fire` is honored only while aiming and with no
-   * projectile in flight; it launches the shot and transitions to FIRING.
+   * Apply a player input. Aim changes (set_angle/set_power) and fuel-limited
+   * movement are honored only while aiming (PLAYER_TURN). `fire` is honored only
+   * while aiming and with no projectile in flight; it launches the shot and
+   * transitions to FIRING.
    * select_weapon sets the active weapon (no ammo gate here — gating happens on
    * `fire`, which rejects a shot when the selected weapon is out of ammo).
    */
@@ -572,6 +580,11 @@ export class GameEngine {
         // Batteries) so a battery-equipped tank can over-power a shot for extra range.
         tank.power = clamp(action.power, POWER_MIN, tank.powerCap);
         return;
+      case 'move':
+        // Committed but turn-neutral. The movement primitive independently
+        // gates liveness, burial, payload bounds, terrain, tanks, and fuel.
+        resolveTankMove(tank, this.state.tanks, this.terrain, action.delta);
+        return;
       case 'select_weapon':
         tank.selectedWeapon = action.weapon;
         return;
@@ -599,6 +612,7 @@ export class GameEngine {
         // across ticks (a cluster shot lands its bomblets over several ticks);
         // the renderer dedupes by id, so accumulating is safe.
         this.state.explosions = [];
+        this.state.wallImpacts = [];
         this.state.projectiles = [
           {
             x: tip.x,
@@ -681,6 +695,13 @@ export class GameEngine {
       if (target.credits < BATTERY_PRICE) return;      // can't afford
       target.credits -= BATTERY_PRICE;
       target.powerCap += BATTERY_POWER_PER_UNIT * BATTERY_BUNDLE_SIZE;
+      return;
+    }
+    if (action.accessory === 'fuel_tank') {
+      if (FUEL_TANK_ARMS_LEVEL > this.armsLevel) return;
+      if (target.credits < FUEL_TANK_PRICE) return;
+      target.credits -= FUEL_TANK_PRICE;
+      target.fuel += FUEL_TANK_FUEL;
       return;
     }
     if (!action.weapon) return; // neither a weapon nor a recognized accessory — nothing to buy
@@ -778,6 +799,37 @@ export class GameEngine {
     const current = this.state.projectiles;
 
     for (const p of current) {
+      const sandhog = getWeapon(p.weaponType).behavior?.sandhog;
+      if (sandhog !== undefined && p.burrowTicksRemaining !== undefined) {
+        const nextX = p.x + p.vx;
+        const nextY = p.y + p.vy;
+        p.age++;
+
+        // Detonate at the last valid drill position instead of allowing the
+        // endpoint blast to escape the deterministic battlefield bounds.
+        if (
+          nextX < 0
+          || nextX >= CANVAS_WIDTH
+          || nextY < 0
+          || nextY >= CANVAS_HEIGHT
+        ) {
+          this.detonate(p.x, p.y, p.weaponType, 'ground');
+          continue;
+        }
+
+        p.x = nextX;
+        p.y = nextY;
+        this.carveSandhogTunnel(p.x, p.y, sandhog.tunnelRadius);
+        p.burrowTicksRemaining--;
+
+        if (p.burrowTicksRemaining <= 0) {
+          this.detonate(p.x, p.y, p.weaponType, 'ground');
+        } else {
+          survivors.push(p);
+        }
+        continue;
+      }
+
       // Pre-step velocity sign drives apex detection (up is -y, so rising is
       // vy < 0). We capture it BEFORE integrating this tick.
       const vyBefore = p.vy;
@@ -827,10 +879,28 @@ export class GameEngine {
         }
       }
 
-      const hit = sweepCollide(p, prevX, prevY, this.terrain, this.state.tanks);
+      const hit = sweepCollide(
+        p,
+        prevX,
+        prevY,
+        this.terrain,
+        this.state.tanks,
+        this.state.walls,
+      );
 
       if (hit.type === 'none') {
         survivors.push(p); // still in flight
+        continue;
+      }
+      if (hit.type === 'wall') {
+        reflectSideWall(p, hit);
+        this.state.wallImpacts.push({
+          id: ++this.wallImpactSeq,
+          side: hit.side,
+          x: hit.x,
+          y: hit.y,
+        });
+        survivors.push(p);
         continue;
       }
 
@@ -841,12 +911,39 @@ export class GameEngine {
       if (hit.type === 'tank') {
         const napalm = getWeapon(p.weaponType).behavior?.napalm;
         if (napalm !== undefined) {
-          this.igniteNapalm(hit.x, hit.y, napalm, p.weaponType); // splashes burning fuel, no blast
+          this.igniteNapalm(hit.x, hit.y, napalm, p.weaponType, 'tank'); // splashes burning fuel, no blast
         } else {
-          this.detonate(hit.x, hit.y, p.weaponType); // direct tank hit always detonates
+          this.detonate(hit.x, hit.y, p.weaponType, 'tank'); // direct tank hit always detonates
         }
       } else if (hit.type === 'ground') {
-        if (p.bounces > 0) {
+        if (sandhog !== undefined) {
+          // Terrain treats y >= CANVAS_HEIGHT as an implicit solid floor. A
+          // swept hit there is already outside the drawable battlefield, so it
+          // cannot become a valid drill-entry point. Terminate on the final
+          // in-bounds point along the swept segment instead.
+          if (hit.y >= CANVAS_HEIGHT) {
+            const endpointY = CANVAS_HEIGHT - 0.01;
+            const deltaY = hit.y - prevY;
+            const fraction = deltaY > 0
+              ? clamp((endpointY - prevY) / deltaY, 0, 1)
+              : 0;
+            const endpointX = clamp(
+              prevX + (hit.x - prevX) * fraction,
+              0,
+              CANVAS_WIDTH - 0.01,
+            );
+            this.detonate(endpointX, endpointY, p.weaponType, 'ground');
+            continue;
+          }
+          // Ground contact arms the underground phase without altering the
+          // authored ballistic flight or carving until the next fixed tick.
+          p.x = hit.x;
+          p.y = hit.y;
+          p.vx = p.vx < 0 ? -sandhog.horizontalSpeed : sandhog.horizontalSpeed;
+          p.vy = sandhog.verticalSpeed;
+          p.burrowTicksRemaining = sandhog.ticks;
+          survivors.push(p);
+        } else if (p.bounces > 0) {
           // BOUNCE: reflect off the derived surface normal, decrement, keep
           // flying. sweepCollide already snapped p.x/p.y to the impact point.
           // We compute the normal + reflect BEFORE any detonate() so the bounce
@@ -869,14 +966,16 @@ export class GameEngine {
           // BOUNDING-MINE CHAIN: detonate a full blast at this contact (damage +
           // crater + explosion event) so betty lays a line of blasts as it skips,
           // instead of bouncing silently. Done AFTER reflecting/nudging above.
-          if (bounce?.detonateEachBounce) this.detonate(hit.x, hit.y, p.weaponType);
+          if (bounce?.detonateEachBounce) {
+            this.detonate(hit.x, hit.y, p.weaponType, 'ground');
+          }
           survivors.push(p); // still in flight
         } else {
           const napalm = getWeapon(p.weaponType).behavior?.napalm;
           if (napalm !== undefined) {
-            this.igniteNapalm(hit.x, hit.y, napalm, p.weaponType); // splashes burning fuel, no blast
+            this.igniteNapalm(hit.x, hit.y, napalm, p.weaponType, 'ground'); // splashes burning fuel, no blast
           } else {
-            this.detonate(hit.x, hit.y, p.weaponType); // bounces spent -> detonate
+            this.detonate(hit.x, hit.y, p.weaponType, 'ground'); // bounces spent -> detonate
           }
         }
       }
@@ -912,10 +1011,15 @@ export class GameEngine {
   private settleAndResolveTurn(survivors: ProjectileState[]): void {
     const aliveCount = this.state.tanks.reduce((n, t) => (t.alive ? n + 1 : n), 0);
     const settled = survivors.length === 0 && this.fire.size === 0;
+    const drilling = survivors.some(
+      (projectile) => projectile.burrowTicksRemaining !== undefined,
+    );
 
     if (survivors.length > 0) {
-      // (A) Projectiles still in flight — flush instantly to keep trajectory parity.
-      this.flushSettleInstant();
+      // (A) Ordinary projectiles still in flight — flush instantly to keep
+      // trajectory parity. A Sandhog drill deliberately holds its excavated
+      // corridor open until the endpoint blast.
+      if (!drilling) this.flushSettleInstant();
     } else if (!settled) {
       // (D) No projectiles but fire still burning — flush instantly each tick.
       this.flushSettleInstant();
@@ -1180,6 +1284,7 @@ export class GameEngine {
     this.state.projectiles = [];
     this.syncProjectileAlias();
     this.state.explosions = [];
+    this.state.wallImpacts = [];
     this.state.lastExplosion = null;
     this.state.fire = [];
     this.fire.clear();
@@ -1329,7 +1434,26 @@ export class GameEngine {
     return moved;
   }
 
-  private detonate(cx: number, cy: number, weaponType: WeaponType): void {
+  /** Clear one Sandhog drill disc and defer its column collapse until detonation. */
+  private carveSandhogTunnel(cx: number, cy: number, radius: number): void {
+    const range = deform(this.terrain, cx, cy, radius, false);
+    if (range === null) return;
+
+    if (this.pendingSettle === null) {
+      this.pendingSettle = { xStart: range.xStart, xEnd: range.xEnd };
+    } else {
+      this.pendingSettle.xStart = Math.min(this.pendingSettle.xStart, range.xStart);
+      this.pendingSettle.xEnd = Math.max(this.pendingSettle.xEnd, range.xEnd);
+    }
+    this.state.terrainVersion++;
+  }
+
+  private detonate(
+    cx: number,
+    cy: number,
+    weaponType: WeaponType,
+    impactType?: ExplosionImpactType,
+  ): void {
     const { radius, maxDamage, raisesTerrain, style, color, durationFrames } =
       getWeapon(weaponType).detonation;
     const raise = raisesTerrain === true;
@@ -1359,9 +1483,10 @@ export class GameEngine {
     // NOTE: tank resolution (drop/burial) is intentionally DEFERRED to after
     // terrain settles (flushSettleInstant or settleStepAnimated) — damage is
     // computed against the crater shape, not the settled shape.
+    const damageRadius = blastReachRadius(radius, style);
     for (const tank of this.state.tanks) {
       if (!tank.alive) continue;
-      const baseDamage = explosionDamage(cx, cy, radius, tank);
+      const baseDamage = explosionDamage(cx, cy, damageRadius, tank);
       // explosionDamage() peaks at the global MAX_DAMAGE; rescale to this
       // weapon's maxDamage so the falloff shape is preserved.
       const scaled = (baseDamage / MAX_DAMAGE) * maxDamage;
@@ -1374,9 +1499,11 @@ export class GameEngine {
     // increasing across every blast (including each bomblet of a cluster).
     const event: ExplosionEvent = {
       id: ++this.explosionSeq,
+      weaponType,
       cx,
       cy: clamp(cy, 0, CANVAS_HEIGHT),
       radius,
+      ...(impactType === undefined ? {} : { impactType }),
       style,
       color,
       durationFrames,
@@ -1397,7 +1524,13 @@ export class GameEngine {
    * Determinism: ignite writes are pure arithmetic on the integer impact column;
    * the flash id comes from the same monotonic explosionSeq as every other blast.
    */
-  private igniteNapalm(cx: number, cy: number, def: NapalmDef, weaponType: WeaponType): void {
+  private igniteNapalm(
+    cx: number,
+    cy: number,
+    def: NapalmDef,
+    weaponType: WeaponType,
+    impactType?: ExplosionImpactType,
+  ): void {
     const center = Math.round(cx);
     this.fireDef = def;
     this.fireCenter = center;
@@ -1415,9 +1548,11 @@ export class GameEngine {
     const det = (getWeapon(weaponType) ?? getWeapon('napalm')).detonation;
     const event: ExplosionEvent = {
       id: ++this.explosionSeq,
+      weaponType,
       cx,
       cy: clamp(cy, 0, CANVAS_HEIGHT),
       radius: det.radius,
+      ...(impactType === undefined ? {} : { impactType }),
       style: det.style,
       color: det.color,
       durationFrames: det.durationFrames,

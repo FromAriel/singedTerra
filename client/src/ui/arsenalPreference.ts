@@ -1,10 +1,9 @@
-export const COMPACT_TOUCH_QUERY = '(pointer: coarse) and (max-height: 700px)';
-
 export function resolveInitialArsenalCollapsed(
   storedValue: string | null,
-  compactTouch: boolean,
 ): boolean {
   if (storedValue === '1') return true;
   if (storedValue === '0') return false;
-  return compactTouch;
+  // A drawer is transient by design. Start every new shell closed so the
+  // battlefield controls remain visible; a deliberate saved preference wins.
+  return true;
 }

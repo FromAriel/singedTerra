@@ -1,3 +1,30 @@
+import type { ExplosionImpactType } from '@shared/types/GameState';
+import { getImpactAudioProfile } from '../feel/impactMaterial';
+
+export interface WallReflectAudioProfile {
+  readonly startFrequency: number;
+  readonly endFrequency: number;
+  readonly noiseGain: number;
+  readonly toneGain: number;
+  readonly noiseDuration: number;
+  readonly toneDuration: number;
+}
+
+/** Pure bounded profile so ricochet headroom and side distinction stay testable. */
+export function getWallReflectAudioProfile(
+  side: 'left' | 'right',
+): WallReflectAudioProfile {
+  const startFrequency = side === 'left' ? 720 : 880;
+  return {
+    startFrequency,
+    endFrequency: startFrequency * 0.55,
+    noiseGain: 0.075,
+    toneGain: 0.055,
+    noiseDuration: 0.065,
+    toneDuration: 0.11,
+  };
+}
+
 /**
  * AudioEngine — synthesized SFX via the Web Audio API, NO asset files.
  *
@@ -16,6 +43,8 @@
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  /** Fast final-stage limiter keeps layered boom/material transients clean. */
+  private limiter: DynamicsCompressorNode | null = null;
   /** Shared 0.5s white-noise buffer, reused (read-only) by every percussive sound. */
   private noise: AudioBuffer | null = null;
   private muted = false;
@@ -60,7 +89,13 @@ export class AudioEngine {
       }
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : AudioEngine.VOLUME;
-      this.master.connect(this.ctx.destination);
+      this.limiter = this.ctx.createDynamicsCompressor();
+      this.limiter.threshold.value = -5;
+      this.limiter.knee.value = 0;
+      this.limiter.ratio.value = 20;
+      this.limiter.attack.value = 0.003;
+      this.limiter.release.value = 0.12;
+      this.master.connect(this.limiter).connect(this.ctx.destination);
 
       // Build a 0.5s mono white-noise buffer once. A tiny LCG (not Math.random)
       // keeps it self-contained; the exact samples are irrelevant for noise.
@@ -227,6 +262,74 @@ export class AudioEngine {
     sub.connect(sg).connect(this.master);
     sub.start(t);
     sub.stop(t + dur + 0.02);
+  }
+
+  /** Short collision-material layer under the main weapon explosion. */
+  impact(impactType: ExplosionImpactType, radius: number): void {
+    if (this.muted) return;
+    const profile = getImpactAudioProfile(impactType, radius);
+    if (!profile) return;
+    const ctx = this.ensure();
+    if (!ctx || !this.master) return;
+    const t = ctx.currentTime;
+
+    this.noiseHit(
+      t,
+      profile.duration,
+      profile.noiseGain,
+      profile.noiseFilter,
+      profile.noiseFrequency,
+      profile.noiseQ,
+    );
+
+    const tone = ctx.createOscillator();
+    tone.type = profile.toneType;
+    tone.frequency.setValueAtTime(profile.toneStart, t);
+    tone.frequency.exponentialRampToValueAtTime(
+      profile.toneEnd,
+      t + profile.duration,
+    );
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(profile.toneGain, t + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + profile.duration);
+    tone.connect(gain).connect(this.master);
+    tone.start(t);
+    tone.stop(t + profile.duration + 0.02);
+  }
+
+  /** Bright rail ricochet, panned by pitch so left/right contacts stay distinct. */
+  wallReflect(side: 'left' | 'right'): void {
+    if (this.muted) return;
+    const ctx = this.ensure();
+    if (!ctx || !this.master) return;
+    const t = ctx.currentTime;
+    const profile = getWallReflectAudioProfile(side);
+    this.noiseHit(
+      t,
+      profile.noiseDuration,
+      profile.noiseGain,
+      'highpass',
+      2600,
+      3.5,
+    );
+    const tone = ctx.createOscillator();
+    tone.type = 'triangle';
+    tone.frequency.setValueAtTime(profile.startFrequency, t);
+    tone.frequency.exponentialRampToValueAtTime(
+      profile.endFrequency,
+      t + profile.toneDuration - 0.025,
+    );
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(profile.toneGain, t + 0.003);
+    gain.gain.exponentialRampToValueAtTime(
+      0.0001,
+      t + profile.toneDuration - 0.02,
+    );
+    tone.connect(gain).connect(this.master);
+    tone.start(t);
+    tone.stop(t + profile.toneDuration);
   }
 
   /** Soft tick for aim (angle/power) nudges. Throttled so held-key auto-repeat

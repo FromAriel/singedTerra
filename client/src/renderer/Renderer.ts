@@ -1,23 +1,52 @@
-import type { GameState, ExplosionEvent, ExplosionStyle } from '@shared/types/GameState';
+import type {
+  GameState,
+  ExplosionEvent,
+  ExplosionStyle,
+  TankState,
+} from '@shared/types/GameState';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, surfaceAt } from '@shared/engine/Terrain';
 import { TANK_WIDTH, TANK_HEIGHT, BARREL_LENGTH, barrelTip } from '@shared/engine/Tank';
 import { getWeapon } from '@shared/engine/WeaponSystem';
-import { launchVelocity, GRAVITY, WIND_FACTOR } from '@shared/engine/Physics';
+import { GRAVITY } from '@shared/engine/Physics';
 import { fireActiveEdge, bettyHopCount, isOobFizzle } from './audioEdges';
 
-/** Aim guide length in ticks. DELIBERATELY SHORT: it shows launch direction +
- *  relative power (and which way the wind bends the opening arc), but stops long
- *  before the landing point — so reading wind/gravity over distance stays the
- *  player's skill and the guide can't trivialize aiming (per design constraint). */
-const AIM_GUIDE_TICKS = 16;
 import { TerrainRenderer } from './TerrainRenderer';
-import { TankRenderer } from './TankRenderer';
+import { TankRenderer, type TankRenderPose } from './TankRenderer';
 import { ProjectileRenderer } from './ProjectileRenderer';
 import { HUDRenderer } from './HUDRenderer';
 import { EffectsRenderer } from './EffectsRenderer';
 import { skyGradient, ACCENT, TERRAIN } from '../ui/theme';
 import { flashIntensity, scorchAlpha } from './explosionFx';
 import { damageTier } from './tankFx';
+import { IMPACT_KICK_MAX, impactKick } from './impactKick';
+import {
+  getExplosionVisualProfile,
+  type ExplosionVisualProfile,
+} from './explosionVisuals';
+import { getBlastLightProfile } from './blastLighting';
+import { getMuzzleVisualProfile } from './muzzleVisuals';
+import { TANK_RECOIL_FRAMES, tankRecoilPose } from './tankRecoil';
+import {
+  getWindGustVisualProfile,
+  type WindGustVisualProfile,
+} from './windGustVisuals';
+import {
+  getImpactDepthParallax,
+  type ImpactDepthParallax,
+} from './impactDepthParallax';
+import { getNapalmFirelightPools } from './napalmFirelight';
+import { AtmosphereCloudLayer } from './atmosphereClouds';
+import { buildLaunchGuide, getAimGuideMode } from './aimGuide';
+import {
+  coalesceImpactMaterial,
+  type ImpactMaterialBatch,
+} from '../feel/impactMaterial';
+import {
+  consumeWallContacts,
+  drawReflectiveSidewalls,
+  type WallContactVisual,
+} from './sidewallVisuals';
+import { BattlefieldBackdrop } from './BattlefieldBackdrop';
 
 /** Shared barrel geometry keeps muzzle FX at the visual tip. */
 /**
@@ -26,6 +55,19 @@ import { damageTier } from './tankFx';
  * lifetime spawned by EffectsRenderer (≈70 frames) so the idle-skip gate never
  * stops redrawing while a particle is still alive. Conservative on purpose. */
 const EFFECTS_BUSY_FRAMES = 80;
+
+/** Fraction of directional recoil retained after each rendered frame. */
+const IMPACT_KICK_DECAY = 0.72;
+/** Stop sub-pixel recoil once its vector is visually negligible. */
+const IMPACT_KICK_EPSILON = 0.12;
+/** Existing random screen-shake cap in logical canvas pixels per axis. */
+const SCREEN_SHAKE_MAX = 9;
+/** Covers the maximum composed kick + random shake, with one spare pixel. */
+const WORLD_TRANSLATION_MARGIN = SCREEN_SHAKE_MAX + IMPACT_KICK_MAX + 1;
+/** Bound additive work and overdraw for multi-warhead detonations. */
+const MAX_LOCAL_BLAST_LIGHTS = 3;
+/** Stable fail-closed/rest profile for a camera displacement of zero. */
+const REST_DEPTH_PARALLAX = getImpactDepthParallax({ x: 0, y: 0 })!;
 
 /**
  * Optional sink the renderer emits gameplay-feel events to (audio, etc.). Kept as
@@ -38,7 +80,9 @@ export interface RenderEventSink {
   /** A shot just launched (a turn transitioned into FIRING). */
   onLaunch(): void;
   /** One or more new detonations appeared this frame; `radius` is the largest. */
-  onExplosion(radius: number): void;
+  onExplosion(radius: number, impact: ImpactMaterialBatch | null): void;
+  /** A projectile reflected from one of the configured energy rails. */
+  onWallImpact?(side: 'left' | 'right'): void;
   /**
    * A bouncing-betty projectile hopped off terrain this frame.
    * Called once per bounce tick (i.e. once when `bounces` decrements by 1).
@@ -67,6 +111,11 @@ const STARS: ReadonlyArray<readonly [number, number]> = [
   [1120, 38], [1168, 82], [840, 106], [992, 98], [1104, 112],
 ];
 
+/** Fixed y lanes avoid allocating or accumulating particles per rendered frame. */
+const WIND_GUST_LANES: ReadonlyArray<number> = [
+  70, 96, 126, 158, 192, 226, 260, 294, 82, 142, 246,
+];
+
 /**
  * One live explosion burst — purely client-side visual state.
  *
@@ -76,7 +125,7 @@ const STARS: ReadonlyArray<readonly [number, number]> = [
  * DRAWING is centralized in {@link Renderer.drawExplosions}, and per-weapon look
  * is governed entirely by the event attributes — so a future weapon needs only
  * new attribute values (a new color/radius/durationFrames/style in its
- * WeaponDefinition), never new draw code here.
+ * WeaponDefinition) plus one exhaustive client profile entry.
  */
 interface Burst {
   cx: number;
@@ -96,7 +145,22 @@ interface Burst {
   lifeFrames: number;
   /** Visual flavor: 'blast' (expanding rings) vs 'cluster' (punchier flash). */
   style: ExplosionStyle;
+  /** Weapon-specific, bounded presentation data derived once at event consumption. */
+  visual: ExplosionVisualProfile;
   /** Frames elapsed since spawn. */
+  age: number;
+}
+
+interface TankRecoil {
+  readonly tankId: string;
+  readonly angle: number;
+  readonly launchWeight: number;
+  readonly round: number;
+  age: number;
+}
+
+interface WindGust {
+  readonly profile: Readonly<WindGustVisualProfile>;
   age: number;
 }
 
@@ -162,8 +226,12 @@ export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly terrain = new TerrainRenderer();
   private readonly tanks = new TankRenderer();
-  private readonly projectile = new ProjectileRenderer();
+  private readonly projectile: ProjectileRenderer;
   private readonly hud = new HUDRenderer();
+  /** One project-bound panorama; procedural sky art remains its full fallback. */
+  private readonly battlefieldBackdrop = new BattlefieldBackdrop();
+  /** Cached static far-sky art; impact parallax moves the completed layer. */
+  private readonly atmosphereClouds = new AtmosphereCloudLayer();
 
   /** Cached sky gradient, rebuilt only on (re)size. */
   private skyGradient: CanvasGradient | null = null;
@@ -173,6 +241,8 @@ export class Renderer {
   private bursts: Burst[] = [];
   /** Highest explosion id already turned into a burst (dedupe). */
   private lastSeenExplosionId = 0;
+  private lastSeenWallImpactId = 0;
+  private wallContacts: WallContactVisual[] = [];
   /** Client-side crater scorch decals (render-only; never touch terrain bitmap). */
   private scorches: Scorch[] = [];
   /** Deep-terrain RGB for the scorch ring fill, parsed once (not per frame). */
@@ -180,6 +250,9 @@ export class Renderer {
 
   /** Current screen-shake magnitude (px), decays each frame. Client-only juice. */
   private shake = 0;
+  /** Blast-origin-aware world translation, decayed independently from random shake. */
+  private kickX = 0;
+  private kickY = 0;
 
   /**
    * Frame count remaining during which transient EffectsRenderer particles
@@ -199,6 +272,12 @@ export class Renderer {
   private events: RenderEventSink | null = null;
   /** Tracks FIRING so a launch event fires once per shot, not once per frame. */
   private wasFiring = false;
+  /** Local chassis kick for the most recent visible living shooter. */
+  private tankRecoil: TankRecoil | null = null;
+  /** One bounded sky transition for the most recently observed aiming turn. */
+  private windGust: WindGust | null = null;
+  /** `(round, turn)` key prevents per-frame snapshots from retriggering the gust. */
+  private windTurnKey: string | null = null;
 
   // ---- per-frame audio signal tracking ----------------------------------------
   /** Fire-field length last frame (for fireActiveEdge edge detection). */
@@ -220,6 +299,10 @@ export class Renderer {
   private readonly effects: EffectsRenderer;
   /** Per-tank health last frame, to detect damage for floating numbers. */
   private readonly prevHealth = new Map<string, number>();
+  /** Per-tank shield pool last frame, to detect fully absorbed damage. */
+  private readonly prevShieldHp = new Map<string, number>();
+  /** Round whose shield pool samples populate prevShieldHp. */
+  private shieldBaselineRound: number | null = null;
   /**
    * Per-tank smoke-emit countdown. When this hits 0 for a low-HP alive tank,
    * one wispy puff is emitted and the counter resets. Prevents continuous
@@ -233,6 +316,8 @@ export class Renderer {
   private showAimGuide = false;
   /** User master toggle (G key), persisted: aim guide on/off. */
   private aimGuideEnabled: boolean;
+  /** Effective gravity for the current authoritative turn, supplied by main. */
+  private aimGuideGravity = GRAVITY;
   /** Centre of the most recent detonation, for the last-shot ranging marker. */
   private lastImpact: { x: number; y: number } | null = null;
 
@@ -244,6 +329,7 @@ export class Renderer {
       typeof window !== 'undefined' && typeof window.matchMedia === 'function'
         ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
         : false;
+    this.projectile = new ProjectileRenderer(this.reduceMotion);
     this.effects = new EffectsRenderer(this.reduceMotion);
     this.aimGuideEnabled = (() => {
       try {
@@ -262,8 +348,9 @@ export class Renderer {
 
   /** main.ts sets this each turn: true only when the LOCAL human controls the
    *  active tank (hot-seat human turn, or networked + it's my id). */
-  setAimGuide(visible: boolean): void {
+  setAimGuide(visible: boolean, gravity = GRAVITY): void {
     this.showAimGuide = visible;
+    this.aimGuideGravity = Number.isFinite(gravity) && gravity > 0 ? gravity : GRAVITY;
   }
 
   /** Flip the aim-guide master toggle (G key) and persist it. Returns new state. */
@@ -295,12 +382,22 @@ export class Renderer {
     this.bursts.length = 0;
     this.scorches.length = 0;
     this.lastSeenExplosionId = 0;
+    this.lastSeenWallImpactId = 0;
+    this.wallContacts ??= [];
+    this.wallContacts.length = 0;
     this.lastImpact = null;
     this.prevHealth.clear();
+    this.prevShieldHp.clear();
+    this.shieldBaselineRound = null;
     this.smokeThrottle.clear();
     this.shake = 0;
+    this.kickX = 0;
+    this.kickY = 0;
     this.effectsBusy = 0;
     this.wasFiring = false;
+    this.tankRecoil = null;
+    this.windGust = null;
+    this.windTurnKey = null;
     this.effects.clear();
     this.projectile.clear();
     this.terrain.markDirty(); // force a terrain rebuild next frame (version may collide)
@@ -319,6 +416,7 @@ export class Renderer {
     const explosionIdBefore = this.lastSeenExplosionId;
 
     this.consumeExplosion(state);
+    this.consumeWallImpacts(state);
 
     // Emit a launch event once per shot when a turn enters FIRING. Cluster shells
     // split mid-flight without re-entering FIRING, so this fires exactly once/shot.
@@ -328,6 +426,7 @@ export class Renderer {
       this.spawnMuzzleFlash(state);
     }
     this.wasFiring = firing;
+    this.trackWindGust(state);
 
     // --- Per-frame audio signal pass -------------------------------------------
     // All edge-detection runs here, after consumeExplosion (so explosionIdBefore
@@ -339,7 +438,7 @@ export class Renderer {
     // Floating damage numbers + K.O. flourish from per-tank health deltas (juice),
     // then advance all transient particles one frame.
     this.trackDamage(state);
-    this.effects.update();
+    this.effects.update(state.terrain);
 
     // Tick down the transient-effects busy window. trackDamage / consumeExplosion /
     // spawnMuzzleFlash (re)set it whenever they spawn particles; once it hits 0 and
@@ -350,27 +449,45 @@ export class Renderer {
 
     // Screen-shake (juice): a decaying random offset applied to the WHOLE world
     // (not the DOM HUD, which stays readable). Triggered by detonations.
-    let sx = 0;
-    let sy = 0;
+    let sx = this.kickX;
+    let sy = this.kickY;
+    if (Math.hypot(this.kickX, this.kickY) > IMPACT_KICK_EPSILON) {
+      this.kickX *= IMPACT_KICK_DECAY;
+      this.kickY *= IMPACT_KICK_DECAY;
+    } else {
+      this.kickX = 0;
+      this.kickY = 0;
+    }
     if (this.shake > 0.2) {
-      sx = (Math.random() * 2 - 1) * this.shake;
-      sy = (Math.random() * 2 - 1) * this.shake;
+      sx += (Math.random() * 2 - 1) * this.shake;
+      sy += (Math.random() * 2 - 1) * this.shake;
       this.shake *= 0.85;
     } else {
       this.shake = 0;
     }
 
-    ctx.save();
-    ctx.translate(sx, sy);
+    const depth = getImpactDepthParallax({ x: sx, y: sy }) ?? REST_DEPTH_PARALLAX;
+    // 1. Far atmosphere and middle ridges own isolated, partial transforms.
+    this.drawSky(depth);
 
-    // 1. Sky — clears the whole canvas each frame as the base layer (oversized to
-    // cover the shake offset so no backdrop bleeds in at the edges).
-    this.drawSky();
+    // 1.5 Turn-start wind ribbons share the middle-distance ridge transform.
+    ctx.save();
+    ctx.translate(depth.middle.x, depth.middle.y);
+    this.drawWindGusts();
+    ctx.restore();
+    this.advanceWindGust();
+
+    // 2–5.6 The destructible battlefield keeps the full camera recoil.
+    ctx.save();
+    ctx.translate(depth.world.x, depth.world.y);
 
     // 2.0 Buried tanks (#15): draw BEFORE the terrain so the risen dirt paints over
     // them — they read as submerged rather than sitting on top of the mound that buried
     // them. A surface beacon (below) keeps them findable. (Almost always empty.)
-    const buried = state.tanks.filter((t) => t.alive && t.buried);
+    // Keep every buried silhouette under the terrain, including a tank killed
+    // while trapped. Otherwise its retained dead row would pop a wreck above the
+    // dirt on the death frame. Only living buried tanks receive a surface beacon.
+    const buried = state.tanks.filter((t) => t.buried);
     if (buried.length > 0) this.tanks.drawAll(ctx, buried);
 
     // 2. Terrain. The TerrainRenderer keeps its own offscreen canvas and blits
@@ -379,16 +496,27 @@ export class Renderer {
     // markDirty() is needed here.
     this.terrain.draw(ctx, state.terrain, state.terrainVersion);
 
+    // 2.5 Terrain-projected shell shadows. These present-position depth cues sit
+    // above the destructible terrain but below visible tanks and payload glyphs.
+    this.projectile.drawGroundShadows(ctx, state.projectiles, state.terrain);
+
     // 3. Tanks (active player emphasised). Buried tanks were painted under the terrain
     // above, so draw only the visible (non-buried) ones here.
     const visible = buried.length > 0
-      ? state.tanks.filter((t) => !(t.alive && t.buried))
+      ? state.tanks.filter((t) => !t.buried)
       : state.tanks;
-    this.tanks.drawAll(ctx, visible, state.activePlayerId);
+    const tankPose = this.currentTankRecoilPose(state, visible);
+    if (tankPose) {
+      this.tanks.drawAll(ctx, visible, state.activePlayerId, tankPose);
+    } else {
+      this.tanks.drawAll(ctx, visible, state.activePlayerId);
+    }
+    this.advanceTankRecoil();
 
     // 3.0 Buried beacons: a small surface marker over each trapped tank so the player
     // can see where to dig it out (the body itself is hidden under the dirt).
     for (const t of buried) {
+      if (!t.alive) continue;
       this.tanks.drawBuriedMarker(ctx, t.x, surfaceAt(state.terrain, t.x), t.color);
     }
 
@@ -399,6 +527,14 @@ export class Renderer {
     // 4. Projectiles (no-op when none / not FIRING). May be several at once
     // (an airburst shell splits into multiple submunitions in flight).
     this.projectile.draw(ctx, state.projectiles);
+    drawReflectiveSidewalls(
+      ctx,
+      state.walls ?? 'open',
+      this.wallContacts,
+      this.reduceMotion,
+    );
+    for (const contact of this.wallContacts) contact.age++;
+    this.wallContacts = this.wallContacts.filter((contact) => contact.age < 18);
 
     // 4.5 Napalm fire field — flames licking up off every burning column. Drawn
     // OVER tanks (it engulfs them) but UNDER the explosion flash.
@@ -451,12 +587,29 @@ export class Renderer {
    */
   isAnimating(state: GameState): boolean {
     if (state.phase === 'FIRING' || state.phase === 'RESOLVING') return true;
+    // State snapshots keep arriving while idle. Redraw them until the one
+    // asynchronous image load settles so a cached/static turn cannot freeze on
+    // the procedural fallback forever. Failed and ready loads both release idle.
+    if (this.battlefieldBackdrop?.isSettled === false) return true;
+    // The terrain material follows the same first-applied-frame contract. Once
+    // ready, TerrainRenderer rebuilds its version cache exactly once.
+    if (this.terrain?.isMaterialSettled === false) return true;
+    // Living tanks follow the same first-painted-frame contract. Wreck-only
+    // scenes never spin solely for an asset that has no eligible consumer.
+    if (
+      this.tanks?.isChassisArtSettled === false
+      && state.tanks.some((tank) => tank.alive)
+    ) return true;
     if (this.bursts.length > 0) return true;
     if (this.scorches.length > 0) return true;
+    if ((this.wallContacts?.length ?? 0) > 0) return true;
     if (state.fire.length > 0) return true;
     if (state.projectiles.length > 0) return true;
     if (this.shake > 0) return true;
+    if (this.kickX !== 0 || this.kickY !== 0) return true;
     if (this.effectsBusy > 0) return true;
+    if (this.tankRecoil != null) return true;
+    if (this.windGust != null) return true;
     // Continuous damage smoke keeps emitting while any tank sits in the damaged tier,
     // so that is a live animation that must keep redrawing (and keep trackDamage's
     // throttle advancing) until the tank heals/dies/is buried.
@@ -464,6 +617,69 @@ export class Renderer {
       if (tank.alive && !tank.buried && damageTier(tank.health) === 'damaged') return true;
     }
     return false;
+  }
+
+  /**
+   * Observe the existing authoritative turn/wind tuple once. A current turn seen
+   * after reconnect may still receive its one local cue; non-PLAYER_TURN snapshots
+   * never consume the key while a shot is already in flight.
+   */
+  private trackWindGust(state: GameState): void {
+    if (
+      state.phase !== 'PLAYER_TURN'
+      || !Number.isFinite(state.round)
+      || !Number.isFinite(state.turn)
+    ) return;
+    const key = `${state.round}:${state.turn}`;
+    if (key === this.windTurnKey) return;
+    this.windTurnKey = key;
+    this.windGust = this.reduceMotion
+      ? null
+      : (() => {
+          const profile = getWindGustVisualProfile(state.wind);
+          return profile === null ? null : { profile, age: 0 };
+        })();
+  }
+
+  /** Draw fixed, wrapped sky ribbons without creating a particle collection. */
+  private drawWindGusts(): void {
+    const gust = this.windGust;
+    if (gust == null) return;
+    const { profile, age } = gust;
+    const ctx = this.ctx;
+    const margin = 80;
+    const wrapWidth = CANVAS_WIDTH + margin * 2;
+    const fade = Math.min(1, (age + 1) / 8, (profile.life - age) / 12);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.strokeStyle = 'rgba(255, 238, 194, 0.95)';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 0.8 + profile.strength * 1.2;
+
+    for (let i = 0; i < profile.streakCount; i++) {
+      const rawHead = 90 + i * 137 + profile.direction * age * profile.speed;
+      const headX = ((rawHead % wrapWidth) + wrapWidth) % wrapWidth - margin;
+      const y = WIND_GUST_LANES[i];
+      const tailX = headX - profile.direction * profile.length;
+      const bendX = headX - profile.direction * profile.length * 0.52;
+      const bendY = y + Math.sin(age * 0.22 + i * 0.9)
+        * 4 * (0.5 + profile.strength * 0.5);
+
+      ctx.globalAlpha = profile.alpha * fade * (0.65 + (i % 3) * 0.175);
+      ctx.beginPath();
+      ctx.moveTo(tailX, y);
+      ctx.quadraticCurveTo(bendX, bendY, headX, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private advanceWindGust(): void {
+    const gust = this.windGust;
+    if (gust == null) return;
+    gust.age++;
+    if (gust.age >= gust.profile.life) this.windGust = null;
   }
 
   /**
@@ -532,9 +748,12 @@ export class Renderer {
     // simultaneous booms. Screen-shake still takes the max per-event as before.
     let maxNewRadius = 0;
     let anyNew = false;
+    let strongestNewKick = { x: 0, y: 0 };
+    const newEvents: ExplosionEvent[] = [];
     for (const ex of events) {
       if (ex.id > this.lastSeenExplosionId) {
         this.lastSeenExplosionId = ex.id;
+        newEvents.push(ex);
         // Parse the burst color ONCE here (not per draw frame): a cluster/MIRV puts
         // many bursts on-screen simultaneously, each re-drawn every frame of its life.
         const rgb = parseColor(ex.color);
@@ -547,14 +766,37 @@ export class Renderer {
           core: lighten(rgb, 0.75), // white-hot center, derived once
           lifeFrames: ex.durationFrames,
           style: ex.style,
+          visual: getExplosionVisualProfile(ex),
           age: 0,
         });
         // Juice: bigger blast => bigger kick (capped). Reduced-motion = none.
         if (!this.reduceMotion) {
-          this.shake = Math.min(9, Math.max(this.shake, ex.radius * 0.14));
+          this.shake = Math.min(
+            SCREEN_SHAKE_MAX,
+            Math.max(this.shake, ex.radius * 0.14),
+          );
+          const kick = impactKick(
+            ex.cx,
+            ex.cy,
+            ex.radius,
+            CANVAS_WIDTH,
+            CANVAS_HEIGHT,
+          );
+          if (
+            Math.hypot(kick.x, kick.y)
+            > Math.hypot(strongestNewKick.x, strongestNewKick.y)
+          ) {
+            strongestNewKick = kick;
+          }
         }
         // Ejecta: terrain debris + dust + sparks at the blast (reduced-motion = none).
-        this.effects.spawnExplosion(ex.cx, ex.cy, ex.radius, ex.color);
+        this.effects.spawnExplosion(
+          ex.cx,
+          ex.cy,
+          ex.radius,
+          ex.color,
+          ex.impactType,
+        );
         // Remember the latest blast centre for the last-shot ranging marker.
         this.lastImpact = { x: ex.cx, y: ex.cy };
         // Crater scorch decal: a darkened ring that lingers at the impact point,
@@ -573,11 +815,36 @@ export class Renderer {
       }
     }
     if (anyNew) {
-      this.events?.onExplosion(maxNewRadius);
+      if (Math.hypot(strongestNewKick.x, strongestNewKick.y) > 0) {
+        // Arbitration is local to THIS event batch. A later, weaker heavy blast
+        // still gets its own directional response instead of being masked by a
+        // stronger kick left over from an earlier frame.
+        this.kickX = strongestNewKick.x;
+        this.kickY = strongestNewKick.y;
+      }
+      this.events?.onExplosion(
+        maxNewRadius,
+        coalesceImpactMaterial(newEvents),
+      );
       // Ejecta particles (debris/smoke/sparks) outlive the burst itself, so keep the
       // idle-skip gate redrawing until they can no longer be on-screen.
       this.effectsBusy = EFFECTS_BUSY_FRAMES;
     }
+  }
+
+  /** Admit monotonic engine wall contacts once and coalesce their audio edge. */
+  private consumeWallImpacts(state: GameState): void {
+    this.wallContacts ??= [];
+    this.lastSeenWallImpactId ??= 0;
+    const batch = consumeWallContacts(
+      state.wallImpacts ?? [],
+      this.lastSeenWallImpactId,
+    );
+    this.lastSeenWallImpactId = batch.lastSeenId;
+    for (const contact of batch.contacts) {
+      this.wallContacts.push({ ...contact, age: 0 });
+    }
+    if (batch.audio) this.events?.onWallImpact?.(batch.audio.side);
   }
 
   /**
@@ -586,11 +853,49 @@ export class Renderer {
    * inside FX.
    */
   private spawnMuzzleFlash(state: GameState): void {
+    this.tankRecoil = null;
     const shooter = state.tanks.find((t) => t.id === state.activePlayerId);
     if (!shooter) return;
     const { x: px, y: py } = barrelTip(shooter, BARREL_LENGTH);
-    this.effects.spawnMuzzle(px, py, shooter.angle, shooter.color);
+    const profile = getMuzzleVisualProfile(state.projectiles[0]?.weaponType);
+    this.effects.spawnMuzzle(px, py, shooter.angle, profile);
+    if (!this.reduceMotion && shooter.alive && !shooter.buried) {
+      this.tankRecoil = {
+        tankId: shooter.id,
+        angle: shooter.angle,
+        launchWeight: profile.scale,
+        round: state.round,
+        age: 0,
+      };
+    }
     this.effectsBusy = EFFECTS_BUSY_FRAMES; // muzzle sparks live a few frames
+  }
+
+  private currentTankRecoilPose(
+    state: GameState,
+    tanks: readonly TankState[],
+  ): TankRenderPose | undefined {
+    const recoil = this.tankRecoil;
+    if (recoil == null) return undefined;
+    if (state.round !== recoil.round) {
+      this.tankRecoil = null;
+      return undefined;
+    }
+    const shooter = tanks.find((tank) => tank.id === recoil.tankId);
+    if (!shooter?.alive || shooter.buried) return undefined;
+    const offset = tankRecoilPose(recoil.angle, recoil.launchWeight, recoil.age);
+    if (offset === null) return undefined;
+    return {
+      tankId: recoil.tankId,
+      offsetX: offset.x,
+      offsetY: offset.y,
+    };
+  }
+
+  private advanceTankRecoil(): void {
+    if (this.tankRecoil == null) return;
+    this.tankRecoil.age++;
+    if (this.tankRecoil.age >= TANK_RECOIL_FRAMES) this.tankRecoil = null;
   }
 
   /**
@@ -607,10 +912,27 @@ export class Renderer {
     /** Frames between damage-smoke puffs per tank (≈ 10 puffs/second at 60fps). */
     const SMOKE_INTERVAL = 6;
 
+    // New rounds rebuild tanks with shieldHp=0 without invoking the per-game reset.
+    // Re-baseline so prior-round charge cannot masquerade as an absorbed hit.
+    if (this.shieldBaselineRound !== state.round) {
+      this.prevShieldHp.clear();
+      this.shieldBaselineRound = state.round;
+    }
+
     for (const tank of state.tanks) {
       const prev = this.prevHealth.get(tank.id);
       if (prev !== undefined && tank.health < prev - 0.01) {
-        this.effects.spawnDamage(tank.x, tank.y - 30, prev - tank.health);
+        const damage = prev - tank.health;
+        this.effects.spawnDamage(tank.x, tank.y - 30, damage);
+        if (tank.alive && tank.health > 0 && !tank.buried) {
+          this.effects.spawnArmorHit(
+            tank.id,
+            tank.x,
+            tank.y - TANK_HEIGHT / 2,
+            damage,
+            tank.color,
+          );
+        }
         if (tank.health <= 0 && prev > 0) {
           this.effects.spawnKill(tank.x, tank.y - 18);
           // Turret-pop + wreck debris burst on the alive→dead transition.
@@ -621,6 +943,21 @@ export class Renderer {
         this.effectsBusy = EFFECTS_BUSY_FRAMES;
       }
       this.prevHealth.set(tank.id, tank.health);
+
+      const prevShield = this.prevShieldHp.get(tank.id);
+      if (
+        prevShield !== undefined
+        && prevShield > 0
+        && tank.shieldHp < prevShield - 0.01
+      ) {
+        this.effects.spawnShieldImpact(
+          tank.x,
+          tank.y - TANK_HEIGHT / 2,
+          prevShield - tank.shieldHp,
+        );
+        this.effectsBusy = EFFECTS_BUSY_FRAMES;
+      }
+      this.prevShieldHp.set(tank.id, tank.shieldHp);
 
       // Continuous damage smoke for low-HP alive tanks (throttled per-tank).
       if (tank.alive && !tank.buried && damageTier(tank.health) === 'damaged') {
@@ -639,32 +976,58 @@ export class Renderer {
     }
   }
 
-  /**
-   * A faint dotted launch guide from the active tank's barrel tip. It integrates
-   * the REAL projectile step (launchVelocity + gravity + this turn's wind), so it is
-   * honest — but only for AIM_GUIDE_TICKS ticks, so it reveals launch direction and
-   * relative power (and the wind's opening bend) WITHOUT showing the impact point.
-   * Read-only: it never touches the deterministic engine, only mirrors its math.
-   */
+  /** Draw the bounded, physics-honest launch hint with a distance fade. */
   private drawAimGuide(state: GameState): void {
     const tank = state.tanks.find((t) => t.id === state.activePlayerId);
     if (!tank || !tank.alive) return;
-    let { x, y } = barrelTip(tank, BARREL_LENGTH);
-    const v = launchVelocity(tank.angle, tank.power);
-    let vx = v.vx;
-    let vy = v.vy;
+    const mode = getAimGuideMode(
+      state,
+      tank,
+      this.showAimGuide,
+      this.aimGuideEnabled,
+    );
+    if (mode === 'none') return;
+
+    const points = buildLaunchGuide(state, tank, this.aimGuideGravity);
+    if (points.length === 0) return;
+
     const ctx = this.ctx;
+    const cumulative = [0];
+    for (let index = 1; index < points.length; index++) {
+      cumulative.push(
+        cumulative[index - 1]!
+        + Math.hypot(
+          points[index]!.x - points[index - 1]!.x,
+          points[index]!.y - points[index - 1]!.y,
+        ),
+      );
+    }
+    const totalLength = cumulative.at(-1) || 1;
+
     ctx.save();
-    for (let i = 0; i < AIM_GUIDE_TICKS; i++) {
-      // Mirror Physics.stepProjectile's integration exactly (room-gravity override
-      // is ignored — this is a short HINT, not a precise predictor).
-      vy += GRAVITY;
-      vx += state.wind * WIND_FACTOR;
-      x += vx;
-      y += vy;
-      ctx.globalAlpha = 0.55 * (1 - i / AIM_GUIDE_TICKS);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = ACCENT.gold;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 2;
+    for (let index = 1; index < points.length; index++) {
+      const progress = (
+        cumulative[index - 1]! + cumulative[index]!
+      ) / (2 * totalLength);
+      ctx.globalAlpha = 0.22 * (1 - progress) ** 1.35 + 0.01;
+      ctx.beginPath();
+      ctx.moveTo(points[index - 1]!.x, points[index - 1]!.y);
+      ctx.lineTo(points[index]!.x, points[index]!.y);
+      ctx.stroke();
+    }
+
+    for (let index = 0; index < points.length; index++) {
+      const point = points[index];
+      const progress = cumulative[index]! / totalLength;
+      ctx.globalAlpha = 0.62 * (1 - progress) ** 1.5 + 0.015;
       ctx.fillStyle = ACCENT.gold;
-      ctx.fillRect((x - 1.5) | 0, (y - 1.5) | 0, 3, 3);
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, index === 0 ? 1.8 : 1.45, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -701,7 +1064,7 @@ export class Renderer {
    *   - color       -> fireball color (white-hot core derived by lightening it)
    *   - lifeFrames  -> per-burst lifetime (how long the blast lingers)
    *   - style       -> 'blast' fills wider; 'cluster' a touch smaller per bomblet
-   * Future weapons therefore need only new attribute values, never new code.
+   * Future weapons add one exhaustive profile entry while this pipeline stays centralized.
    *
    * Pacing: a two-phase fireball — pop to full size over the first ~18% of life,
    * then HOLD at full size and fade out across the remainder. This makes the
@@ -717,9 +1080,8 @@ export class Renderer {
     ctx.save();
     for (const b of this.bursts) {
       const t = b.age / b.lifeFrames; // 0..1 progress over this burst's life
-      const reach = b.style === 'cluster' ? 1.4 : 1.8;
       const grow = t < GROW ? t / GROW : 1;
-      const r = b.radius * reach * grow;
+      const r = b.visual.reachRadius * grow;
       if (r > 0) {
         // Full opacity while growing, then ease the fade across the long tail.
         const fade = t < GROW ? 1 : 1 - (t - GROW) / (1 - GROW);
@@ -727,24 +1089,30 @@ export class Renderer {
         const core = b.core;  // white-hot center, derived once at spawn
         const grad = ctx.createRadialGradient(b.cx, b.cy, 0, b.cx, b.cy, r);
         grad.addColorStop(0, `rgba(${core[0] | 0}, ${core[1] | 0}, ${core[2] | 0}, ${fade})`);
-        grad.addColorStop(0.55, `rgba(${base[0] | 0}, ${base[1] | 0}, ${base[2] | 0}, ${fade * 0.92})`);
+        const coreStop = b.visual.reachRadius > 0
+          ? b.visual.coreRadius / b.visual.reachRadius
+          : 0;
+        grad.addColorStop(coreStop, `rgba(${core[0] | 0}, ${core[1] | 0}, ${core[2] | 0}, ${fade * 0.96})`);
+        grad.addColorStop(0.68, `rgba(${base[0] | 0}, ${base[1] | 0}, ${base[2] | 0}, ${fade * 0.92})`);
         grad.addColorStop(1, `rgba(${base[0] | 0}, ${base[1] | 0}, ${base[2] | 0}, 0)`);
         ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.arc(b.cx, b.cy, r, 0, Math.PI * 2);
+        if (b.visual.family === 'earth' || b.visual.family === 'incendiary') {
+          ctx.ellipse(
+            b.cx,
+            b.cy,
+            r,
+            r * b.visual.verticalScale,
+            0,
+            0,
+            Math.PI * 2,
+          );
+        } else {
+          ctx.arc(b.cx, b.cy, r, 0, Math.PI * 2);
+        }
         ctx.fill();
 
-        // 16-bit shrapnel: pixel squares radiating out (the banner's boom spokes),
-        // fading with the burst. Deterministic per-spoke length for a jagged look.
-        const spokes = b.style === 'cluster' ? 6 : 9;
-        ctx.fillStyle = `rgba(${core[0] | 0}, ${core[1] | 0}, ${core[2] | 0}, ${fade})`;
-        for (let i = 0; i < spokes; i++) {
-          const a = (i / spokes) * Math.PI * 2 + (b.style === 'cluster' ? 0.4 : 0);
-          const d = r * (0.62 + 0.38 * (((i * 7) % spokes) / spokes));
-          const px = b.cx + Math.cos(a) * d;
-          const py = b.cy + Math.sin(a) * d;
-          ctx.fillRect((px - 1.5) | 0, (py - 1.5) | 0, 3, 3);
-        }
+        this.drawExplosionSignature(b, r, grow, fade);
       }
       b.age++;
     }
@@ -754,8 +1122,151 @@ export class Renderer {
     this.bursts = this.bursts.filter((b) => b.age < b.lifeFrames);
   }
 
+  /** Draw weapon-family detail strictly inside the shared style-aware reach. */
+  private drawExplosionSignature(
+    b: Burst,
+    reach: number,
+    grow: number,
+    fade: number,
+  ): void {
+    const ctx = this.ctx;
+    const { visual, rgb: base, core } = b;
+    const detailRadius = visual.detailRadius * grow;
+    const hot = `rgba(${core[0] | 0}, ${core[1] | 0}, ${core[2] | 0}, ${fade})`;
+    const accent = `rgba(${base[0] | 0}, ${base[1] | 0}, ${base[2] | 0}, ${fade * 0.9})`;
+
+    if (visual.family === 'conventional') {
+      // Pixel shrapnel retains the original readable Scorched-Earth baseline.
+      ctx.fillStyle = hot;
+      const pad = Math.SQRT2 * 1.5;
+      const d = Math.max(0, Math.min(detailRadius, reach - pad));
+      for (let i = 0; i < visual.detailCount; i++) {
+        const a = (i / visual.detailCount) * Math.PI * 2;
+        const jagged = 0.72 + 0.28 * (((i * 7) % visual.detailCount) / visual.detailCount);
+        const px = b.cx + Math.cos(a) * d * jagged;
+        const py = b.cy + Math.sin(a) * d * jagged;
+        ctx.fillRect(px - 1.5, py - 1.5, 3, 3);
+      }
+      return;
+    }
+
+    if (visual.family === 'nuclear') {
+      // Contained thermal rings around the white-hot core.
+      const incomingAlpha = ctx.globalAlpha;
+      ctx.strokeStyle = hot;
+      ctx.lineWidth = Math.max(1.5, Math.min(3, reach * 0.035));
+      for (let i = 1; i <= visual.detailCount; i++) {
+        ctx.globalAlpha = incomingAlpha * fade * (1 - (i - 1) * 0.18);
+        ctx.beginPath();
+        ctx.arc(b.cx, b.cy, detailRadius * (i / visual.detailCount), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = incomingAlpha;
+      return;
+    }
+
+    if (visual.family === 'earth') {
+      // Uneven dust lobes: their centers plus radius stay inside reach.
+      const lobeRadius = reach * 0.12;
+      const centerRadius = Math.min(detailRadius, reach - lobeRadius);
+      ctx.fillStyle = accent;
+      for (let i = 0; i < visual.detailCount; i++) {
+        const a = Math.PI + (i / Math.max(1, visual.detailCount - 1)) * Math.PI;
+        const stagger = 0.72 + (i % 3) * 0.12;
+        ctx.beginPath();
+        ctx.arc(
+          b.cx + Math.cos(a) * centerRadius * stagger,
+          b.cy + Math.sin(a) * centerRadius * visual.verticalScale * stagger,
+          lobeRadius,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
+      return;
+    }
+
+    if (visual.family === 'incendiary') {
+      // A low ignition pool with contained flame tongues that hand off to drawFire().
+      ctx.fillStyle = hot;
+      const baseY = b.cy + reach * visual.verticalScale * 0.28;
+      const count = visual.detailCount;
+      for (let i = 0; i < count; i++) {
+        const f = count === 1 ? 0.5 : i / (count - 1);
+        const x = b.cx + (f * 2 - 1) * reach * 0.62;
+        const maxHeight = Math.sqrt(Math.max(0, reach * reach - (x - b.cx) ** 2));
+        const tipY = b.cy - maxHeight * (0.58 + (i % 2) * 0.18);
+        const half = reach * 0.055;
+        ctx.beginPath();
+        ctx.moveTo(x - half, baseY);
+        ctx.lineTo(x, tipY);
+        ctx.lineTo(x + half, baseY);
+        ctx.closePath();
+        ctx.fill();
+      }
+      return;
+    }
+
+    if (visual.family === 'scatter') {
+      // One crisp pressure ring plus compact pixel fragments.
+      ctx.strokeStyle = hot;
+      ctx.lineWidth = Math.max(1, Math.min(2, reach * 0.04));
+      ctx.beginPath();
+      ctx.arc(b.cx, b.cy, detailRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = hot;
+      const pad = Math.SQRT2;
+      const d = Math.max(0, Math.min(detailRadius * 0.88, reach - pad));
+      for (let i = 0; i < visual.detailCount; i++) {
+        const a = (i / visual.detailCount) * Math.PI * 2 + 0.4;
+        const px = b.cx + Math.cos(a) * d;
+        const py = b.cy + Math.sin(a) * d;
+        ctx.fillRect(px - 1, py - 1, 2, 2);
+      }
+      return;
+    }
+
+    if (visual.family === 'funky') {
+      // Alternating full-reach and core vertices form a contained angular star.
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      for (let i = 0; i < visual.detailCount * 2; i++) {
+        const a = -Math.PI / 2 + (i / (visual.detailCount * 2)) * Math.PI * 2;
+        const d = i % 2 === 0 ? reach : visual.coreRadius * grow;
+        const x = b.cx + Math.cos(a) * d;
+        const y = b.cy + Math.sin(a) * d;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      return;
+    }
+
+    // Bouncing Betty: two hard mine rings and four contained cardinal fragments.
+    ctx.strokeStyle = hot;
+    ctx.lineWidth = Math.max(1, Math.min(2, reach * 0.04));
+    for (const scale of [0.62, 1]) {
+      ctx.beginPath();
+      ctx.arc(b.cx, b.cy, detailRadius * scale, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = hot;
+    const size = Math.min(3, reach * 0.1);
+    const d = Math.min(detailRadius * 0.78, Math.max(0, reach - Math.SQRT2 * size));
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2;
+      ctx.fillRect(
+        b.cx + Math.cos(a) * d - size / 2,
+        b.cy + Math.sin(a) * d - size / 2,
+        size,
+        size,
+      );
+    }
+  }
+
   /**
-   * Full-canvas additive light-flash keyed to the freshest/strongest live burst.
+   * Weapon-colored local illumination plus a full-canvas headline exposure flash.
    *
    * Uses `globalCompositeOperation = 'lighter'` so it brightens whatever is already
    * on the canvas without washing it to white (additive mode clamps at white
@@ -763,30 +1274,76 @@ export class Renderer {
    * (age 0 of the strongest burst) and decays quickly so it complements the
    * existing DOM bloom in main.ts rather than doubling it.
    *
-   * Gated by !reduceMotion.  No-op when there are no live bursts.
+   * Gated by !reduceMotion. No-op when there are no live bursts.
    */
   private drawFlash(): void {
     if (this.reduceMotion || this.bursts.length === 0) return;
 
-    // Find the burst with the largest radius among live bursts (the "headline" blast).
+    // Rank on a fresh candidate array: the authoritative burst order remains untouched.
+    const localLights = this.bursts
+      .map((burst) => ({
+        burst,
+        light: getBlastLightProfile({
+          family: burst.visual.family,
+          reachRadius: burst.visual.reachRadius,
+          age: burst.age,
+          lifeFrames: burst.lifeFrames,
+        }),
+      }))
+      .filter(({ light }) => light.radius > 0 && light.alpha > 0)
+      .sort((a, b) => (
+        b.light.radius * b.light.alpha - a.light.radius * a.light.alpha
+      ))
+      .slice(0, MAX_LOCAL_BLAST_LIGHTS);
+
+    // Find the burst with the largest radius among live bursts (the headline blast).
     let strongest: Burst | null = null;
     for (const b of this.bursts) {
       if (strongest === null || b.radius > strongest.radius) strongest = b;
     }
     if (!strongest) return;
 
-    const alpha = flashIntensity(strongest.age, strongest.lifeFrames, strongest.radius);
-    if (alpha <= 0) return;
+    const headlineAlpha = flashIntensity(
+      strongest.age,
+      strongest.lifeFrames,
+      strongest.radius,
+    );
+    if (localLights.length === 0 && headlineAlpha <= 0) return;
 
     const ctx = this.ctx;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = alpha;
-    // A warm near-white for the flash colour (suncore palette tone).
-    ctx.fillStyle = ACCENT.sunCore;
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
+
+    for (const { burst, light } of localLights) {
+      const [r, g, b] = burst.rgb;
+      const gradient = ctx.createRadialGradient(
+        burst.cx,
+        burst.cy,
+        0,
+        burst.cx,
+        burst.cy,
+        light.radius,
+      );
+      gradient.addColorStop(0, `rgba(${r | 0}, ${g | 0}, ${b | 0}, 1)`);
+      gradient.addColorStop(0.38, `rgba(${r | 0}, ${g | 0}, ${b | 0}, 0.52)`);
+      gradient.addColorStop(1, `rgba(${r | 0}, ${g | 0}, ${b | 0}, 0)`);
+      ctx.globalAlpha = light.alpha;
+      ctx.fillStyle = gradient;
+      ctx.fillRect(
+        burst.cx - light.radius,
+        burst.cy - light.radius,
+        light.radius * 2,
+        light.radius * 2,
+      );
+    }
+
+    if (headlineAlpha > 0) {
+      ctx.globalAlpha = headlineAlpha;
+      // Preserve the original warm near-white whole-field exposure cue.
+      ctx.fillStyle = ACCENT.sunCore;
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    }
+
     ctx.restore();
   }
 
@@ -867,15 +1424,32 @@ export class Renderer {
 
     ctx.save();
 
-    // Pass 1: a soft ember glow hugging the ground (additive warmth under the
-    // flames), one low wide blob per cell — cheap and reads as a fire pool.
-    ctx.globalCompositeOperation = 'lighter';
-    for (const cell of fire) {
-      const sy = surfaceFor(cell.x);
-      const t = Math.min(1, cell.life / FULL);
-      ctx.globalAlpha = 0.05 + 0.07 * t;
-      ctx.fillStyle = '#ff5a1f';
-      ctx.fillRect(cell.x - 4, sy - 6, 8, 8);
+    // Pass 1: neighboring cells share bounded elliptical light pools. This
+    // replaces one glow rectangle per column with at most eight gradients while
+    // bathing the battlefield beneath the unchanged flames.
+    if (
+      state.terrain instanceof Uint8Array
+      && state.terrain.length === CANVAS_WIDTH * CANVAS_HEIGHT
+    ) {
+      ctx.globalCompositeOperation = 'lighter';
+      for (const pool of getNapalmFirelightPools(fire)) {
+        const sy = surfaceFor(Math.round(pool.centerX));
+        if (!Number.isFinite(sy) || sy < 0 || sy >= CANVAS_HEIGHT) continue;
+
+        ctx.save();
+        ctx.translate(pool.centerX, sy - 6);
+        ctx.scale(pool.radiusX, pool.radiusY);
+        const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+        glow.addColorStop(0, 'rgba(255, 210, 63, 0.92)');
+        glow.addColorStop(0.42, 'rgba(255, 90, 31, 0.58)');
+        glow.addColorStop(1, 'rgba(255, 90, 31, 0)');
+        ctx.globalAlpha = pool.alpha;
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(0, 0, 1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
     ctx.globalCompositeOperation = 'source-over';
 
@@ -965,20 +1539,33 @@ export class Renderer {
     }
   }
 
-  private drawSky(): void {
+  private drawSky(
+    depth: Readonly<ImpactDepthParallax> = REST_DEPTH_PARALLAX,
+  ): void {
     const ctx = this.ctx;
     if (this.skyGradient === null) {
       this.skyGradient = skyGradient(ctx, 0, CANVAS_HEIGHT);
     }
+
+    ctx.save();
+    ctx.translate(depth.far.x, depth.far.y);
     ctx.fillStyle = this.skyGradient;
-    // Oversized by SHAKE_MARGIN so the shake offset never reveals the backdrop.
-    const m = 12;
+    // Oversized by the composed shake + kick bound so no backdrop strip is exposed.
+    const m = WORLD_TRANSLATION_MARGIN;
     ctx.fillRect(-m, -m, CANVAS_WIDTH + 2 * m, CANVAS_HEIGHT + 2 * m);
-    this.drawCloudBanks();
+    const backdropDrawn = this.battlefieldBackdrop?.draw(ctx, m) ?? false;
     this.drawStars();
+    if (!backdropDrawn) this.drawCloudBanks();
     this.drawSun();
     this.drawHorizonHaze();
-    this.drawDistantRidges();
+    ctx.restore();
+
+    if (!backdropDrawn) {
+      ctx.save();
+      ctx.translate(depth.middle.x, depth.middle.y);
+      this.drawDistantRidges();
+      ctx.restore();
+    }
   }
 
   /** Pixel stars in the upper indigo band (crisp little squares). */
@@ -990,39 +1577,9 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Wide translucent cloud shelves keep the empty sky from feeling flat. */
+  /** Cached cel-shaded ash shelves keep the panoramic sky dimensional at rest. */
   private drawCloudBanks(): void {
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.fillStyle = 'rgba(12, 7, 22, 0.18)';
-
-    ctx.beginPath();
-    ctx.moveTo(54, 146);
-    ctx.lineTo(150, 132);
-    ctx.lineTo(250, 142);
-    ctx.lineTo(360, 126);
-    ctx.lineTo(472, 140);
-    ctx.lineTo(560, 132);
-    ctx.lineTo(640, 146);
-    ctx.lineTo(640, 170);
-    ctx.lineTo(54, 170);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = 'rgba(255, 233, 168, 0.045)';
-    ctx.beginPath();
-    ctx.moveTo(702, 118);
-    ctx.lineTo(808, 104);
-    ctx.lineTo(914, 116);
-    ctx.lineTo(1040, 98);
-    ctx.lineTo(1168, 112);
-    ctx.lineTo(CANVAS_WIDTH, 104);
-    ctx.lineTo(CANVAS_WIDTH, 136);
-    ctx.lineTo(702, 136);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.restore();
+    this.atmosphereClouds.draw(this.ctx);
   }
 
   /** A low, soft sun glow on the horizon (partly occluded by terrain hills). */

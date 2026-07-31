@@ -1,6 +1,12 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@shared/engine/Terrain';
-import { TERRAIN, hexToRgb } from '../ui/theme';
+import { BACKDROP, TERRAIN, hexToRgb } from '../ui/theme';
 import { bandFloatForY } from './strata';
+import { terrainEdgeAlpha } from './terrainEdges';
+import { createTerrainBevelSampler } from './terrainBevelLighting';
+import {
+  TerrainMaterial,
+  type TerrainMaterialSampler,
+} from './TerrainMaterial';
 
 /**
  * Scorched depth ramp (banner palette): a LIT RIM on the top 2px of every solid
@@ -11,8 +17,15 @@ import { bandFloatForY } from './strata';
 const RIM = hexToRgb(TERRAIN.rim);
 const MID = hexToRgb(TERRAIN.mid);
 const DEEP = hexToRgb(TERRAIN.deep);
+/** Cool-purple destination for the lower-right side of directional bevels. */
+const BEVEL_SHADOW = hexToRgb(BACKDROP);
 /** Depth (px below the lit rim) over which top→mid→deep fully ramps. */
 const RAMP_DEPTH = 120;
+/** Maximum authored luminance modulation applied below the two-pixel lit rim. */
+export const TERRAIN_MATERIAL_STRENGTH = 0.16;
+/** Two logical pixels per texel keeps the fine grain readable after CSS scaling. */
+export const TERRAIN_MATERIAL_WORLD_SCALE = 2;
+type TerrainBevelSamplerFactory = typeof createTerrainBevelSampler;
 
 /**
  * Strata band BASE colors (T7). Each band supplies a starting RGB that the
@@ -38,8 +51,9 @@ const BAND_COLORS: [[number, number, number], [number, number, number], [number,
  *
  * Approach — OFFSCREEN COMPOSITE: an offscreen HTMLCanvasElement (CANVAS_WIDTH×CANVAS_HEIGHT,
  * i.e. 1200×600) holds
- * the rendered terrain as an ImageData where solid pixels are the opaque brown
- * fill and air pixels are fully TRANSPARENT (alpha 0). The expensive
+ * the rendered terrain as an ImageData where interior solid pixels are opaque,
+ * exposed solid edges use coverage alpha, and air pixels are fully transparent.
+ * The expensive
  * per-pixel ImageData rebuild + putImageData runs ONLY when the bitmap content
  * changes (detected by an FNV hash over the Uint8Array) or a redraw is forced.
  * EVERY draw() call then composites that offscreen onto the main ctx with
@@ -62,6 +76,11 @@ const BAND_COLORS: [[number, number, number], [number, number, number], [number,
  *   tr.draw(ctx, state.terrain, state.terrainVersion); // blits every frame; rebuilds on change
  */
 export class TerrainRenderer {
+  constructor(
+    private readonly createBevelSampler: TerrainBevelSamplerFactory = createTerrainBevelSampler,
+    private readonly material: TerrainMaterialSampler = new TerrainMaterial(),
+  ) {}
+
   /** Lazily-created offscreen canvas holding the composited terrain (1200×600). */
   private offscreen: HTMLCanvasElement | null = null;
   /** 2D context of {@link offscreen}. */
@@ -88,11 +107,12 @@ export class TerrainRenderer {
     const off = this.ensureOffscreen();
 
     let rebuilt = false;
-    if (this.forceRedraw || version !== this.lastVersion) {
-      this.rebuild(terrain);
-      this.lastVersion = version;
-      this.forceRedraw = false;
-      rebuilt = true;
+    if (this.needsRedraw(version)) {
+      rebuilt = this.rebuild(terrain);
+      if (rebuilt) {
+        this.lastVersion = version;
+        this.forceRedraw = false;
+      }
     }
 
     // drawImage alpha-composites: transparent air pixels reveal the sky beneath.
@@ -111,7 +131,15 @@ export class TerrainRenderer {
    * the last rebuilt state.
    */
   needsRedraw(version: number): boolean {
-    return this.forceRedraw || version !== this.lastVersion;
+    return (
+      this.forceRedraw
+      || version !== this.lastVersion
+      || this.material.needsApplication
+    );
+  }
+
+  get isMaterialSettled(): boolean {
+    return this.material.isSettled;
   }
 
   /** Lazily create the offscreen canvas + its context and ImageData buffer. */
@@ -130,7 +158,7 @@ export class TerrainRenderer {
   }
 
   /**
-   * Rebuild the offscreen ImageData from the bitmap: solid pixels => opaque
+   * Rebuild the offscreen ImageData from the bitmap: solid pixels => coverage-edged
    * SCORCHED-RAMP fill (lit rim on top, darkening with depth), air pixels =>
    * alpha 0 (transparent). Iterated PER COLUMN so each solid run's depth-from-its-
    * own-surface drives the shade — so overhangs/cave lips also get a lit rim.
@@ -146,14 +174,16 @@ export class TerrainRenderer {
    * transition between strata is smooth rather than abrupt: the ramp lerps from
    * the band base instead of from a fixed `TOP`.
    */
-  private rebuild(terrain: Uint8Array): void {
+  private rebuild(terrain: Uint8Array): boolean {
     const offCtx = this.offCtx;
     const img = this.imageData;
-    if (offCtx === null || img === null) return; // ensureOffscreen ran first
+    if (offCtx === null || img === null) return false; // ensureOffscreen ran first
 
     const data = img.data;
     const W = CANVAS_WIDTH;
     const H = CANVAS_HEIGHT;
+    const bevelAt = this.createBevelSampler(terrain, W, H);
+    if (bevelAt === null) return false;
     for (let x = 0; x < W; x++) {
       let depth = -1; // -1 = in air; resets at every air gap (fresh rim per run)
       for (let y = 0; y < H; y++) {
@@ -193,11 +223,32 @@ export class TerrainRenderer {
               g = t < 0.58 ? MID[1] : DEEP[1];
               b = t < 0.58 ? MID[2] : DEEP[2];
             }
+            const materialFactor = (
+              1
+              + this.material.sample(
+                x / TERRAIN_MATERIAL_WORLD_SCALE,
+                y / TERRAIN_MATERIAL_WORLD_SCALE,
+              ) * TERRAIN_MATERIAL_STRENGTH
+            );
+            r *= materialFactor;
+            g *= materialFactor;
+            b *= materialFactor;
+          }
+          const bevel = bevelAt(x, y);
+          if (bevel > 0) {
+            r += (RIM[0] - r) * bevel;
+            g += (RIM[1] - g) * bevel;
+            b += (RIM[2] - b) * bevel;
+          } else if (bevel < 0) {
+            const shade = -bevel;
+            r += (BEVEL_SHADOW[0] - r) * shade;
+            g += (BEVEL_SHADOW[1] - g) * shade;
+            b += (BEVEL_SHADOW[2] - b) * shade;
           }
           data[o] = r;
           data[o + 1] = g;
           data[o + 2] = b;
-          data[o + 3] = 255; // opaque solid ground
+          data[o + 3] = terrainEdgeAlpha(terrain, W, H, x, y);
         } else {
           depth = -1;
           data[o + 3] = 0; // transparent air — sky shows through on composite
@@ -205,5 +256,9 @@ export class TerrainRenderer {
       }
     }
     offCtx.putImageData(img, 0, 0);
+    if (this.material.needsApplication) {
+      this.material.acknowledgeApplied();
+    }
+    return true;
   }
 }

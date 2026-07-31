@@ -2,16 +2,22 @@ import './style.css';
 import { GameEngine } from '@shared/engine/GameEngine';
 import { computeAiPlan } from '@shared/engine/AI';
 import { GRAVITY } from '@shared/engine/Physics';
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/engine/Terrain';
 import type { GameState } from '@shared/types/GameState';
+import { normalizeTankLoadout } from '@shared/types/TankLoadout';
 import type { GameClient, RematchInfo } from './client/GameClient';
 import { HotSeatClient } from './client/HotSeatClient';
 import { InputHandler } from './input/InputHandler';
 import { shouldAcceptLocalInput } from './input/inputGate';
 import { Renderer } from './renderer/Renderer';
+import { resolveAimGuidePresentation } from './renderer/aimGuidePresentation';
 import { AudioEngine } from './audio/AudioEngine';
 import { HUD } from './ui/HUD';
 import { Lobby, type LobbyConfig } from './ui/Lobby';
 import { crtCssVars } from './ui/theme';
+
+const ENABLE_DETERMINISTIC_HOT_SEAT_PROBE =
+  new URLSearchParams(window.location.search).get('e2e') === 'hotseat';
 
 /**
  * Entry point. Grabs the canvas + overlay containers, shows the Lobby, and on
@@ -97,10 +103,12 @@ function bootstrap(): void {
 
   renderer.setEvents({
     onLaunch: () => audio.launch(),
-    onExplosion: (radius) => {
+    onExplosion: (radius, impact) => {
       audio.explosion(radius);
+      if (impact) audio.impact(impact.impactType, impact.radius);
       flashBloom(radius);
     },
+    onWallImpact: (side) => audio.wallReflect(side),
     onHop: () => audio.hopTick(),
     onFireActive: (active) => {
       if (active) audio.napalmStart();
@@ -109,7 +117,7 @@ function bootstrap(): void {
     onMiss: () => audio.fizzle(),
   });
   // Mute toggle (M). Document-level so it works on any screen; 'M' is unused by
-  // InputHandler (which owns arrows/space/Tab/Q), so there's no key conflict.
+  // InputHandler (which owns arrows/space/Q), so there's no key conflict.
   window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyM' && !e.repeat) {
       const muted = audio.toggleMute();
@@ -140,6 +148,9 @@ function bootstrap(): void {
   // --- Computer-opponent (AI) driver state ---
   // Whether the active tank is CPU-controlled (gates out human input for that turn).
   let activeIsAi = false;
+  // Whether this browser owns the active seat. Hot-seat humans always do;
+  // networked opponents and CPU seats do not.
+  let activeIsLocal = false;
   // Guards against re-driving the same bot turn: onStateChange fires every frame,
   // so we act ONCE per (turn, tank) and skip until the turn changes.
   let aiActedKey: string | null = null;
@@ -176,6 +187,7 @@ function bootstrap(): void {
     renderDirty = true;
     lastPhase = null;
     activeIsAi = false;
+    activeIsLocal = false;
     aiActedKey = null;
     // Clear any opponent-turn banner so it can't leak across games (P1-6b) — e.g.
     // a networked "Waiting for…" surviving into a later hot-seat game (which has no
@@ -224,7 +236,7 @@ function bootstrap(): void {
     // rAF loop keeps running underneath either way (networked lockstep stays
     // in sync); only this LOCAL emit is suppressed.
     const newInput = new InputHandler(canvas, (action) => {
-      if (!shouldAcceptLocalInput({ activeIsAi, paused: hud.isPaused() })) return;
+      if (!shouldAcceptLocalInput({ activeIsAi, activeIsLocal, paused: hud.isPaused() })) return;
       // Any input mutates aim/weapon/turn state, so force a redraw next frame so the
       // aim guide / HUD update instantly even when the idle-skip gate would skip.
       markDirty();
@@ -263,14 +275,23 @@ function bootstrap(): void {
     newClient.onTurnWatch?.((watch) => hud.setTurnWatch(watch));
 
     unsubscribe = newClient.onStateChange((state) => {
+      if (ENABLE_DETERMINISTIC_HOT_SEAT_PROBE) exposeDeterministicHotSeatProbe(state);
       // Aim guide is shown only when the LOCAL human controls the active tank: a
       // human turn in hot-seat, or (networked) the active tank is THIS client's id.
       // Never for a CPU seat or a remote opponent's turn.
       const activeTank = state.tanks.find((t) => t.id === state.activePlayerId);
-      const localControls =
-        !activeTank?.ai &&
-        (config.mode !== 'network' || state.activePlayerId === config.playerId);
-      renderer.setAimGuide(localControls);
+      const aimGuide = resolveAimGuidePresentation({
+        mode: config.mode,
+        activePlayerId: state.activePlayerId,
+        localPlayerId: config.playerId,
+        activeIsAi: !!activeTank?.ai,
+      }, {
+        baseGravity: config.settings?.gravity ?? GRAVITY,
+        turn: state.turn,
+        suddenDeathTurn: config.settings?.suddenDeathTurn ?? 0,
+      });
+      activeIsLocal = aimGuide.visible;
+      renderer.setAimGuide(aimGuide.visible, aimGuide.gravity);
       // Feed the active tank's barrel-origin (logical px) so mouse drag-aim can
       // derive angle/power from the drag vector (pivot = body top, y − 16).
       if (activeTank) newInput.setActiveTankScreenPos(activeTank.x, activeTank.y - 20);
@@ -291,11 +312,19 @@ function bootstrap(): void {
         renderer.render(state);
         renderDirty = false;
       }
-      hud.update(state, newClient.isFiring ?? false);
+      hud.update(
+        state,
+        newClient.isFiring ?? false,
+        shouldAcceptLocalInput({
+          activeIsAi: !!activeTank?.ai,
+          activeIsLocal,
+          paused: hud.isPaused(),
+        }),
+      );
 
       // When the active player changes, re-seed the input handler's aim AND
       // weapon cursor from the new active tank so each player's arrows start
-      // from their own tank's current angle/power and their Tab/Q cycles from
+      // from their own tank's current angle/power and their Q cycles from
       // their own selected weapon. Neither setter emits an action.
       if (state.activePlayerId !== lastActiveId) {
         lastActiveId = state.activePlayerId;
@@ -372,11 +401,18 @@ function bootstrap(): void {
     }
   });
 
+  const localInputAllowed = (): boolean => shouldAcceptLocalInput({
+    activeIsAi,
+    activeIsLocal,
+    paused: hud.isPaused(),
+  });
+
   // Register the weapon-strip select callback ONCE on the persistent HUD. A
   // strip click both emits select_weapon AND re-seeds the InputHandler cursor so
-  // Tab/Q cycling stays in sync with the mouse pick. client/input are the
+  // Q cycling stays in sync with the mouse pick. client/input are the
   // mutable per-game closure vars (null between teardown and startGame).
   hud.onWeaponSelect((weapon) => {
+    if (!localInputAllowed()) return;
     markDirty(); // weapon pick can change aim-guide/HUD context — repaint next frame
     client?.sendAction({ type: 'select_weapon', weapon });
     input?.setWeapon(weapon);
@@ -423,11 +459,11 @@ function bootstrap(): void {
   // Touch-aim strip callbacks (M2 mobile). Registered once on the persistent HUD;
   // `input` is the mutable per-game closure var so these always drive the live handler.
   // Same gate as the keyboard path (startGame): dropped on a CPU turn or while paused (#52).
-  const touchAllowed = (): boolean => shouldAcceptLocalInput({ activeIsAi, paused: hud.isPaused() });
-  hud.onTouchAngle((delta) => { if (touchAllowed()) input?.stepAngle(delta); });
-  hud.onTouchPower((delta) => { if (touchAllowed()) input?.stepPower(delta); });
-  hud.onTouchFire(()       => { if (touchAllowed()) input?.triggerFire(); });
-  hud.onTouchWeapon(()     => { if (touchAllowed()) input?.nextWeapon(); });
+  hud.onTouchAngle((delta) => { if (localInputAllowed()) input?.stepAngle(delta); });
+  hud.onTouchPower((delta) => { if (localInputAllowed()) input?.stepPower(delta); });
+  hud.onTouchWeapon(()     => { if (localInputAllowed()) input?.nextWeapon(); });
+  hud.onMove((delta)        => { if (localInputAllowed()) input?.stepMove(delta); });
+  hud.onPrimaryAction(()   => { if (localInputAllowed()) input?.triggerFire(); });
 
   // Deterministic E2E entrypoint (rendering-guardrail suite). When the page is
   // loaded with `?e2e=hotseat`, skip the splash/lobby and immediately start a
@@ -462,12 +498,9 @@ function bootstrap(): void {
   //
   // Cap at 2× so 4K monitors don't get an absurdly large stage.
   const appEl = document.getElementById('app');
-  // Below this scale the analog instrument dials' thin (1-3px) strokes go
-  // sub-pixel and dissolve into the panel, leaving only the "Instruments" title
-  // legible. The HUD then swaps the dials for bold numeric readouts. We key this
-  // off the ACTUAL scale, not `@media (pointer: coarse)`: a small or remote
-  // desktop window is fine-pointer yet just as scaled-down, so a pointer test
-  // would leave those users staring at dissolved dials.
+  // Below this scale the console strengthens its analog strokes and labels so
+  // telemetry stays legible after whole-stage zoom. Key it from the ACTUAL scale,
+  // not pointer type: a small or remote fine-pointer window is equally reduced.
   const COMPACT_SCALE = 0.8;
   function updateScale(): void {
     if (!appEl) return;
@@ -482,6 +515,95 @@ function bootstrap(): void {
   updateScale();
 }
 
+interface SandhogE2EProbe {
+  phase: GameState['phase'];
+  terrainVersion: number;
+  sandhog: Readonly<{
+    x: number;
+    y: number;
+    burrowTicksRemaining: number | null;
+    centerSolid: boolean | null;
+  }> | null;
+  corridorWitness: Readonly<{
+    x: number;
+    y: number;
+    centerSolid: boolean;
+    adjacentX: number;
+    adjacentY: number;
+    adjacentSolid: boolean;
+  }> | null;
+  sandhogExplosionCount: number;
+}
+
+/**
+ * Narrow, snapshot-only evidence channel for production-bundle browser tests.
+ * It exists solely on the deterministic `?e2e=hotseat` entrypoint and copies
+ * presentation-relevant facts rather than exposing the mutable GameState.
+ */
+function exposeDeterministicHotSeatProbe(state: GameState): void {
+  const projectile = state.projectiles.find((candidate) => candidate.weaponType === 'sandhog');
+  const burrowTicksRemaining = projectile?.burrowTicksRemaining ?? null;
+  let centerSolid: boolean | null = null;
+  let corridorWitness: SandhogE2EProbe['corridorWitness'] = null;
+  if (projectile && burrowTicksRemaining !== null) {
+    const x = Math.max(0, Math.min(CANVAS_WIDTH - 1, Math.round(projectile.x)));
+    const y = Math.max(0, Math.min(CANVAS_HEIGHT - 1, Math.round(projectile.y)));
+    centerSolid = state.terrain[y * CANVAS_WIDTH + x] !== 0;
+
+    // Five drill steps behind the live head is 20px away for Sandhog's 3-4-5
+    // vector: beyond its 13px presentation halo. Pair that cleared center with
+    // a perpendicular pixel 15px away, beyond the 7px tunnel radius.
+    const speed = Math.hypot(projectile.vx, projectile.vy);
+    const witnessX = projectile.x - projectile.vx * 5;
+    const witnessY = projectile.y - projectile.vy * 5;
+    const adjacentX = witnessX - (projectile.vy / speed) * 15;
+    const adjacentY = witnessY + (projectile.vx / speed) * 15;
+    const inBounds = (sampleX: number, sampleY: number): boolean =>
+      sampleX >= 0
+      && sampleX < CANVAS_WIDTH
+      && sampleY >= 0
+      && sampleY < CANVAS_HEIGHT;
+    const solidAt = (sampleX: number, sampleY: number): boolean =>
+      state.terrain[
+        Math.round(sampleY) * CANVAS_WIDTH + Math.round(sampleX)
+      ] !== 0;
+    if (
+      speed > 0
+      && inBounds(witnessX, witnessY)
+      && inBounds(adjacentX, adjacentY)
+    ) {
+      corridorWitness = Object.freeze({
+        x: witnessX,
+        y: witnessY,
+        centerSolid: solidAt(witnessX, witnessY),
+        adjacentX,
+        adjacentY,
+        adjacentSolid: solidAt(adjacentX, adjacentY),
+      });
+    }
+  }
+
+  const probe = Object.freeze<SandhogE2EProbe>({
+    phase: state.phase,
+    terrainVersion: state.terrainVersion,
+    sandhog: projectile
+      ? Object.freeze({
+          x: projectile.x,
+          y: projectile.y,
+          burrowTicksRemaining,
+          centerSolid,
+        })
+      : null,
+    corridorWitness,
+    sandhogExplosionCount: state.explosions.filter(
+      (explosion) => explosion.weaponType === 'sandhog',
+    ).length,
+  });
+  (
+    window as typeof window & { __SINGED_TERRA_E2E__?: Readonly<SandhogE2EProbe> }
+  ).__SINGED_TERRA_E2E__ = probe;
+}
+
 /** Build the GameClient for the selected mode (SPEC §5). */
 async function createClient(config: LobbyConfig): Promise<GameClient> {
   if (config.mode === 'network') {
@@ -493,10 +615,15 @@ async function createClient(config: LobbyConfig): Promise<GameClient> {
 
     const gameOptions = {
       maxPlayers: config.players.length,
-      players:    config.players.map(p => ({ ...p, id: p.id! })),
+      players:    config.players.map(p => ({
+        ...p,
+        id: p.id!,
+        loadout: normalizeTankLoadout(p.loadout),
+      })),
       seed:       config.settings?.seed,
       maxWind:    config.settings?.maxWind,
       gravity:    config.settings?.gravity,
+      walls:      config.settings?.walls,
       // Best-of-N is sourced from the synced room row (see Lobby.emitNetworkReady),
       // so every client builds an identical engine — required for deterministic
       // lockstep across round boundaries. Undefined => single round.
@@ -519,11 +646,15 @@ async function createClient(config: LobbyConfig): Promise<GameClient> {
   // defaults hold for untouched fields (e.g. omitted seed => DEFAULT_SEED).
   const settings = config.settings;
   const engine = new GameEngine({
-    players: config.players,
+    players: config.players.map((player) => ({
+      ...player,
+      loadout: normalizeTankLoadout(player.loadout),
+    })),
     maxPlayers: config.players.length,
     ...(settings?.seed != null ? { seed: settings.seed } : {}),
     ...(settings?.maxWind != null ? { maxWind: settings.maxWind } : {}),
     ...(settings?.gravity != null ? { gravity: settings.gravity } : {}),
+    ...(settings?.walls != null ? { walls: settings.walls } : {}),
     // Best-of-N is hot-seat-only for now: in networked lockstep `rounds` must come
     // from the synced room row so every client's engine agrees (Slice 3), otherwise
     // engines would diverge on when a round ends. Networked play stays single-round.
@@ -542,7 +673,12 @@ async function createClient(config: LobbyConfig): Promise<GameClient> {
 function rematchToConfig(info: RematchInfo, myPlayerId: string): LobbyConfig {
   return {
     mode: 'network',
-    players: info.players.map((p) => ({ id: p.id, name: p.name, color: p.color })),
+    players: info.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      color: p.color,
+      loadout: normalizeTankLoadout(p.loadout),
+    })),
     playerNames: info.players.map((p) => p.name),
     roomCode: info.code,
     roomId: info.roomId,
@@ -551,6 +687,7 @@ function rematchToConfig(info: RematchInfo, myPlayerId: string): LobbyConfig {
       seed: info.seed,
       maxWind: info.options.maxWind,
       gravity: info.options.gravity,
+      ...(info.options.walls === 'reflective' ? { walls: 'reflective' as const } : {}),
       ...(info.options.rounds !== undefined ? { rounds: info.options.rounds } : {}),
     },
   };

@@ -44,11 +44,16 @@ export interface NetworkBuyAction {
 export interface NetworkNextRoundAction {
   type: 'next_round';
 }
+export interface NetworkMoveAction {
+  type: 'move';
+  delta: number;
+}
 export type NetworkAction =
   | NetworkFireAction
   | NetworkShieldAction
   | NetworkBuyAction
-  | NetworkNextRoundAction;
+  | NetworkNextRoundAction
+  | NetworkMoveAction;
 
 /**
  * Replay an ordered action log in bounded chunks, yielding to the event loop
@@ -100,6 +105,9 @@ export function replayNetworkAction(engine: GameEngine, action: NetworkAction): 
       return;
     case 'next_round':
       engine.applyAction({ type: 'next_round' });
+      return;
+    case 'move':
+      engine.applyAction({ type: 'move', delta: action.delta });
       return;
     case 'buy':
       engine.applyAction({

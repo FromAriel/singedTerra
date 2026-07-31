@@ -1,5 +1,7 @@
 import type { GameState } from '@shared/types/GameState';
 import type { PlayerAction } from '@shared/types/PlayerAction';
+import type { WallMode } from '@shared/types/GameOptions';
+import type { TankLoadout } from '@shared/types/TankLoadout';
 
 /**
  * Everything needed to start the SUCCESSOR game after a rematch: the new room's
@@ -10,8 +12,13 @@ export interface RematchInfo {
   roomId: string;
   code: string;
   seed: number;
-  options: { maxPlayers: number; maxWind: number; gravity: number; rounds?: number };
-  players: Array<{ id: string; name: string; color: string }>;
+  options: { maxPlayers: number; maxWind: number; gravity: number; walls?: WallMode; rounds?: number };
+  players: Array<{
+    id: string;
+    name: string;
+    color: string;
+    loadout?: TankLoadout;
+  }>;
 }
 
 /**
