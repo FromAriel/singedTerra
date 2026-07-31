@@ -2231,3 +2231,42 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 ### Touch utility controls hosted gate receipt
 
 - Hosted PR #226 head `4544b1845f963e989846f02e60d36fd853d4bb24` passed typecheck/harness/build, Edge, full rendering E2E, JavaScript analysis, and CodeQL. This documentation-only receipt and completed plan checkbox will become the final candidate head and receive the same exact-head hosted gate before the PR is considered green. Confidence high.
+
+
+### Documentation overhaul SMARTS decision and spec gate
+
+- USER PIVOT: pause the touch-utility implementation at its isolated RED checkpoint and select the README/documentation overhaul as the next full slice. The red branch remains uncommitted and separate; no failing test or partial product behavior enters this docs branch. Confidence high.
+- CAUSAL FINDING: the root README leads with obsolete SVG art, claims 11 weapons while the canonical union contains 16, lists shipped audio and mobile HUD work as planned, and describes a static Pages client as running on a t3.micro. The maintained specification opens with a superseded Socket.io/EC2 architecture even though current source and deployment are Supabase deterministic lockstep. Confidence high.
+- SMARTS DECISION (high confidence): run a docs-only `ca-chore` named `documentation-overhaul`. Score 99/100: Scope 19/20 (root and maintained documentation set), User value 20/20 (explicit request plus repository first impression), Risk 20/20 (no behavior or dependency change), Maintainability 20/20 (new source-of-truth hierarchy), Testability 20/20 (source audit, assets, links, copy, secrets, diff, hosted gates). Security exposure is limited to copy and secret scanning.
+- SPEC GATE: `.codearbiter/specs/documentation-overhaul.md` and matching plan are approved as SUaDtL under standing passion-project sprint authority. Design read: a Markdown product front door and technical guide set for players and contributors, expressive but direct, using the game\'s scorched-dusk visual family. Dials are Structure 5, Density 5, Register 8, Motion not applicable. Confidence high.### Documentation overhaul copy and integrity gate
+
+- VISUAL ACCEPTANCE: the README now leads with the authored splash hero, a verified live-play link, and current production captures of the gameplay command rail and modular Garage. Obsolete schematic SVGs are removed from the maintained presentation. Confidence high.
+- SOURCE ALIGNMENT: the maintained docs were checked against current engine types, weapon definitions, replay contract, HUD source, package scripts, Supabase migrations and Edge Functions, and Pages workflow. One locally caught wording gap was corrected so the online action flow explicitly includes committed movement and round transitions. Confidence high.
+- DOCS-ONLY GATE: anti-slop scan found no sentence-separator dash violations or filler findings; strict relative-link validation covered 12 maintained and governed Markdown files with 0 broken targets; live site, workflow, issue tracker, and TypeScript badge returned HTTP 200; `git diff --check` passed; codeArbiter state-free secret scan returned `[]`; targeted credential-pattern and retired-reference scans returned no matches. Confidence high.
+### Documentation overhaul adversarial review and local acceptance
+
+- INITIAL ADVERSARIAL VERDICT: 0 Critical / 0 High / 3 Medium / 1 Low. Riot Bomb was grouped as spread damage; drag aiming and hold-F fast-forward were undiscoverable; the icon policy contradicted the bounded weapon Lucide seam; and late-join wording overstated support beyond reconnect or refresh for an existing seat. Confidence high.
+- CORRECTIONS: Riot Bomb is now documented as damage-free excavation; README and player controls include drag aiming and local fast-forward; UI guidance names both bounded, tree-shaken Lucide seams; and the maintained status and spec explicitly limit replay recovery to an existing seat because joins close when a room starts. Confidence high.
+- FOLLOW-UP ADVERSARIAL VERDICT: CLEAN, 0 Critical / 0 High / 0 Medium / 0 Low. The reviewer checked both client implementations of fast-forward, the complete Lucide import boundary, the room join gate, and surrounding copy. Confidence high.
+- LOCAL ACCEPTANCE: `npm run check` passed the complete typecheck and deterministic harness chain; `npm run build` produced the production Vite bundle; all three README images decode at their intended high-resolution dimensions; final diff hygiene and state-free secret scan pass. Confidence high.
+
+### Documentation overhaul commit receipt
+
+- Governed product commit `8398879` records the visual README front door, player and contributor guides, current Supabase lockstep architecture, maintained product/UI contracts, archived historical plan, retired SVG removal, source-aligned review corrections, and complete local acceptance evidence. Confidence high.
+
+### Documentation overhaul ready PR handoff
+
+- Ready PR #225 opened from reviewed product commit `8398879` plus commit-gate receipt `68aa642`. Hosted exact-head typecheck, deterministic harnesses, build, Edge, E2E, JavaScript analysis, and CodeQL remain the delivery gate. Confidence high.
+
+### Documentation overhaul hosted gate receipt
+
+- HOSTED GREEN: PR #225 exact head `fefa9c0925d39fd2144a3f4a1225e50b0a5b74e0` passed typecheck, the deterministic harness chain, 663 client tests, production build, 181 Edge tests, 101-test production-browser E2E with 10 intentional project-conditional skips, JavaScript analysis, and CodeQL. PR state remained open and mergeable. Confidence high.
+
+### Mobile tactical HUD stack reconciliation
+
+- USER AUTHORITY: merge green PRs with an adversarial pass, including eligible dependency bumps. PR #226 merged into its parent feature branch; PR #225 had already merged to `main`. Confidence high.
+- SMARTS DECISION: reconcile `origin/main` into PR #224 locally because GitHub reported a conflict, preserving both append-only sprint histories. The sole overlap was this log; exact reconstruction proved both parent suffixes occur once, byte-for-byte and in chronological order. Confidence high.
+- ADVERSARIAL CORRECTIONS: the combined review found stale 800x500 documentation and touch guidance that still placed movement in the tactical rail. Maintained docs now match the authoritative 1200x600 battlefield and eight-control touch dock. A follow-up clarified that combat controls share keyboard gates while Menu remains available to pause. Final verdict: CLEAN, 0 Critical / 0 High / 0 Medium / 0 Low. Confidence high.
+- LOCAL ACCEPTANCE: `npm run check` passed after the documentation corrections; the earlier combined stack run passed production build and full Playwright with 101 passes and 10 intentional skips. Relative-link validation covered 21 maintained/governed documents with 0 broken targets; diff hygiene and the state-free secret scan returned clean. Exact-head hosted CI remains required after push. Confidence high.
+- DEPENDENCY REVIEW: PR #167 cleared provenance, license, compatibility, and adversarial review; after updating onto current `main`, every exact-head hosted check passed and the PR merged as `9daca984`. PRs #215, #175, and #174 remain held for Node runtime-contract incompatibilities that green CI did not detect. Confidence high.
+- AUDIT CORRECTION: for PR #167, all required exact-head hosted checks passed; Supabase Preview skipped per configuration. The earlier "every exact-head hosted check passed" wording did not distinguish that configured skip. Confidence high.
