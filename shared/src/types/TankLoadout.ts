@@ -1,5 +1,10 @@
 /** Authored visual families available to every player for free. */
-export const TANK_KIT_IDS = ['foundry', 'ranger', 'bulwark'] as const;
+export const TANK_KIT_IDS = [
+  'foundry',
+  'ranger',
+  'bulwark',
+  'jackal',
+] as const;
 export type TankKitId = (typeof TANK_KIT_IDS)[number];
 
 /** Independently selectable visual slots; order is stable for UI and atlases. */

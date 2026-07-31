@@ -82,7 +82,84 @@ async function installTankPartDrawProbe(page: Page): Promise<void> {
   });
 }
 
+async function previewComponentAreas(page: Page): Promise<number[]> {
+  return page.locator(
+    '.lobby-preview__canvas',
+  ).first().evaluate((canvas: HTMLCanvasElement) => {
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (context === null) return [];
+    const { data, width, height } = context.getImageData(
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+    const occupied = new Uint8Array(width * height);
+    for (let pixel = 0; pixel < occupied.length; pixel++) {
+      occupied[pixel] = data[pixel * 4 + 3]! > 24 ? 1 : 0;
+    }
+    const seen = new Uint8Array(occupied.length);
+    const componentAreas: number[] = [];
+    for (let start = 0; start < occupied.length; start++) {
+      if (occupied[start] === 0 || seen[start] === 1) continue;
+      const pending = [start];
+      seen[start] = 1;
+      let area = 0;
+      while (pending.length > 0) {
+        const current = pending.pop()!;
+        area++;
+        const x = current % width;
+        const y = Math.floor(current / width);
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+            const next = ny * width + nx;
+            if (occupied[next] === 1 && seen[next] === 0) {
+              seen[next] = 1;
+              pending.push(next);
+            }
+          }
+        }
+      }
+      if (area >= 8) componentAreas.push(area);
+    }
+    return componentAreas.sort((left, right) => right - left);
+  });
+}
+
 test.describe('tank Garage', () => {
+  test('connects every preview barrel/turret mix to the authored tank stack', async ({
+    page,
+  }) => {
+    await openGarage(page);
+    await openCompactGarage(page, 'Player 1');
+    const kits = ['Foundry', 'Ranger', 'Bulwark', 'Jackal'] as const;
+    for (let turretIndex = 0; turretIndex < kits.length; turretIndex++) {
+      for (let barrelIndex = 0; barrelIndex < kits.length; barrelIndex++) {
+        await page.getByRole('button', {
+          name: `Apply ${kits[turretIndex]} preset to Player 1`,
+        }).click();
+        const barrelSteps = (
+          barrelIndex - turretIndex + kits.length
+        ) % kits.length;
+        for (let step = 0; step < barrelSteps; step++) {
+          await page.getByRole('button', {
+            name: 'Change Player 1 barrel',
+          }).click();
+        }
+        await expect.poll(async () => (
+          (await previewComponentAreas(page))[0] ?? 0
+        )).toBeGreaterThan(700);
+        await expect.poll(async () => (
+          (await previewComponentAreas(page))[1] ?? 0
+        )).toBeLessThan(250);
+      }
+    }
+  });
+
   test('keeps a maximum-length player identity above fitted tactical controls', async ({
     page,
   }) => {
@@ -115,6 +192,39 @@ test.describe('tank Garage', () => {
 
   test('fits the stage and previews distinct authored kits', async ({ page }, testInfo) => {
     await openGarage(page);
+
+    await openCompactGarage(page, 'Player 1');
+    const fittedPresetLabels = [
+      ['Foundry', ['Tracks', 'Armor Hull', 'Cupola', 'Cannon']],
+      ['Ranger', ['Spider Legs', 'Scout Hull', 'Sensor Pod', 'Railgun']],
+      ['Bulwark', ['Hover', 'Siege Hull', 'Bunker', 'Siege Gun']],
+      ['Jackal', ['Dune Wheels', 'Raider Hull', 'Sensor Ring', 'Howitzer']],
+    ] as const;
+    for (const [preset, expected] of fittedPresetLabels) {
+      await page.getByRole('button', {
+        name: `Apply ${preset} preset to Player 1`,
+      }).click();
+      const labels = await page.locator(
+        '.lobby-garage[data-owner="player-1"] .lobby-garage__slot strong',
+      ).evaluateAll((nodes) => nodes.map((label) => {
+        const range = document.createRange();
+        range.selectNodeContents(label);
+        return {
+          text: label.textContent,
+          clientWidth: label.clientWidth,
+          scrollWidth: label.scrollWidth,
+          textWidth: range.getBoundingClientRect().width,
+        };
+      }));
+      expect(labels.map(({ text }) => text)).toEqual(expected);
+      for (const label of labels) {
+        // Keep real slack for Linux/Windows font-metric differences rather
+        // than merely passing at the exact no-overflow boundary.
+        expect(label.textWidth + 4).toBeLessThanOrEqual(label.clientWidth);
+        expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
+      }
+    }
+    await closeCompactGarage(page);
 
     const fit = await page.locator('.lobby-card').evaluate((card) => ({
       clientHeight: card.clientHeight,
@@ -231,7 +341,7 @@ test.describe('tank Garage', () => {
     })).toEqual({ ready: true, distinct: true });
   });
 
-  test('carries a mixed four-part selection into a running game', async ({
+  test('carries a mixed Jackal selection into a running game', async ({
     page,
   }) => {
     await openGarage(page);
@@ -239,7 +349,7 @@ test.describe('tank Garage', () => {
 
     await openCompactGarage(page, 'Player 1');
     await page.getByRole('button', {
-      name: 'Apply Ranger preset to Player 1',
+      name: 'Apply Jackal preset to Player 1',
     }).click();
     await page.getByRole('button', {
       name: 'Change Player 1 turret',
@@ -247,7 +357,7 @@ test.describe('tank Garage', () => {
 
     await expect(page.getByRole('button', {
       name: 'Change Player 1 turret',
-    })).toContainText('Bulwark');
+    })).toContainText('Cupola');
     const expectedPartHashes = await page.evaluate(() => {
       const records = (window as typeof window & {
         __tankPartDraws?: Array<{ target: string; hash: number }>;

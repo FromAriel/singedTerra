@@ -111,10 +111,10 @@ function callAt(fetchMock: Mock, i = fetchMock.mock.calls.length - 1): { url: st
 
 const fnUrl = (name: string): string => `https://example.supabase.co/functions/v1/${name}`;
 const MIXED_LOADOUT: TankLoadout = {
-  treads: 'ranger',
+  treads: 'jackal',
   hull: 'bulwark',
   turret: 'foundry',
-  barrel: 'ranger',
+  barrel: 'jackal',
 };
 
 /** Let the void-ed subscribeWaitingRoom()'s dynamic import + chain settle. */

@@ -28,10 +28,10 @@ Deno.test('handleCreateRoom: rejects an unknown tank loadout before DB access', 
 
 Deno.test('handleCreateRoom: stores the exact bounded creator loadout', async () => {
   const loadout = {
-    treads: 'ranger',
+    treads: 'jackal',
     hull: 'bulwark',
     turret: 'foundry',
-    barrel: 'ranger',
+    barrel: 'jackal',
   } as const
   let insertedRoom: Record<string, unknown> | undefined
   const rooms = {

@@ -136,6 +136,7 @@ const TANK_KIT_LABELS: Readonly<Record<TankKitId, string>> = {
   foundry: 'Foundry',
   ranger: 'Ranger',
   bulwark: 'Bulwark',
+  jackal: 'Jackal',
 };
 const TANK_SLOT_LABELS: Readonly<Record<(typeof TANK_PART_SLOTS)[number], string>> = {
   treads: 'Mobility',
@@ -151,21 +152,25 @@ const TANK_PART_VARIANT_LABELS: Readonly<Record<
     foundry: 'Tracks',
     ranger: 'Spider Legs',
     bulwark: 'Hover',
+    jackal: 'Dune Wheels',
   },
   hull: {
-    foundry: 'Foundry Armor',
-    ranger: 'Ranger Scout',
-    bulwark: 'Bulwark Siege',
+    foundry: 'Armor Hull',
+    ranger: 'Scout Hull',
+    bulwark: 'Siege Hull',
+    jackal: 'Raider Hull',
   },
   turret: {
-    foundry: 'Foundry Cupola',
-    ranger: 'Ranger Sensor',
-    bulwark: 'Bulwark Bunker',
+    foundry: 'Cupola',
+    ranger: 'Sensor Pod',
+    bulwark: 'Bunker',
+    jackal: 'Sensor Ring',
   },
   barrel: {
-    foundry: 'Foundry Cannon',
-    ranger: 'Ranger Railgun',
-    bulwark: 'Bulwark Siege',
+    foundry: 'Cannon',
+    ranger: 'Railgun',
+    bulwark: 'Siege Gun',
+    jackal: 'Howitzer',
   },
 };
 
@@ -602,8 +607,8 @@ export class Lobby {
         position: relative;
         z-index: 1;
         width: 100%;
-        max-width: 520px;
-        margin-left: 104px;
+        max-width: 600px;
+        margin-left: 32px;
         margin-right: auto;
       }
       #lobby .lobby-card > .lobby-preview {
@@ -666,7 +671,7 @@ export class Lobby {
       #lobby .lobby-garage {
         flex: 1 0 100%;
         display: grid;
-        grid-template-columns: 58px minmax(190px, auto) 1fr;
+        grid-template-columns: 42px minmax(174px, auto) 1fr;
         align-items: center;
         gap: 6px;
         padding: 5px 7px;
@@ -688,7 +693,8 @@ export class Lobby {
       #lobby .lobby-garage__presets,
       #lobby .lobby-garage__slots {
         display: flex;
-        gap: 4px;
+        gap: 3px;
+        min-width: 0;
       }
       #lobby .lobby-garage button {
         min-height: 28px;
@@ -705,8 +711,8 @@ export class Lobby {
         color: var(--text-gold);
       }
       #lobby .lobby-garage__preset {
-        padding: 4px 7px;
-        font-size: 10px;
+        padding: 4px 5px;
+        font-size: 9px;
       }
       #lobby .lobby-garage__preset.selected {
         border-color: var(--gold);
@@ -716,7 +722,7 @@ export class Lobby {
       #lobby .lobby-garage__slot {
         flex: 1;
         min-width: 0;
-        padding: 3px 5px;
+        padding: 3px 2px;
         text-align: left;
       }
       #lobby .lobby-garage__slot span,
@@ -734,7 +740,7 @@ export class Lobby {
       }
       #lobby .lobby-garage__slot strong {
         color: var(--text);
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 700;
       }
       #lobby .lobby-hotseat.crowded .lobby-sub { display: none; }
@@ -777,7 +783,7 @@ export class Lobby {
       #lobby .lobby-rows.crowded .lobby-garage {
         grid-column: 1 / -1;
         display: grid;
-        grid-template-columns: repeat(7, minmax(0, 1fr));
+        grid-template-columns: repeat(8, minmax(0, 1fr));
         gap: 3px;
         padding: 3px;
       }

@@ -50,10 +50,10 @@ Deno.test('buildRematchPlayers marks everyone ready and stamps lastSeen', () => 
 
 Deno.test('buildRematchPlayers preserves valid cosmetics and defaults old seats', () => {
   const mixed = {
-    treads: 'ranger',
+    treads: 'jackal',
     hull: 'bulwark',
     turret: 'foundry',
-    barrel: 'ranger',
+    barrel: 'jackal',
   } as const
   const out = buildRematchPlayers([
     { id: 'uid-a', name: 'Ana', color: '#f00', ready: false, loadout: mixed },
@@ -146,10 +146,10 @@ Deno.test('winning-create response projector preserves reflective walls', () => 
 
 Deno.test('rematch response projectors carry the synchronized loadout', () => {
   const loadout = {
-    treads: 'bulwark',
+    treads: 'jackal',
     hull: 'bulwark',
     turret: 'ranger',
-    barrel: 'foundry',
+    barrel: 'jackal',
   } as const
   const players: StoredPlayer[] = [
     { id: 'uid-a', name: 'Ana', color: '#f00', ready: true, loadout },

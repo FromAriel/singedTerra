@@ -51,10 +51,10 @@ Deno.test('applyPlayerUpdate: applies trimmed name + color, bumps lastSeen, leav
 
 Deno.test('applyPlayerUpdate: replaces only the target loadout with a bounded copy', () => {
   const loadout = {
-    treads: 'ranger',
+    treads: 'jackal',
     hull: 'bulwark',
     turret: 'foundry',
-    barrel: 'ranger',
+    barrel: 'jackal',
   } as const
   const r = applyPlayerUpdate(
     [

@@ -5,10 +5,10 @@ import {
 
 Deno.test('parseTankLoadout accepts one complete allowlisted mix', () => {
   const input = {
-    treads: 'ranger',
+    treads: 'jackal',
     hull: 'bulwark',
     turret: 'foundry',
-    barrel: 'ranger',
+    barrel: 'jackal',
   }
 
   const result = parseTankLoadout(input)
