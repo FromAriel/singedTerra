@@ -21,6 +21,7 @@ const ARSENAL_WEAPONS = [
   ['deaths_head', "Death's Head"],
   ['riot_bomb', 'Riot Bomb'],
   ['hot_napalm', 'Hot Napalm'],
+  ['sandhog', 'Sandhog'],
   ['shield', 'Shield'],
 ] as const;
 
@@ -225,15 +226,15 @@ test.describe('HUD layout guardrails', () => {
     );
 
     await page.getByRole('button', { name: 'Expand arsenal' }).click();
-    await page.locator('.st-hud__weapon-btn[data-weapon="bouncing_betty"]').click();
+    await page.locator('.st-hud__weapon-btn[data-weapon="sandhog"]').click();
     await page.getByRole('button', { name: 'Collapse arsenal' }).click();
-    await expect(weapon).toHaveText('Bouncing Betty');
+    await expect(weapon).toHaveText('Sandhog');
     await expect(activeRow.locator('.st-hud__weapon-icon .st-weapon-icon'))
-      .toHaveAttribute('data-weapon', 'bouncing_betty');
-    await expect(fire).toHaveAttribute('aria-label', 'Fire Bouncing Betty');
+      .toHaveAttribute('data-weapon', 'sandhog');
+    await expect(fire).toHaveAttribute('aria-label', 'Fire Sandhog');
     await expect(activeRow.locator('.st-hud__turn-status')).toHaveAttribute(
       'aria-label',
-      "P1's turn. Weapon Bouncing Betty. 100 fuel remaining.",
+      "P1's turn. Weapon Sandhog. 100 fuel remaining.",
     );
 
     // Exercise the exact maximum-name / longest-weapon layout contract with

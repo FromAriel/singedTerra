@@ -799,6 +799,37 @@ export class GameEngine {
     const current = this.state.projectiles;
 
     for (const p of current) {
+      const sandhog = getWeapon(p.weaponType).behavior?.sandhog;
+      if (sandhog !== undefined && p.burrowTicksRemaining !== undefined) {
+        const nextX = p.x + p.vx;
+        const nextY = p.y + p.vy;
+        p.age++;
+
+        // Detonate at the last valid drill position instead of allowing the
+        // endpoint blast to escape the deterministic battlefield bounds.
+        if (
+          nextX < 0
+          || nextX >= CANVAS_WIDTH
+          || nextY < 0
+          || nextY >= CANVAS_HEIGHT
+        ) {
+          this.detonate(p.x, p.y, p.weaponType, 'ground');
+          continue;
+        }
+
+        p.x = nextX;
+        p.y = nextY;
+        this.carveSandhogTunnel(p.x, p.y, sandhog.tunnelRadius);
+        p.burrowTicksRemaining--;
+
+        if (p.burrowTicksRemaining <= 0) {
+          this.detonate(p.x, p.y, p.weaponType, 'ground');
+        } else {
+          survivors.push(p);
+        }
+        continue;
+      }
+
       // Pre-step velocity sign drives apex detection (up is -y, so rising is
       // vy < 0). We capture it BEFORE integrating this tick.
       const vyBefore = p.vy;
@@ -885,7 +916,34 @@ export class GameEngine {
           this.detonate(hit.x, hit.y, p.weaponType, 'tank'); // direct tank hit always detonates
         }
       } else if (hit.type === 'ground') {
-        if (p.bounces > 0) {
+        if (sandhog !== undefined) {
+          // Terrain treats y >= CANVAS_HEIGHT as an implicit solid floor. A
+          // swept hit there is already outside the drawable battlefield, so it
+          // cannot become a valid drill-entry point. Terminate on the final
+          // in-bounds point along the swept segment instead.
+          if (hit.y >= CANVAS_HEIGHT) {
+            const endpointY = CANVAS_HEIGHT - 0.01;
+            const deltaY = hit.y - prevY;
+            const fraction = deltaY > 0
+              ? clamp((endpointY - prevY) / deltaY, 0, 1)
+              : 0;
+            const endpointX = clamp(
+              prevX + (hit.x - prevX) * fraction,
+              0,
+              CANVAS_WIDTH - 0.01,
+            );
+            this.detonate(endpointX, endpointY, p.weaponType, 'ground');
+            continue;
+          }
+          // Ground contact arms the underground phase without altering the
+          // authored ballistic flight or carving until the next fixed tick.
+          p.x = hit.x;
+          p.y = hit.y;
+          p.vx = p.vx < 0 ? -sandhog.horizontalSpeed : sandhog.horizontalSpeed;
+          p.vy = sandhog.verticalSpeed;
+          p.burrowTicksRemaining = sandhog.ticks;
+          survivors.push(p);
+        } else if (p.bounces > 0) {
           // BOUNCE: reflect off the derived surface normal, decrement, keep
           // flying. sweepCollide already snapped p.x/p.y to the impact point.
           // We compute the normal + reflect BEFORE any detonate() so the bounce
@@ -953,10 +1011,15 @@ export class GameEngine {
   private settleAndResolveTurn(survivors: ProjectileState[]): void {
     const aliveCount = this.state.tanks.reduce((n, t) => (t.alive ? n + 1 : n), 0);
     const settled = survivors.length === 0 && this.fire.size === 0;
+    const drilling = survivors.some(
+      (projectile) => projectile.burrowTicksRemaining !== undefined,
+    );
 
     if (survivors.length > 0) {
-      // (A) Projectiles still in flight — flush instantly to keep trajectory parity.
-      this.flushSettleInstant();
+      // (A) Ordinary projectiles still in flight — flush instantly to keep
+      // trajectory parity. A Sandhog drill deliberately holds its excavated
+      // corridor open until the endpoint blast.
+      if (!drilling) this.flushSettleInstant();
     } else if (!settled) {
       // (D) No projectiles but fire still burning — flush instantly each tick.
       this.flushSettleInstant();
@@ -1369,6 +1432,20 @@ export class GameEngine {
       this.pendingSettle = null;
     }
     return moved;
+  }
+
+  /** Clear one Sandhog drill disc and defer its column collapse until detonation. */
+  private carveSandhogTunnel(cx: number, cy: number, radius: number): void {
+    const range = deform(this.terrain, cx, cy, radius, false);
+    if (range === null) return;
+
+    if (this.pendingSettle === null) {
+      this.pendingSettle = { xStart: range.xStart, xEnd: range.xEnd };
+    } else {
+      this.pendingSettle.xStart = Math.min(this.pendingSettle.xStart, range.xStart);
+      this.pendingSettle.xEnd = Math.max(this.pendingSettle.xEnd, range.xEnd);
+    }
+    this.state.terrainVersion++;
   }
 
   private detonate(

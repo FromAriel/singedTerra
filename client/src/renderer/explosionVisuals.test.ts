@@ -69,6 +69,7 @@ describe('getExplosionVisualProfile', () => {
       deaths_head: 'scatter',
       riot_bomb: 'earth',
       hot_napalm: 'incendiary',
+      sandhog: 'earth',
       shield: 'conventional',
     } satisfies Record<WeaponType, ExplosionVisualFamily>;
 

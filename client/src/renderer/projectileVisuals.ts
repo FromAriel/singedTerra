@@ -12,6 +12,7 @@ export type ProjectileSilhouette =
   | 'mine'
   | 'napalm'
   | 'airburst'
+  | 'drill'
   | 'submunition';
 
 export interface ProjectileVisualProfile {
@@ -154,6 +155,15 @@ const BASE_PROFILES: Record<WeaponType, BaseProfile> = {
     trailRadiusMax: 7,
     trailAlphaOld: 0.1,
     trailAlphaNew: 0.52,
+  },
+  sandhog: {
+    silhouette: 'drill',
+    coreRadius: 5,
+    glowRadius: 13,
+    trailRadiusMin: 1.8,
+    trailRadiusMax: 5.8,
+    trailAlphaOld: 0.08,
+    trailAlphaNew: 0.46,
   },
   shield: {
     // Defensive use never creates a projectile, but keep the total mapping safe

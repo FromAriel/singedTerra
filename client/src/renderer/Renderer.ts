@@ -226,7 +226,7 @@ export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly terrain = new TerrainRenderer();
   private readonly tanks = new TankRenderer();
-  private readonly projectile = new ProjectileRenderer();
+  private readonly projectile: ProjectileRenderer;
   private readonly hud = new HUDRenderer();
   /** One project-bound panorama; procedural sky art remains its full fallback. */
   private readonly battlefieldBackdrop = new BattlefieldBackdrop();
@@ -329,6 +329,7 @@ export class Renderer {
       typeof window !== 'undefined' && typeof window.matchMedia === 'function'
         ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
         : false;
+    this.projectile = new ProjectileRenderer(this.reduceMotion);
     this.effects = new EffectsRenderer(this.reduceMotion);
     this.aimGuideEnabled = (() => {
       try {

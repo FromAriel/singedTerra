@@ -29,6 +29,7 @@ interface ProjectileSlot {
   history: RingBuffer;
   weaponType: ProjectileState['weaponType'];
   hasSplit: boolean;
+  burrowing: boolean;
   age: number;
 }
 
@@ -47,6 +48,8 @@ interface ProjectileSlot {
  * down together), so this draws the whole array.
  */
 export class ProjectileRenderer {
+  constructor(private readonly reduceMotion = false) {}
+
   /**
    * Per-slot ring buffers of recent (x, y) samples.
    * Index i corresponds to state.projectiles[i] for the current frame.
@@ -80,6 +83,7 @@ export class ProjectileRenderer {
     ctx.globalCompositeOperation = 'source-over';
 
     for (const projectile of projectiles) {
+      if (projectile.burrowTicksRemaining !== undefined) continue;
       const cue = getProjectileGroundShadow(projectile, terrain);
       if (cue === null) continue;
 
@@ -133,6 +137,7 @@ export class ProjectileRenderer {
         history: new RingBuffer(TRAIL_HISTORY),
         weaponType: projectile.weaponType,
         hasSplit: projectile.hasSplit,
+        burrowing: projectile.burrowTicksRemaining !== undefined,
         age: projectile.age,
       };
       this.slots.set(idx, slot);
@@ -141,6 +146,7 @@ export class ProjectileRenderer {
 
     const identityChanged = slot.weaponType !== projectile.weaponType
       || slot.hasSplit !== projectile.hasSplit
+      || slot.burrowing !== (projectile.burrowTicksRemaining !== undefined)
       || projectile.age < slot.age;
     if (identityChanged) {
       slot.history.clear();
@@ -157,6 +163,7 @@ export class ProjectileRenderer {
     }
     slot.weaponType = projectile.weaponType;
     slot.hasSplit = projectile.hasSplit;
+    slot.burrowing = projectile.burrowTicksRemaining !== undefined;
     slot.age = projectile.age;
     return slot.history;
   }
@@ -169,12 +176,13 @@ export class ProjectileRenderer {
   ): void {
     const { x, y } = projectile;
     const profile = getProjectileVisualProfile(projectile);
+    const burrowing = projectile.burrowTicksRemaining !== undefined;
 
     ctx.save();
 
     // --- Weapon-colored trail: faded/dispersed tail to tight, bright head ---
     const count = history.length;
-    if (count > 1) {
+    if (count > 1 && (!burrowing || !this.reduceMotion)) {
       history.forEach((pt, i) => {
         // i=0 is oldest, i=count-1 is newest.
         // Skip the very newest sample (that's the shell itself, drawn below).
@@ -196,7 +204,9 @@ export class ProjectileRenderer {
       });
     }
 
-    this.drawMotionStreak(ctx, projectile, profile);
+    if (!burrowing || !this.reduceMotion) {
+      this.drawMotionStreak(ctx, projectile, profile);
+    }
     ctx.globalAlpha = 1;
 
     // Weapon-colored halo.
@@ -346,6 +356,27 @@ export class ProjectileRenderer {
         ctx.fill();
         ctx.fillStyle = profile.accent;
         ctx.fillRect(-r * 0.2, -r * 0.82, r * 0.4, r * 1.64);
+        break;
+
+      case 'drill':
+        // A bright conical bit with three cutting flutes. It stays readable as
+        // a machine rather than another round shell while rotating with travel.
+        ctx.fillStyle = profile.accent;
+        ctx.beginPath();
+        ctx.moveTo(r * 1.65, 0);
+        ctx.lineTo(r * 0.35, r * 0.82);
+        ctx.lineTo(-r * 1.05, r * 0.62);
+        ctx.lineTo(-r * 1.05, -r * 0.62);
+        ctx.lineTo(r * 0.35, -r * 0.82);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = BOOM.core;
+        ctx.beginPath();
+        for (const offset of [-0.55, 0, 0.55]) {
+          ctx.moveTo(-r * 0.82 + r * offset, -r * 0.62);
+          ctx.lineTo(-r * 0.2 + r * offset, r * 0.62);
+        }
+        ctx.stroke();
         break;
 
       case 'submunition':

@@ -8,10 +8,9 @@
 //   - 5 fixed seeds (different terrain shapes)
 //   - 4 angles: 15°/45°/75°/90° (low arc / medium / high / lofted)
 //   - 3 power levels: 25 / 65 / 100 (short / medium / max range)
-//   - 10 weapons: every non-shield default-loadout type (baby_missile, missile,
-//     heavy_missile, cluster_bomb, bouncing_betty, funky_bomb, napalm, dirt_bomb,
-//     riot_bomb) + premium weapons granted for completeness (nuke, mirv,
-//     deaths_head, hot_napalm). Shield is not a projectile — excluded.
+//   - 15 weapons: every non-shield default-loadout projectile, including
+//     Sandhog, plus the premium projectiles granted for completeness. Shield is
+//     not a projectile and is excluded.
 //
 // The threshold is 500 ticks. The ORIGINAL comment here claimed napalm stays
 // "well under 500 ticks and under 300 for every ballistic weapon" — but Bouncing
@@ -51,6 +50,7 @@ const DEFAULT_WEAPONS = [
   'napalm',
   'dirt_bomb',
   'riot_bomb',
+  'sandhog',
 ];
 
 // Premium weapons (START_AMMO = 0 at spawn — must be granted in test setup).

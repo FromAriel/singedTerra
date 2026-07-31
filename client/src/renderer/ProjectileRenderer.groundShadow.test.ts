@@ -199,4 +199,19 @@ describe('ProjectileRenderer terrain-projected shadows', () => {
     expect((ctx as unknown as { scaleX: number }).scaleX).toBe(2);
     expect((ctx as unknown as { scaleY: number }).scaleY).toBe(0.5);
   });
+
+  it('does not project a surface shadow for an underground Sandhog drill', () => {
+    const terrain = terrainWithSurface([[100, 400]]);
+    const { ctx, ops } = recordingContext();
+    const renderer = new ProjectileRenderer();
+
+    renderer.drawGroundShadows(ctx, [{
+      ...projectile(100, 200),
+      weaponType: 'sandhog',
+      burrowTicksRemaining: 18,
+    }], terrain);
+
+    expect(ops.filter((op) => op.name === 'gradient')).toHaveLength(0);
+    expect(ops.filter((op) => op.name === 'fill')).toHaveLength(0);
+  });
 });
