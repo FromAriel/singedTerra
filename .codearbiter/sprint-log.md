@@ -3174,3 +3174,28 @@ Spec/plan: `.codearbiter/specs/opening-salvo-assist.md`, `.codearbiter/plans/ope
 
 - **[high] Behavior head cleared exact hosted CI.** PR #262 head `e7612923794bc98b4426850b796dd28f8c842eb4` is mergeable on `main@28919cbd50b5d39478b1b7e6769a7f37c653c7b0`. CI run `30728277280`, CodeQL run `30728277269` and status, rendering E2E, Edge tests, and CodeRabbit passed; Supabase Preview was the expected skip. Confidence high.
 - **[high] Merge pause override logged.** Standing PR-only squash-merge authority applies after this governance receipt clears exact adversarial review and exact-head CI. Confidence high.
+
+## 2026-08-01T22:20:33.1929797-04:00 — Renderer integration strict test fixtures sprint
+
+- **[high] Complete the remaining renderer surface.** Ten visually coherent suites own 29 of 69 findings and pass 76 focused tests; completion leaves exactly 40 lobby/session findings across 7 files. Confidence high.
+- **[high] Preserve assertion causality.** Missing draw, light, geometry, gradient, or ordering evidence remains test-fatal through guards and narrowing. Confidence high.
+- **Approval gate:** one bounded standing-authority override covers this spec/plan; all hard review, CI, merge, and deployment gates remain active. Confidence high.
+
+### Implementation and adversarial review receipt
+
+- **[high] Exact migration proven.** The ten suites produced exactly 29 RED findings, then reached zero with assertion-fatal guards, numeric narrowing, and fixed tuples; all 76 focused tests pass. Confidence high.
+- **[high] Renderer strictness completed.** The full remainder is exactly 40 findings across 7 lobby/session files, down from 69/17, with no renderer target errors. Confidence high.
+- **[high] Full gates passed.** All harnesses, 823 client tests, Edge tests, build, dependency audit, strict compile, and diff checks passed. Confidence high.
+- **[high] Adversarial and coverage gates cleared.** The designated adversary returned READY with no findings or blockers and coverage NO BLOCK. Confidence high.
+
+### Hosted Edge CI rescue
+
+- **[high] External root cause reproduced.** PR #263 CI run `30729101791` failed twice before test execution while Deno fetched the pinned Supabase client from esm.sh; both attempts returned HTTP 522 at `_shared/mod.ts:18`, while the unchanged local Edge suite passed 200/200. Confidence high.
+- **[high] Bounded retry chosen over dependency migration.** SMARTS favored a CI-only three-attempt wrapper because it is reversible, production-neutral, dependency-neutral, and preserves a persistent red; changing the Supabase import source would unnecessarily touch a production trust boundary. Confidence high.
+- **[high] Regression-first retry contract proven.** The executable workflow path was RED before extraction, then GREEN for immediate success (one attempt), transient recovery (two attempts), and persistent failure (three attempts, exit 1). It is registered in `npm run check`; Bash syntax and the full 61-harness gate pass. Confidence high.
+- **[high] Adversarial blocker closed.** The first review blocked on a regex-only fail-open gap; executable stubbed-Deno coverage replaced it. The designated adversary re-reviewed the exact diff and returned READY with zero Critical, High, or Medium findings, no merge blockers, and coverage NO BLOCK. Confidence high.
+
+### Exact-head hosted merge gate
+
+- **[high] Behavior head cleared exact hosted CI.** PR #263 head `2854b55729bb9644cb57dd32cf1bf909a6cad474` is mergeable on `main@8adaa7cda180b829c93f24c8d7cd805981c58a79`. CI run `30729721318`, CodeQL run `30729721306` and status, rendering E2E, Edge tests, and CodeRabbit passed; Supabase Preview was the expected skip. Confidence high.
+- **[high] Merge pause override logged.** Standing PR-only squash-merge authority applies after this governance receipt clears exact adversarial review and exact-head CI. Confidence high.
