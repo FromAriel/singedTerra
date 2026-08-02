@@ -103,7 +103,7 @@ test.describe('HUD layout guardrails', () => {
     const railIcons = page.locator('#hud svg.st-ui-icon');
     const railGlyphs = page.locator('#hud .st-ui-glyph');
 
-    await expect(icons).toHaveCount(12);
+    await expect(icons).toHaveCount(18);
     await expect(glyphs).toHaveCount(10);
     expect(await commandIcons.evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-icon')),
@@ -113,7 +113,7 @@ test.describe('HUD layout guardrails', () => {
     )).toEqual(['aim', 'power', 'move', 'weapon', 'fire']);
     expect(await touchIcons.evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-icon')),
-    )).toEqual(['weapon', 'menu']);
+    )).toEqual(['left', 'right', 'decrease', 'increase', 'left', 'right', 'weapon', 'menu']);
     expect(await railIcons.evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-symbol')),
     )).toEqual(['menu', 'credits', 'target', 'ordnance', 'disclosure']);
@@ -197,6 +197,20 @@ test.describe('HUD layout guardrails', () => {
       await expect(dock).toBeVisible();
       await expect(dock).toHaveAttribute('role', 'toolbar');
       await expect(dock).toHaveAttribute('aria-label', 'Touch commands');
+      await expect(dock.locator('.st-hud__touch-title')).toHaveText('Command Deck');
+      await expect(dock.locator('.st-hud__touch-mode')).toHaveText('Touch');
+      const groups = dock.locator('.st-hud__touch-group');
+      await expect(groups).toHaveCount(3);
+      expect(await groups.evaluateAll((items) => items.map((item) => ({
+        name: item.getAttribute('aria-label'),
+        title: item.querySelector('.st-hud__touch-group-title')?.textContent,
+        labels: [...item.querySelectorAll('.st-hud__touch-label')]
+          .map((label) => label.textContent),
+      })))).toEqual([
+        { name: 'Aim', title: 'Aim', labels: ['Left', 'Right'] },
+        { name: 'Power', title: 'Power', labels: ['Less', 'More'] },
+        { name: 'Drive', title: 'Drive', labels: ['Left', 'Right'] },
+      ]);
       const buttons = dock.locator('.st-hud__touch-btn');
       await expect(buttons).toHaveCount(8);
       expect(await buttons.evaluateAll((items) =>
@@ -218,12 +232,16 @@ test.describe('HUD layout guardrails', () => {
         expect(box.width).toBeGreaterThanOrEqual(44);
         expect(box.height).toBeGreaterThanOrEqual(44);
       }
-      const regularBox = await dock.locator('[data-command="aim-left"]').boundingBox();
-      const weaponBox = await dock.locator('[data-command="weapon"]').boundingBox();
-      expect(regularBox).not.toBeNull();
-      expect(weaponBox).not.toBeNull();
-      expect(weaponBox!.width).toBeGreaterThan(regularBox!.width * 1.8);
       const dockType = await dock.evaluate((node) => ({
+        title: node.querySelector<HTMLElement>('.st-hud__touch-title')!
+          .getBoundingClientRect().toJSON(),
+        mode: node.querySelector<HTMLElement>('.st-hud__touch-mode')!
+          .getBoundingClientRect().toJSON(),
+        groupTitles: [...node.querySelectorAll<HTMLElement>('.st-hud__touch-group-title')]
+          .map((title) => ({
+            text: title.textContent,
+            box: title.getBoundingClientRect().toJSON(),
+          })),
         labels: [...node.querySelectorAll<HTMLElement>('.st-hud__touch-label')]
           .map((label) => label.getBoundingClientRect().height),
         symbols: [...node.querySelectorAll<HTMLElement>('.st-hud__touch-symbol')]
@@ -231,11 +249,29 @@ test.describe('HUD layout guardrails', () => {
             const box = symbol.getBoundingClientRect();
             return { width: box.width, height: box.height };
           }),
+        icons: [...node.querySelectorAll<SVGElement>('.st-hud__touch-symbol svg')]
+          .map((icon) => icon.getBoundingClientRect().toJSON()),
       }));
+      expect(dockType.title.height).toBeGreaterThanOrEqual(8);
+      expect(dockType.mode.height).toBeGreaterThanOrEqual(8);
+      expect(dockType.groupTitles.map((title) => title.text)).toEqual([
+        'Aim',
+        'Power',
+        'Drive',
+        'Utilities',
+      ]);
+      for (const title of dockType.groupTitles) {
+        expect(title.box.width).toBeGreaterThan(0);
+        expect(title.box.height).toBeGreaterThanOrEqual(8);
+      }
       for (const height of dockType.labels) expect(height).toBeGreaterThanOrEqual(8);
       for (const symbol of dockType.symbols) {
         expect(symbol.width).toBeGreaterThanOrEqual(18);
         expect(symbol.height).toBeGreaterThanOrEqual(18);
+      }
+      for (const icon of dockType.icons) {
+        expect(icon.width).toBeGreaterThanOrEqual(12);
+        expect(icon.height).toBeGreaterThanOrEqual(12);
       }
       await expect(page.locator('#hud .st-hud__menu')).toBeHidden();
       await dock.getByRole('button', { name: 'Open menu' }).click();
@@ -362,6 +398,149 @@ test.describe('HUD layout guardrails', () => {
     expect(geometry.contained).toBe(true);
     expect(geometry.pageWidth).toBeLessThanOrEqual(geometry.viewportWidth);
     expect(geometry.pageHeight).toBeLessThanOrEqual(geometry.viewportHeight);
+  });
+
+  test('Pixel 5 Touch Command Deck stays bounded clear of shared overlay states', async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'pixel-touch', 'requires the coarse-pointer project');
+    const firstSalvo = page.locator('[data-ui="first-salvo-coach"]');
+    const firstSalvoChildCount = await firstSalvo.evaluate((node) => node.childElementCount);
+    const geometry = await page.evaluate(() => {
+      const dock = document.querySelector<HTMLElement>('.st-hud__touch-strip')!;
+      const overlay = document.getElementById('game-overlay')!;
+      const hud = document.getElementById('hud')!;
+      const stateEntries = [
+        { node: document.querySelector<HTMLElement>('.st-hud__conn')!, hidden: 'st-hud__conn--hidden' },
+        { node: document.querySelector<HTMLElement>('.st-hud__toast')!, hidden: 'st-hud__toast--hidden' },
+        { node: document.querySelector<HTMLElement>('.st-hud__turnwatch')!, hidden: 'st-hud__turnwatch--hidden' },
+        { node: document.querySelector<HTMLElement>('[data-ui="first-salvo-coach"]')!, hidden: 'st-hud__first-salvo--hidden' },
+      ];
+      const snapshots = stateEntries.map(({ node }) => ({
+        node,
+        className: node.className,
+      }));
+      const fixtureNodes = stateEntries.slice(0, 3).map(({ node }, index) => {
+        const fixture = document.createElement('span');
+        fixture.dataset['layoutStateFixture'] = String(index);
+        fixture.textContent = ['Connection lost — reconnecting…', 'Shot failed — try again', 'Waiting for P2…'][index]!;
+        node.append(fixture);
+        return fixture;
+      });
+      const intersects = (a: DOMRect, b: DOMRect): boolean =>
+        a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+      const renderedMetric = (node: HTMLElement): {
+        rendered: boolean;
+        box: DOMRect;
+      } => {
+        const style = getComputedStyle(node);
+        const box = node.getBoundingClientRect();
+        return {
+          rendered:
+            style.display !== 'none'
+            && style.visibility !== 'hidden'
+            && Number(style.opacity) > 0
+            && box.width > 0
+            && box.height > 0,
+          box,
+        };
+      };
+
+      try {
+        for (const { node, hidden } of stateEntries) node.classList.remove(hidden);
+        const dockMetric = renderedMetric(dock);
+        const overlayMetric = renderedMetric(overlay);
+        const buttons = [...dock.querySelectorAll<HTMLElement>('.st-hud__touch-btn')]
+          .map((button) => {
+            const metric = renderedMetric(button);
+            return { rendered: metric.rendered, box: metric.box.toJSON() };
+          });
+        const groups = [...dock.querySelectorAll<HTMLElement>('.st-hud__touch-group')]
+          .map((group) => {
+            const groupMetric = renderedMetric(group);
+            const titleMetric = renderedMetric(
+              group.querySelector<HTMLElement>('.st-hud__touch-group-title')!,
+            );
+            return {
+              rendered: groupMetric.rendered,
+              group: groupMetric.box.toJSON(),
+              titleRendered: titleMetric.rendered,
+              title: titleMetric.box.toJSON(),
+              buttons: [...group.querySelectorAll<HTMLElement>('.st-hud__touch-btn')]
+                .map((button) => renderedMetric(button).box.toJSON()),
+            };
+          });
+        const states = stateEntries.map(({ node }) => {
+          const metric = renderedMetric(node);
+          return { rendered: metric.rendered, box: metric.box.toJSON() };
+        });
+        const stateOverlaps = states.map((state) => intersects(dockMetric.box, state.box as DOMRect));
+        const noticeOverlaps = states.slice(0, 3).flatMap((state, index) =>
+          states.slice(index + 1, 3).map((candidate) =>
+            intersects(state.box as DOMRect, candidate.box as DOMRect),
+          ),
+        );
+        return {
+          viewportWidth: innerWidth,
+          viewportHeight: innerHeight,
+          dockRendered: dockMetric.rendered,
+          overlayRendered: overlayMetric.rendered,
+          dock: dockMetric.box.toJSON(),
+          overlay: overlayMetric.box.toJSON(),
+          buttons,
+          groups,
+          states,
+          stateOverlaps,
+          noticeOverlaps,
+          documentOverflowX: document.documentElement.scrollWidth - innerWidth,
+          documentOverflowY: document.documentElement.scrollHeight - innerHeight,
+          hudOverflowX: hud.scrollWidth - hud.clientWidth,
+          hudOverflowY: hud.scrollHeight - hud.clientHeight,
+        };
+      } finally {
+        for (const snapshot of snapshots) {
+          snapshot.node.className = snapshot.className;
+        }
+        for (const fixture of fixtureNodes) fixture.remove();
+      }
+    });
+
+    expect(geometry.viewportWidth).toBe(802);
+    expect(geometry.viewportHeight).toBe(293);
+    expect(geometry.dockRendered).toBe(true);
+    expect(geometry.overlayRendered).toBe(true);
+    expect(geometry.dock.left).toBeGreaterThanOrEqual(geometry.overlay.left - 1);
+    expect(geometry.dock.right).toBeLessThanOrEqual(geometry.overlay.right + 1);
+    expect(geometry.dock.top).toBeGreaterThanOrEqual(geometry.overlay.top - 1);
+    expect(geometry.dock.bottom).toBeLessThanOrEqual(geometry.overlay.bottom + 1);
+    expect(geometry.dock.height).toBeLessThanOrEqual(78);
+    for (const button of geometry.buttons) {
+      expect(button.rendered).toBe(true);
+      expect(button.box.width).toBeGreaterThanOrEqual(44);
+      expect(button.box.height).toBeGreaterThanOrEqual(44);
+    }
+    for (const group of geometry.groups) {
+      expect(group.rendered).toBe(true);
+      expect(group.titleRendered).toBe(true);
+      expect(group.title.bottom).toBeLessThanOrEqual(group.buttons[0]!.top);
+      expect(group.buttons[0]!.right).toBeLessThanOrEqual(group.buttons[1]!.left);
+      expect(group.buttons[0]!.top).toBe(group.buttons[1]!.top);
+    }
+    expect(geometry.states.every((state) => state.rendered)).toBe(true);
+    expect(geometry.stateOverlaps).toEqual([false, false, false, false]);
+    expect(geometry.noticeOverlaps).toEqual([false, false, false]);
+    for (const notice of geometry.states.slice(0, 3)) {
+      expect(notice.box.top).toBeGreaterThanOrEqual(geometry.dock.bottom);
+    }
+    expect(geometry.documentOverflowX).toBeLessThanOrEqual(0);
+    expect(geometry.documentOverflowY).toBeLessThanOrEqual(0);
+    expect(geometry.hudOverflowX).toBeLessThanOrEqual(0);
+    expect(geometry.hudOverflowY).toBeLessThanOrEqual(0);
+    await expect(firstSalvo).toHaveJSProperty('childElementCount', firstSalvoChildCount);
+    await expect(firstSalvo.locator('.st-hud__first-salvo-progress')).toHaveCount(1);
+    await expect(firstSalvo.locator('.st-hud__first-salvo-copy')).toHaveCount(1);
+    await expect(firstSalvo.locator('.st-hud__first-salvo-status')).toHaveCount(1);
+    await expect(firstSalvo.locator('.st-hud__first-salvo-skip')).toHaveCount(1);
   });
 
   test('weapon-family glyphs remain visible inside Arsenal and Store', async ({
@@ -767,11 +946,13 @@ test.describe('HUD layout guardrails', () => {
 
     // Exercise the exact maximum-name / longest-weapon layout contract with
     // production markup and computed browser geometry.
-    await player.evaluate((node) => { node.textContent = 'Commander Longname X'; });
     const geometry = await console.evaluate((node) => {
       const hud = document.getElementById('hud')!;
       const playerNode = node.querySelector<HTMLElement>('.st-hud__turn-owner')!;
       const weaponNode = node.querySelector<HTMLElement>('.st-hud__weapon-value')!;
+      // Mutate and measure in one browser task so the live HUD update loop
+      // cannot restore the fixture name between the probe and geometry read.
+      playerNode.textContent = 'Commander Longname X';
       const bounds = node.getBoundingClientRect();
       const visibleTargets = [...node.querySelectorAll<HTMLElement>('button')]
         .filter((target) => {
@@ -889,8 +1070,8 @@ test.describe('HUD layout guardrails', () => {
       return { width: parseFloat(style.width), height: parseFloat(style.height) };
     });
     const touch = testInfo.project.name === 'pixel-touch';
-    expect(authoredDialSize.width).toBeCloseTo(touch ? 46 : 34, 1);
-    expect(authoredDialSize.height).toBeCloseTo(touch ? 46 : 34, 1);
+    expect(authoredDialSize.width).toBeCloseTo(touch ? 58 : 34, 1);
+    expect(authoredDialSize.height).toBeCloseTo(touch ? 58 : 34, 1);
     expect(Math.abs(meterBox!.width - meterBox!.height)).toBeLessThanOrEqual(1);
     expect(meterBox!.width).toBeGreaterThanOrEqual(touch ? 28 : 20);
     expect(fuelBox!.x).toBeGreaterThanOrEqual(meterBox!.x);
