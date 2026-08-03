@@ -77,6 +77,7 @@ describe('getProjectileVisualProfile', () => {
       riot_bomb: 'earth',
       hot_napalm: 'napalm',
       sandhog: 'drill',
+      tracer: 'shell',
       shield: 'shell',
     } satisfies Record<WeaponType, ProjectileSilhouette>;
 

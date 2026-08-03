@@ -3713,3 +3713,13 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - Backend workflow run 30809594604 passed on merge head a27c125 with migrations skipped and Edge Functions deployed.
 - Production evidence: Pages HTML and current JavaScript asset returned 200; deployed asset contains the world-choice catalog. Supabase create_room and restart_game OPTIONS smoke checks returned 200 with POST, OPTIONS allowed.
 - No database migration was deployed. Task mvp1.world.0001 is complete; mvp2.identity.0001 remains queued behind auth/security and data-integrity design. Deferred open-tasks lock remains untouched.
+## 2026-08-03 - mvp1.tracer.0001 deterministic tracer ranging shot
+- SMARTS re-scout: the tutorial/onboarding candidate was already shipped on main (First Salvo coach, PR #232 / commit 1f5edb1), and movement/fuel was already present; the duplicate tutorial task was closed without feature changes.
+- SMARTS decision: select a deterministic zero-damage tracer/ranging shot as the next safe player-facing slice. It scores high on artillery skill value, onboarding, reuse of existing projectile simulation, deterministic replay, testability, and bounded non-auth scope. Persistent identity/progression remains queued behind auth/security and data-integrity design.
+- Scope target: explicit tracer action, deterministic replay, preview trajectory/impact presentation, and client controls; no auth, secrets, migrations, dependencies, or persistence.
+- Confidence: medium-high; spec and plan will pin whether tracer ends the turn and how it is represented before implementation.
+### 2026-08-03 review remediation receipt - mvp1.tracer.0001
+- Euler identified one High governance scope conflict and one Medium runtime fallback gap.
+- High resolved: spec, plan, task boundaries, and this log now explicitly include only the minimal submit_action tracer weapon allowlist/test update; auth, authorization, migrations, and payload shape remain out of scope.
+- Medium resolved test-first: malformed explosion provenance now has a failing-then-green client regression and `getExplosionVisualProfile` falls back to the baby-missile visual family without throwing.
+- Focused remediation GREEN: explosion visual tests 8/8 and npm run typecheck passed.

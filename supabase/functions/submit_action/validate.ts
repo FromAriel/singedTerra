@@ -85,6 +85,7 @@ export const WEAPON_TYPES: ReadonlySet<string> = new Set([
   'riot_bomb',
   'hot_napalm',
   'sandhog',
+  'tracer',
   'shield',
 ])
 

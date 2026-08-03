@@ -41,6 +41,7 @@ describe('getMuzzleVisualProfile', () => {
       riot_bomb: 'earth',
       hot_napalm: 'flame',
       sandhog: 'earth',
+      tracer: 'needle',
       shield: 'needle',
     } satisfies Record<WeaponType, MuzzleMotif>;
 

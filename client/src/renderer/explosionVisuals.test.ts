@@ -70,6 +70,7 @@ describe('getExplosionVisualProfile', () => {
       riot_bomb: 'earth',
       hot_napalm: 'incendiary',
       sandhog: 'earth',
+      tracer: 'conventional',
       shield: 'conventional',
     } satisfies Record<WeaponType, ExplosionVisualFamily>;
 
@@ -89,6 +90,22 @@ describe('getExplosionVisualProfile', () => {
     });
     expect(profile.coreRadius).toBeCloseTo(9.072);
     expect(profile.detailRadius).toBeCloseTo(25.272);
+  });
+
+  it('fails soft to the baby-missile family for malformed runtime provenance', () => {
+    const malformed = explosion('baby_missile', {
+      weaponType: 'not-a-allowlisted-weapon' as unknown as WeaponType,
+      radius: Number.NaN,
+      style: 'unknown-style' as unknown as 'blast',
+      color: '#55e6ff',
+    });
+
+    expect(() => getExplosionVisualProfile(malformed)).not.toThrow();
+    expect(getExplosionVisualProfile(malformed)).toMatchObject({
+      family: 'conventional',
+      accent: '#55e6ff',
+      reachRadius: 0,
+    });
   });
 
   it('keeps normal and cluster reach on the shared style-aware contract', () => {
