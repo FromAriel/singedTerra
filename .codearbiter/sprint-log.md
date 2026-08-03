@@ -3791,3 +3791,10 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - Client contract retunes after drag: NetworkClient world-preservation replay uses a deterministic 5°/15-power crater; GAME_OVER session replay uses the drag-aware 45°/100-power napalm kill. Focused client tests passed 15/15.
 - Full local delivery matrix passed: `npm run check` exit 0; `npm run check:edge` exit 0; `npm run test:client` passed 128 files / 939 tests; `npm run typecheck` exit 0; `npm run build` exit 0; `npm run test:e2e` passed 191 with 25 intentional skips; `git diff --check` passed; state-free secret scan returned `[]`.
 - Euler exact-package review: APPROVED; Critical 0, High 0, Medium 0, merge blockers 0, Low 1. The sole Low finding was stale pre-drag comments in gameover/timestep harnesses; comments were corrected mechanically with no assertion or behavior change. Confidence: high.
+### 2026-08-03 - mvp1.drag.0001 delivery
+
+- Task `mvp1.drag.0001` delivered from exact reviewed PR #312 head `e00784ba4c49fd61c45da9dad014db35097006ec`, merged to `main` as `a9ed819b62ff8f5ba8c290a0baed35d4b0360796`.
+- Adversarial Euler follow-up on the final diff: APPROVED; Critical 0, High 0, Medium 0, Low 0, merge blockers 0.
+- Hosted post-merge validation on exact merge head: main CI run `30819871164` PASS; CodeQL run `30819870990` PASS; Pages run `30819871058` PASS.
+- Production smoke: Pages HTML 200; current JS `assets/index-xXUAp-4M.js` returned 200 and contains the deployed drag implementation.
+- No Supabase deployment was required because this slice changed no backend, migration, auth, or persistence surface. The deferred `.codearbiter/open-tasks.md.lock` remains untouched.
