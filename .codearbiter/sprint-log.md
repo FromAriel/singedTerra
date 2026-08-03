@@ -3846,3 +3846,10 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 ### 2026-08-03 exact remediation verification receipt - mvp2.teams.0001
 - The full matrix named in the prior remediation entry has now completed GREEN: `npm run check` passed; `npm run check:edge` passed 214/214; `npm run test:client` passed; `npm run typecheck` passed as part of build; `npm run build` passed; `npm run test:e2e` passed 191 with 25 intentional skips; `git diff --check` passed; state-free secrets scan returned `[]`.
 - This receipt supersedes the prior forward-looking phrase that the full matrix "will be rerun". Euler's remaining governance blocker is resolved by current-state evidence.
+
+### 2026-08-03 delivery receipt - mvp2.teams.0001
+- PR #316 exact reviewed head `750b892b51db10f9debec5e833f0172f7a3df1ae` received Euler exact-package approval with 0 Critical, 0 High, 0 Medium, 0 Low, and 0 merge blockers; merged to `main` as `f10fcf2dbe1cab7b81d776593a55026adf0ad301` under standing authority.
+- Hosted post-merge workflows on exact merge head passed: CI `30826329280`, CodeQL `30826328747`, and GitHub Pages deployment `30826329546`.
+- Production evidence: `https://suadtl.github.io/singedTerra/` returned HTML 200; current JavaScript asset returned 200 and contains team-mode markers. Supabase `create_room` and `restart_game` OPTIONS checks returned 200 with `POST, OPTIONS`.
+- Supabase CLI used the locally authenticated session and linked project `jdvxfxjpobtyasozxauh`. Changed functions deployed only: `create_room` ACTIVE version 60 and `restart_game` ACTIVE version 51. No database migration was deployed.
+- Task `mvp2.teams.0001` is complete. Persistent users/progression `mvp2.identity.0001` remains queued behind the auth/security/data-integrity design gate. Deferred `.codearbiter/open-tasks.md.lock` remains untouched.
