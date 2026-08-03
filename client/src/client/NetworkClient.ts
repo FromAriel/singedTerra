@@ -188,6 +188,8 @@ export class NetworkClient implements GameClient {
   // on the rooms UPDATE stream and migrate. _rematchHandled makes that one-shot.
   private rematchListener:  ((info: RematchInfo) => void) | null = null;
   private _rematchHandled   = false;
+  private static readonly REMATCH_POLL_ATTEMPTS = 20;
+  private static readonly REMATCH_POLL_INTERVAL_MS = 150;
 
   // --- CPU-seat driving (client-driven, idempotent) ---
   // engine tank id ('p1'..) → CPU difficulty, for bot seats only.
@@ -770,10 +772,10 @@ export class NetworkClient implements GameClient {
     if (!listener) return;
 
     // Bounded poll: the successor row is written within one edge-function
-    // invocation of the pointer claim, so a handful of short retries comfortably
-    // covers replication lag without hanging the UI if something truly failed.
+    // invocation of the pointer claim, so short retries cover replication lag
+    // without hanging the UI if something truly failed.
     let data: Record<string, unknown> | null = null;
-    for (let attempt = 0; attempt < 8; attempt++) {
+    for (let attempt = 0; attempt < NetworkClient.REMATCH_POLL_ATTEMPTS; attempt++) {
       if (this._disposed) return; // client torn down mid-poll — don't fetch or notify
       const res = await this.supabase
         .from('rooms')
@@ -785,7 +787,7 @@ export class NetworkClient implements GameClient {
       if (res.error) {
         console.warn(`NetworkClient.handleRematch: fetch attempt ${attempt + 1} failed`, res.error);
       }
-      await new Promise(resolve => setTimeout(resolve, 150));
+      await new Promise(resolve => setTimeout(resolve, NetworkClient.REMATCH_POLL_INTERVAL_MS));
     }
 
     if (this._disposed) return; // torn down during the final wait

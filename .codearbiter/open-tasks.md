@@ -161,6 +161,9 @@ Decision forks split to `open-questions.md` (CONFIRM-04 rate-limiting, CONFIRM-0
 
 - (Possible-later, from room-browser-enrichment spec 2026-06-22) Surface `interestRate` / `suddenDeathTurn` on the public browse row too, now that `StoredOptions` declares them. Pure read-path addition mirroring the rounds/armsLevel/botCount work. [L/S]
 ## In-flight
+- [~] reliability.rematch.0001 - Extend bounded rematch successor recovery  (from sprint:rematch-recovery)  (started 2026-08-03)
+  - Desc: Keep polling for a successor room through a bounded three-second replication window so delayed room visibility does not strand the non-initiating peer.
+  - Boundaries: client NetworkClient and tests only; no auth, secrets, crypto, database, migrations, action protocol, or Edge Function changes
 - [x] reliability.input.0001 - Restore Space fire after non-text UI focus  (from sprint:keyboard-focus-recovery)  (done 2026-08-03)
   - Desc: Treat Space as the game fire key after focus moves to non-text UI controls, while preserving text-entry editing and dedicated Fire-button native activation.
   - Boundaries: client InputHandler and tests only; no auth, secrets, crypto, database, migrations, or action protocol changes

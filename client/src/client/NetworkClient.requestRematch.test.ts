@@ -160,4 +160,40 @@ describe('NetworkClient.requestRematch (fetch mocking + import.meta.env stubbing
 
     expect((await resolveSuccessor('invalid', 2)).options.walls).toBe('open');
   });
+
+  it('keeps polling when the successor appears after the old eight-attempt cutoff', async () => {
+    let reads = 0;
+    const successor = {
+      id: 'room-late',
+      code: 'LATE42',
+      seed: 42,
+      options: { maxPlayers: 2, maxWind: 8, gravity: 0.2, rulesetVersion: 2 },
+      players: [
+        { id: 'player-abc', name: 'Alice', color: '#e84d4d' },
+        { id: 'player-def', name: 'Bob', color: '#4d8ce8' },
+      ],
+    };
+    const query = {
+      select: () => query,
+      eq: () => query,
+      maybeSingle: () => {
+        reads += 1;
+        return Promise.resolve({
+          data: reads > 8 ? successor : null,
+          error: null,
+        });
+      },
+    };
+    const client = makeClient({ from: () => query } as unknown as SupabaseClient);
+    const listener = vi.fn();
+    client.onRematch(listener);
+
+    await (client as unknown as {
+      handleRematch(newRoomId: string): Promise<void>;
+    }).handleRematch('room-late');
+
+    expect(reads).toBe(9);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener.mock.calls[0]![0].roomId).toBe('room-late');
+  });
 });
