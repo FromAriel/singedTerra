@@ -24,6 +24,7 @@ import {
   launchVelocity,
   stepProjectile,
   GRAVITY,
+  PROJECTILE_DRAG,
 } from '../../shared/src/engine/Physics.ts';
 
 let failures = 0;
@@ -146,15 +147,16 @@ log('\n(a) Fixed timestep: ticking is batch-invariant (no clock-derived dt)');
       `stepProjectile diverged under wall-clock delay: a=(${a.x},${a.y}) b=(${b.x},${b.y})`,
     );
 
-  // Probe 3: closed-form check that the constant dt is exactly the documented
-  // 16ms-equivalent unit step. After k steps with wind=0, vy must equal
-  // vy0 + k*GRAVITY (each tick adds GRAVITY exactly once — no fractional dt).
+  // Probe 3: recurrence check for the documented 16ms-equivalent unit step.
+  // With wind=0, each tick adds gravity, applies the named drag fraction, and
+  // advances one fixed step; no fractional or wall-clock dt is involved.
   const c = mk();
   const k = 37;
   for (let i = 0; i < k; i++) stepProjectile(c, 0);
-  const expectedVy = v.vy + k * GRAVITY;
+  let expectedVy = v.vy;
+  for (let i = 0; i < k; i++) expectedVy = (expectedVy + GRAVITY) * (1 - PROJECTILE_DRAG);
   if (Math.abs(c.vy - expectedVy) < 1e-9)
-    ok(`unit timestep: vy after ${k} ticks == vy0 + ${k}*GRAVITY`);
+    ok(`unit timestep: vy after ${k} ticks matches gravity-plus-drag recurrence`);
   else
     fail(`unit timestep broken: vy=${c.vy} expected ${expectedVy}`);
 }

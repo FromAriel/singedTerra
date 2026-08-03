@@ -49,6 +49,7 @@
 // Run: npx tsx scripts/checks/motion.mjs
 
 import { GameEngine } from '../../shared/src/engine/GameEngine.ts';
+import { stepProjectile } from '../../shared/src/engine/Physics.ts';
 import { getWeapon } from '../../shared/src/engine/WeaponSystem.ts';
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../../shared/src/engine/Terrain.ts';
 
@@ -71,6 +72,21 @@ let failed = false;
 const log = (...args) => console.log(...args);
 const fail = (msg) => { failed = true; log(`FAIL: ${msg}`); };
 const approx = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
+
+// RED contract for the next physics slice: a fixed drag term must decay a
+// projectile's velocity and prevent wind from accelerating it without bound.
+{
+  const p = { x: 0, y: 0, vx: 10, vy: -10, weaponType: 'missile', age: 0, hasSplit: false, bounces: 0 };
+  stepProjectile(p, 0, 0);
+  if (!(Math.abs(p.vx) < 10 && Math.abs(p.vy) < 10)) {
+    fail('projectile drag RED: zero-wind velocity did not decay');
+  }
+  const wind = { x: 0, y: 0, vx: 0, vy: 0, weaponType: 'missile', age: 0, hasSplit: false, bounces: 0 };
+  for (let i = 0; i < 5000; i++) stepProjectile(wind, 10, 0);
+  if (!(wind.vx > 0 && wind.vx < 100)) {
+    fail(`projectile drag RED: wind velocity was not bounded (vx=${wind.vx})`);
+  }
+}
 
 // --- Weapon defs (read tunables from the table, never hardcode) ---
 const FUNKY = getWeapon('funky_bomb');
@@ -102,7 +118,7 @@ const NAPALM_AIM = { angle: 65, power: 40, weapon: 'napalm' };
 // (swept against the real engine for this seed on the 1200×600 field — a flat,
 // powerful long shot reaching the far tank at x≈1080; central in a robust plateau
 // of ~538 damaging aims). Proves damage-over-time.
-const NAPALM_BURN_AIM = { angle: 27, power: 68, weapon: 'napalm' };
+const NAPALM_BURN_AIM = { angle: 45, power: 100, weapon: 'napalm' };
 
 /**
  * Fire one shot and tick to resolution, capturing a per-tick in-flight trace.

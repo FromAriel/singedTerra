@@ -7,7 +7,8 @@
  *
  * Driving a REAL engine to GAME_OVER (rather than faking the assertion) reuses
  * the exact tuning `scripts/checks/gameover.mjs` already proves deterministic:
- * seed 0x5eed1234 + a napalm shot at angle=27/power=68 lands on the far tank.
+ * seed 0x5eed1234 + a napalm shot at angle=45/power=100 lands on the far tank
+ * after the deterministic drag integrator is applied.
  * Mirroring that harness's TEST SETUP, the victim's health is lowered first
  * (a low-HP tank dies mid-burn, ending the — single-round-by-default — match
  * on that exact tick) so the shot is a reliable, deterministic kill rather
@@ -30,7 +31,7 @@ import type { NetworkAction } from '@shared/net/replay';
 import { writeSession, readSession } from '../lib/sessionDescriptor';
 
 // Same seed/aim `scripts/checks/gameover.mjs` uses: a napalm shot at
-// angle=27/power=68 lands on the far tank under this seed.
+// angle=45/power=100 lands on the far tank under this seed.
 const SEED = 0x5eed1234;
 const OPTIONS = {
   maxPlayers: 2,
@@ -70,7 +71,7 @@ function makeFakeSupabase(results: QueryResult[]): { supabase: SupabaseClient } 
   return { supabase };
 }
 
-const NAPALM_KILL_SHOT: NetworkAction = { type: 'fire', angle: 27, power: 68, weapon: 'napalm' };
+const NAPALM_KILL_SHOT: NetworkAction = { type: 'fire', angle: 45, power: 100, weapon: 'napalm' };
 
 function row(seq: number, action: NetworkAction) {
   return { new: { id: `r${seq}`, room_id: 'room-1', seq, player_id: 'player-abc', action, created_at: '' } };

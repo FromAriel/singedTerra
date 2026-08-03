@@ -8,7 +8,7 @@ import { replayNetworkAction } from '../../shared/src/net/replay.ts';
 
 const SEED = 0x5eed1234;
 const COLORS = ['#e84d4d', '#4d8ce8'];
-const DROP = { angle: 27, power: 70, weapon: 'riot_bomb' };
+const DROP = { angle: 23, power: 99, weapon: 'riot_bomb' };
 const MAX_TICKS = 100_000;
 let failed = false;
 const fail = (message) => { failed = true; console.log(`FAIL: ${message}`); };

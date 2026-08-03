@@ -131,7 +131,7 @@ describe('NetworkClient — deterministic lockstep core', () => {
 
   it('preserves pristine terrain when replay craters cross visual worlds', async () => {
     const { supabase } = makeFakeSupabase([{
-      data: [row(0, fire(20, 40)).new],
+      data: [row(0, fire(5, 15)).new],
       error: null,
     }]);
     const client = new NetworkClient(supabase, 'room-1', 'player-abc', OPTIONS);

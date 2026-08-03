@@ -29,16 +29,19 @@ const SEED = 0x5eed1234;
 const MAX_TICKS = 100_000;
 const PALETTE = ['#e84d4d', '#4d8ce8'];
 
-// P1 (x=120) lands a missile on P2 (x=1080) for this seed on the 1200×600 field
-// (swept against the engine — a near-direct hit dealing ~49 damage).
-const HIT_P2 = { angle: 49, power: 71, weapon: 'missile' };
+// With projectile drag, the old cross-field lob is out of range. This bounded
+// fixture places P2 at x=980, where P1's 45°/100-power missile produces a real
+// tank hit for the damage-credit assertion.
+const HIT_P2 = { angle: 45, power: 100, weapon: 'missile' };
 
 let failed = false;
 const log = (...a) => console.log(...a);
 const fail = (m) => { failed = true; log(`FAIL: ${m}`); };
 
 function freshEngine() {
-  return new GameEngine({ players: [{ name: 'P1', color: PALETTE[0] }, { name: 'P2', color: PALETTE[1] }], maxPlayers: 2, seed: SEED });
+  const e = new GameEngine({ players: [{ name: 'P1', color: PALETTE[0] }, { name: 'P2', color: PALETTE[1] }], maxPlayers: 2, seed: SEED });
+  e.getState().tanks[1].x = 980;
+  return e;
 }
 function tickToRest(e) { let t = 0; while ((e.getState().phase === 'FIRING' || e.getState().phase === 'RESOLVING') && t < MAX_TICKS) { e.tick(); t++; } }
 
@@ -142,11 +145,13 @@ function tickToRest(e) { let t = 0; while ((e.getState().phase === 'FIRING' || e
   e.applyAction({ type: 'fire' });
   tickToRest(e);
   const dmg = p2Before - e.getState().tanks[1].health;
+  const creditedDamage = e.getState().tanks[0].totalDamage;
   const earned = e.getState().tanks[0].credits - before;
-  const expected = Math.round(dmg * CREDITS_PER_DAMAGE) + TURN_STIPEND;
-  log(`[earn] P2 dmg=${dmg.toFixed(1)}; P1 earned=${earned} (expect ${expected})`);
+  const expected = Math.round(creditedDamage * CREDITS_PER_DAMAGE) + TURN_STIPEND;
+  log(`[earn] P2 dmg=${dmg.toFixed(1)} credited=${creditedDamage.toFixed(1)}; P1 earned=${earned} (expect ${expected})`);
   if (dmg <= 0) fail('earning test shot dealt no damage (re-tune HIT_P2)');
-  if (earned !== expected) fail(`earning mismatch: earned ${earned}, expected round(${dmg.toFixed(2)}*${CREDITS_PER_DAMAGE})+${TURN_STIPEND}=${expected}`);
+  if (creditedDamage <= 0) fail('earning test shot recorded no opponent damage credit');
+  if (earned !== expected) fail(`earning mismatch: earned ${earned}, expected round(${creditedDamage.toFixed(2)}*${CREDITS_PER_DAMAGE})+${TURN_STIPEND}=${expected}`);
 
   // Clean miss (straight up, low power) still pays the flat stipend.
   const e2 = freshEngine();

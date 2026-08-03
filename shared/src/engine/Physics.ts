@@ -23,6 +23,9 @@ export const GRAVITY = 0.15;
 /** Per-tick horizontal acceleration multiplier applied to the wind value. */
 export const WIND_FACTOR = 0.006;
 
+/** Fraction of velocity removed per fixed step by aerodynamic drag. */
+export const PROJECTILE_DRAG = 0.01;
+
 /** Wind magnitude cap; range is [-MAX_WIND, +MAX_WIND] (SPEC §4.4). */
 export const MAX_WIND = 10;
 
@@ -95,7 +98,8 @@ export function launchVelocity(angleDeg: number, power: number): Velocity {
 
 /**
  * Advance a projectile by one fixed timestep (SPEC §4.2):
- *   vy += gravity; vx += wind * WIND_FACTOR; x += vx; y += vy.
+ *   vy += gravity; vx += wind * WIND_FACTOR; vx/vy *= 1 - PROJECTILE_DRAG;
+ *   x += vx; y += vy.
  * Mutates and returns the projectile. dt is constant — never read from a clock.
  *
  * `gravity` defaults to the GRAVITY constant so existing 2-arg callers keep
@@ -108,6 +112,8 @@ export function stepProjectile(
 ): ProjectileState {
   p.vy += gravity;
   p.vx += wind * WIND_FACTOR;
+  p.vx *= 1 - PROJECTILE_DRAG;
+  p.vy *= 1 - PROJECTILE_DRAG;
   p.x += p.vx;
   p.y += p.vy;
   return p;
