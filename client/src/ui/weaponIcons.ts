@@ -57,6 +57,7 @@ const WEAPON_GLYPHS = {
   sandhog: { icon: Drill, family: 'drill', tier: 2 },
   tracer: { icon: CircleDot, family: 'tracer', tier: 0 },
   shield: { icon: Shield, family: 'defense', tier: 1 },
+  heavy_shield: { icon: Shield, family: 'defense', tier: 2 },
 } satisfies Record<WeaponType, WeaponGlyphDefinition>;
 
 export function makeWeaponIcon(type: WeaponType, size = 14): SVGElement {

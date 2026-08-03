@@ -30,7 +30,7 @@ describe('store catalog', () => {
       ['missile', 'heavy_missile', 'baby_nuke', 'nuke'],
       ['bouncing_betty', 'funky_bomb', 'cluster_bomb', 'mirv', 'deaths_head', 'tracer'],
       ['dirt_bomb', 'riot_bomb', 'napalm', 'hot_napalm', 'sandhog'],
-      ['shield', 'battery', 'fuel_tank', 'parachute'],
+      ['shield', 'heavy_shield', 'battery', 'fuel_tank', 'parachute'],
     ]);
   });
 
@@ -48,6 +48,7 @@ describe('store catalog', () => {
       sandhog: 'Drills underground before its endpoint blast.',
       tracer: 'Zero-damage shot that marks the real impact.',
       shield: 'Absorbs incoming damage before it reaches your tank.',
+      heavy_shield: 'A stronger finite barrier for surviving heavy fire.',
       battery: '+100 power cap.',
       fuel_tank: '+100 movement fuel.',
     });

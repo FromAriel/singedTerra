@@ -212,7 +212,7 @@ describe('InputHandler public contract', () => {
     ]);
   });
 
-  it('cycles implemented weapons in order, can be reseeded, and wraps from shield', () => {
+  it('cycles implemented weapons in order and advances from shield to Heavy Shield', () => {
     handler.nextWeapon();
     handler.nextWeapon();
     expect(emitted()).toEqual([
@@ -223,7 +223,7 @@ describe('InputHandler public contract', () => {
     emit.mockClear();
     handler.setWeapon('shield');
     handler.nextWeapon();
-    expect(emitted()).toEqual([{ type: 'select_weapon', weapon: implementedWeapons[0] }]);
+    expect(emitted()).toEqual([{ type: 'select_weapon', weapon: 'heavy_shield' }]);
 
     emit.mockClear();
     handler.setWeapon('missile');
@@ -237,6 +237,11 @@ describe('InputHandler public contract', () => {
 
     emit.mockClear();
     handler.setWeapon('shield');
+    handler.triggerFire();
+    expect(emitted()).toEqual([{ type: 'use_shield' }]);
+
+    emit.mockClear();
+    handler.setWeapon('heavy_shield');
     handler.triggerFire();
     expect(emitted()).toEqual([{ type: 'use_shield' }]);
   });

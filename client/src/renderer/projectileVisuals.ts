@@ -185,6 +185,15 @@ const BASE_PROFILES: Record<WeaponType, BaseProfile> = {
     trailAlphaOld: 0.06,
     trailAlphaNew: 0.34,
   },
+  heavy_shield: {
+    silhouette: 'shell',
+    coreRadius: 3.8,
+    glowRadius: 11,
+    trailRadiusMin: 1.8,
+    trailRadiusMax: 5.8,
+    trailAlphaOld: 0.05,
+    trailAlphaNew: 0.3,
+  },
 };
 
 const SUBMUNITION_SCALE = 0.68;

@@ -78,7 +78,8 @@ describe('getProjectileVisualProfile', () => {
       hot_napalm: 'napalm',
       sandhog: 'drill',
       tracer: 'shell',
-      shield: 'shell',
+  shield: 'shell',
+  heavy_shield: 'shell',
     } satisfies Record<WeaponType, ProjectileSilhouette>;
 
     for (const weaponType of Object.keys(expected) as WeaponType[]) {

@@ -75,6 +75,11 @@ export const STORE_CATALOG: readonly StoreCatalogSection[] = [
         type: 'shield',
         summary: 'Absorbs incoming damage before it reaches your tank.',
       },
+      {
+        kind: 'weapon',
+        type: 'heavy_shield',
+        summary: 'A stronger finite barrier for surviving heavy fire.',
+      },
       { kind: 'accessory', type: 'battery', summary: '+100 power cap.' },
       { kind: 'accessory', type: 'fuel_tank', summary: '+100 movement fuel.' },
       { kind: 'accessory', type: 'parachute', summary: 'Reduces one dangerous collapse fall to 25% damage.' },

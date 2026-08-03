@@ -2249,7 +2249,7 @@ export class HUD {
       button.setAttribute('aria-disabled', String(!canAct));
     }
     const weaponName = tank ? (WEAPONS[tank.selectedWeapon]?.name ?? tank.selectedWeapon) : 'Weapon';
-    const isShield = tank?.selectedWeapon === 'shield';
+    const isShield = tank?.selectedWeapon === 'shield' || tank?.selectedWeapon === 'heavy_shield';
     const actionLabel = isShield ? 'Activate shield' : 'Fire';
     const actionAccessibleName = isShield ? actionLabel : `${actionLabel} ${weaponName}`;
     if (this.primaryActionLabelEl.textContent !== actionLabel) {
@@ -3065,6 +3065,7 @@ export class HUD {
 .st-weapon-icon[data-family='fire'],
 .st-weapon-icon[data-family='volatile'] { color: var(--ember); }
 .st-weapon-icon[data-family='defense'] { color: var(--tank-blue-lite); }
+.st-weapon-icon[data-weapon='heavy_shield'] { color: #b77aff; }
 .st-weapon-icon[data-family='terrain'] { color: #c49359; }
 .st-weapon-icon[data-family='drill'] { color: #f3a83b; }
 .st-weapon-icon[data-family='tracer'] { color: #55e6ff; }

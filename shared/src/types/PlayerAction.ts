@@ -66,6 +66,8 @@ export interface FireAction {
  */
 export interface UseShieldAction {
   type: 'use_shield';
+  /** Optional explicit shield provenance for network replay; omitted legacy rows use Shield. */
+  weapon?: Extract<WeaponType, 'shield' | 'heavy_shield'>;
 }
 
 /**

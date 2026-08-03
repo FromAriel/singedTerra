@@ -25,7 +25,8 @@ export type WeaponType =
   | 'hot_napalm'
   | 'sandhog'
   | 'tracer'
-  | 'shield';
+  | 'shield'
+  | 'heavy_shield';
 
 /**
  * Detonation parameters — everything about a weapon's blast at the moment it
@@ -245,6 +246,7 @@ const HOT_NAPALM_CLIMB = 8;         // climbs slightly steeper rises
  * credits without being immune to sustained heavy fire. Tunable in playtesting.
  */
 const SHIELD_CAPACITY = 120;
+const HEAVY_SHIELD_CAPACITY = 240;
 
 /**
  * Store economy tuning (SPEC §9). Credits use the Scorched Earth scale (weapons
@@ -676,6 +678,22 @@ export const WEAPONS: Record<WeaponType, WeaponDefinition> = {
       // SHIELD: activating it (use_shield) grants SHIELD_CAPACITY HP of absorption;
       // each damaging blast drains the pool by its actual damage, overflow leaks.
       shield: { capacity: SHIELD_CAPACITY },
+    },
+  },
+  heavy_shield: {
+    type: 'heavy_shield',
+    name: 'Heavy Shield',
+    implemented: true,
+    price: 30000, bundleSize: 2, armsLevel: 4,
+    detonation: {
+      radius: 0,
+      maxDamage: 0,
+      style: 'blast',
+      color: '#b77aff',
+      durationFrames: 60,
+    },
+    behavior: {
+      shield: { capacity: HEAVY_SHIELD_CAPACITY },
     },
   },
 };

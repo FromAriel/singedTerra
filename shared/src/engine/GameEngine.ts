@@ -676,10 +676,14 @@ export class GameEngine {
         // Activating the shield is a turn-ending commitment, like firing. Gate on
         // shield ammo (the inventory entry is guaranteed present). Rejection leaves
         // the tank aiming, free to choose otherwise.
-        const ammo = tank.inventory.shield;
+        const selectedShield = tank.selectedWeapon === 'heavy_shield'
+          ? 'heavy_shield'
+          : 'shield';
+        const shieldWeapon = action.weapon ?? selectedShield;
+        const ammo = tank.inventory[shieldWeapon];
         if (!ammo.unlimited && ammo.count <= 0) return;
 
-        const capacity = getWeapon('shield').behavior?.shield?.capacity ?? 0;
+        const capacity = getWeapon(shieldWeapon).behavior?.shield?.capacity ?? 0;
         tank.shieldHp = capacity;
         if (!ammo.unlimited) ammo.count--;
 

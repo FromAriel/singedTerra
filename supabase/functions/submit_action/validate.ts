@@ -26,6 +26,7 @@ interface NetworkFireAction {
 
 interface NetworkShieldAction {
   type: 'use_shield'
+  weapon?: 'shield' | 'heavy_shield'
 }
 
 interface NetworkBuyAction {
@@ -87,6 +88,7 @@ export const WEAPON_TYPES: ReadonlySet<string> = new Set([
   'sandhog',
   'tracer',
   'shield',
+  'heavy_shield',
 ])
 
 // ---------------------------------------------------------------------------
@@ -171,6 +173,15 @@ export function validateActionShape(body: {
     }
   }
 
+  if (
+    action.type === 'use_shield' &&
+    action.weapon !== undefined &&
+    action.weapon !== 'shield' &&
+    action.weapon !== 'heavy_shield'
+  ) {
+    return { ok: false, status: 400, error: 'Invalid input: use_shield weapon must be shield or heavy_shield' }
+  }
+
   // buy requires EXACTLY ONE of a non-empty weapon OR a recognized accessory (SE-parity battery).
   if (action.type === 'buy') {
     const hasWeapon = typeof action.weapon === 'string' && action.weapon.trim().length > 0
@@ -219,6 +230,9 @@ export function validateActionShape(body: {
     // committed to the log and crash getWeapon() on replay for every client.
     if (!WEAPON_TYPES.has(action.weapon.trim())) {
       return { ok: false, status: 400, error: 'Invalid input: action.weapon is not a known weapon' }
+    }
+    if (action.weapon.trim() === 'shield' || action.weapon.trim() === 'heavy_shield') {
+      return { ok: false, status: 400, error: 'Invalid input: shield weapons must use use_shield' }
     }
   }
 

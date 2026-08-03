@@ -88,6 +88,9 @@ const BASE_PROFILES = {
     // Defensive use never creates an event, but keep the total mapping safe.
     family: 'conventional', coreScale: 0.28, detailScale: 0.78, verticalScale: 1, detailCount: 9,
   },
+  heavy_shield: {
+    family: 'conventional', coreScale: 0.34, detailScale: 0.9, verticalScale: 1, detailCount: 12,
+  },
 } satisfies Record<WeaponType, BaseProfile>;
 
 function isWeaponType(value: unknown): value is WeaponType {

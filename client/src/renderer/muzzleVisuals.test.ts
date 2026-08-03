@@ -42,7 +42,8 @@ describe('getMuzzleVisualProfile', () => {
       hot_napalm: 'flame',
       sandhog: 'earth',
       tracer: 'needle',
-      shield: 'needle',
+  shield: 'needle',
+  heavy_shield: 'needle',
     } satisfies Record<WeaponType, MuzzleMotif>;
 
     for (const weaponType of Object.keys(expected) as WeaponType[]) {

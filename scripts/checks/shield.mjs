@@ -29,6 +29,7 @@
 
 import { GameEngine } from '../../shared/src/engine/GameEngine.ts';
 import { getWeapon } from '../../shared/src/engine/WeaponSystem.ts';
+import { replayNetworkAction } from '../../shared/src/net/replay.ts';
 
 const SEED = 0x5eed1234;
 const MAX_TICKS = 100_000;
@@ -225,6 +226,50 @@ log(`[baselines] missile=${baselineMissile.toFixed(1)} nuke=${baselineNuke.toFix
   const a = run(), b = run();
   if (a !== b) fail('two same-seed [use_shield + nuke] runs DIVERGED (non-deterministic shield/absorption)');
   else log(`PASS: two same-seed shield runs byte-identical (len ${a.length}).`);
+}
+
+// --- Check 7: Heavy Shield is a larger, finite, replayable shield variant ---
+{
+  const standard = getWeapon('shield');
+  const heavy = getWeapon('heavy_shield');
+  if (!heavy.implemented) fail('Heavy Shield must be implemented');
+  if (heavy.behavior.shield.capacity <= standard.behavior.shield.capacity) {
+    fail('Heavy Shield capacity must exceed standard Shield capacity');
+  }
+  const e = freshEngine();
+  const tank = e.getState().tanks[0];
+  if (tank.inventory.heavy_shield?.count !== 1) fail('fresh tanks receive one Heavy Shield round');
+  e.applyAction({ type: 'select_weapon', weapon: 'heavy_shield' });
+  const turnBefore = e.getState().turn;
+  e.applyAction({ type: 'use_shield', weapon: 'heavy_shield' });
+  if (tank.shieldHp !== heavy.behavior.shield.capacity) fail('Heavy Shield activation loads its larger capacity');
+  if (tank.inventory.heavy_shield.count !== 0) fail('Heavy Shield activation spends one round');
+  if (e.getState().turn !== turnBefore + 1) fail('Heavy Shield activation ends the turn');
+
+  const replay = freshEngine();
+  replayNetworkAction(replay, { type: 'use_shield', weapon: 'heavy_shield' });
+  if (replay.getState().tanks[0].shieldHp !== heavy.behavior.shield.capacity) {
+    fail('replayed Heavy Shield preserves shield provenance');
+  }
+  log('PASS: Heavy Shield has distinct capacity, ammo, turn, and replay semantics.');
+}
+
+// --- Check 8: Heavy Shield overflow is finite and leaks exact excess damage ---
+{
+  const heavy = getWeapon('heavy_shield');
+  const e = freshEngine();
+  const tank = e.getState().tanks[0];
+  const overflow = 37;
+  const hpBefore = tank.health;
+  tank.shieldHp = heavy.behavior.shield.capacity;
+  // Directly invoke the deterministic damage-pool seam so this assertion is
+  // independent of projectile aim and terrain placement.
+  e.applyBlastDamage(tank, heavy.behavior.shield.capacity + overflow);
+  if (tank.shieldHp !== 0) fail('Heavy Shield overflow did not deplete the finite pool');
+  if (tank.health !== hpBefore - overflow) {
+    fail(`Heavy Shield overflow dealt ${hpBefore - tank.health} health damage, expected ${overflow}`);
+  }
+  log('PASS: Heavy Shield absorbs its finite pool and leaks exact overflow damage.');
 }
 
 if (failed) { log('\nSHIELD CHECK: FAILED'); process.exit(1); }

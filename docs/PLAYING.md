@@ -81,7 +81,7 @@ portion of the predicted trajectory. It is a ranging aid, not a target marker.
 | `↑` / `↓` | Increase or decrease power |
 | `A` / `D` | Move left or right |
 | `Q` | Cycle weapons |
-| `Space` / `Enter` | Fire or activate Shield |
+| `Space` / `Enter` | Fire or activate a Shield |
 | `G` | Toggle the trajectory guide |
 | `M` | Toggle audio |
 | Hold `F` | Fast-forward the current shot locally |
@@ -123,7 +123,7 @@ for the current match without changing the match or the saved choice.
 
 ## Weapon families
 
-The Arsenal exposes seventeen deterministic weapons. The exact prices, blast
+The Arsenal exposes eighteen deterministic weapons. The exact prices, blast
 values, ammo, and behavior definitions live in
 [`shared/src/engine/WeaponSystem.ts`](../shared/src/engine/WeaponSystem.ts).
 
@@ -153,7 +153,8 @@ hops.
 
 ### Defense
 
-Shield raises a damage-absorbing field and ends the turn. It uses the same
+Shield and Heavy Shield raise finite damage-absorbing fields and end the turn.
+Heavy Shield costs more and carries a larger pool; both use the same
 weapon-selection and action-log path as projectile weapons.
 
 Terrain collapse can also hurt a tank after a long drop. The first 32 pixels are

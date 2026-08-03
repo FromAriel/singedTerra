@@ -20,6 +20,7 @@ const EXPECTED_FAMILIES = {
   sandhog: 'drill',
   tracer: 'tracer',
   shield: 'defense',
+  heavy_shield: 'defense',
 } satisfies Record<WeaponType, string>;
 
 const EXPECTED_SILHOUETTES = {
