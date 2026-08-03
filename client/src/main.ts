@@ -393,6 +393,13 @@ function bootstrap(): void {
     newClient.onConnectionChange?.((connState) => hud.setConnection(connState));
     newClient.onFireFailed?.((message) => hud.flashMessage(message));
     newClient.onTurnWatch?.((watch) => hud.setTurnWatch(watch));
+    const quickChatAvailable = typeof newClient.sendQuickChat === 'function'
+      && typeof newClient.onQuickChat === 'function';
+    hud.setQuickChatEnabled(quickChatAvailable);
+    if (quickChatAvailable) {
+      hud.onQuickChat((key) => { newClient.sendQuickChat?.(key); });
+      newClient.onQuickChat?.((message) => hud.showQuickChat(message));
+    }
 
     unsubscribe = newClient.onStateChange((state) => {
       if (ENABLE_DETERMINISTIC_HOT_SEAT_PROBE) exposeDeterministicHotSeatProbe(state);

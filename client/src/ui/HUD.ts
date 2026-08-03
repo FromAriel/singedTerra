@@ -23,6 +23,7 @@ import {
 } from '../renderer/TankLoadoutPreview';
 import { tankLoadoutAccessibleLabel } from './tankPartLabels';
 import type { FirstSalvoStep } from './firstSalvoCoach';
+import { QUICK_CHAT_MESSAGES, type QuickChatKey } from '../client/quickChat';
 
 /**
  * What a store Buy click requests: exactly one of a weapon bundle or an accessory, mirroring the
@@ -122,6 +123,8 @@ export class HUD {
   /** Callback fired when the player quits a game back to the lobby (in-game Menu / game-over Main Menu). */
   private quitCb: (() => void) | null = null;
   private pauseChangeCb: ((paused: boolean) => void) | null = null;
+  private quickChatCb: ((key: QuickChatKey) => void) | null = null;
+  private quickChatEnabled = false;
 
   /** Callback fired when a store Buy button is clicked. `purchase` carries exactly one of a weapon
    *  or an accessory. Optional tankId targets a specific tank (used by the ROUND_OVER between-rounds
@@ -212,6 +215,9 @@ export class HUD {
   // Opponent-turn watchdog banner (P1-6b): "Waiting for {name}…", escalating to a
   // disconnect notice with a leave-to-lobby button.
   private turnWatchEl!: HTMLElement;
+  private quickChatRootEl!: HTMLElement;
+  private quickChatPanelEl!: HTMLElement;
+  private quickChatToggleEl!: HTMLButtonElement;
 
   /** Per-store-row nodes (buy button + owned count), for cheap per-frame sync. */
   private storeCells = new Map<WeaponType, { buyBtn: HTMLButtonElement; owned: HTMLElement }>();
@@ -348,6 +354,17 @@ export class HUD {
   onPrimaryAction(cb: () => void): void { this.primaryActionCb = cb; }
   /** Register one bounded left/right movement commitment. */
   onMove(cb: (delta: number) => void): void { this.moveCb = cb; }
+  onQuickChat(cb: (key: QuickChatKey) => void): void { this.quickChatCb = cb; }
+
+  setQuickChatEnabled(enabled: boolean): void {
+    this.quickChatEnabled = enabled;
+    if (this.built) this.syncQuickChatAvailability();
+  }
+
+  showQuickChat(message: { key: QuickChatKey; playerName: string }): void {
+    if (!this.built) this.build();
+    this.flashMessage(`${message.playerName}: ${QUICK_CHAT_MESSAGES[message.key]}`);
+  }
 
   /** Update the overlay to reflect the latest game state (called every frame). */
   update(state: GameState, isFiring = false, canControl = true): void {
@@ -451,6 +468,7 @@ export class HUD {
     this.modalRoot.append(this.storeEl, this.overlayEl, this.roundOverEl, this.pauseEl);
     this.built = true;
     this.syncFirstSalvo();
+    this.syncQuickChatAvailability();
   }
 
   /** Player health-bar column (top-left). */
@@ -1443,6 +1461,55 @@ export class HUD {
     this.toastEl.className = 'st-hud__toast st-hud__toast--hidden';
     this.turnWatchEl = document.createElement('div');
     this.turnWatchEl.className = 'st-hud__turnwatch st-hud__turnwatch--hidden';
+
+    this.quickChatRootEl = document.createElement('div');
+    this.quickChatRootEl.className = 'st-hud__quick-chat st-hud__quick-chat--hidden';
+    this.quickChatToggleEl = document.createElement('button');
+    this.quickChatToggleEl.type = 'button';
+    this.quickChatToggleEl.className = 'st-hud__quick-chat-toggle';
+    this.quickChatToggleEl.textContent = 'Quick chat';
+    this.quickChatToggleEl.setAttribute('aria-label', 'Open quick chat');
+    this.quickChatToggleEl.setAttribute('aria-expanded', 'false');
+    this.quickChatPanelEl = document.createElement('div');
+    this.quickChatPanelEl.className = 'st-hud__quick-chat-panel st-hud__quick-chat-panel--hidden';
+    this.quickChatPanelEl.setAttribute('role', 'menu');
+    for (const [key, label] of Object.entries(QUICK_CHAT_MESSAGES) as Array<[QuickChatKey, string]>) {
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = 'st-hud__quick-chat-option';
+      option.dataset['quickChat'] = key;
+      option.setAttribute('role', 'menuitem');
+      option.textContent = label;
+      option.addEventListener('click', () => {
+        this.quickChatCb?.(key);
+        this.closeQuickChat();
+      });
+      this.quickChatPanelEl.append(option);
+    }
+    this.quickChatToggleEl.addEventListener('click', () => {
+      const open = this.quickChatPanelEl.classList.contains('st-hud__quick-chat-panel--hidden');
+      if (open) {
+        this.quickChatPanelEl.classList.remove('st-hud__quick-chat-panel--hidden');
+        this.quickChatToggleEl.setAttribute('aria-expanded', 'true');
+      } else {
+        this.closeQuickChat();
+      }
+    });
+    this.quickChatRootEl.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') this.closeQuickChat();
+    });
+    this.quickChatRootEl.append(this.quickChatToggleEl, this.quickChatPanelEl);
+    this.root.append(this.quickChatRootEl);
+  }
+
+  private closeQuickChat(): void {
+    this.quickChatPanelEl.classList.add('st-hud__quick-chat-panel--hidden');
+    this.quickChatToggleEl.setAttribute('aria-expanded', 'false');
+  }
+
+  private syncQuickChatAvailability(): void {
+    this.quickChatRootEl.classList.toggle('st-hud__quick-chat--hidden', !this.quickChatEnabled);
+    if (!this.quickChatEnabled) this.closeQuickChat();
   }
 
   /** Coarse-pointer command dock: combat steppers, weapon cycle, and menu. */
@@ -3183,6 +3250,41 @@ export class HUD {
 }
 .st-hud__overlay--hidden { display: none; }
 /* Networked liveness widgets (P1-6): connection banner + transient toast. */
+.st-hud__quick-chat {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 42;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  font: 600 12px/1.2 system-ui, sans-serif;
+}
+.st-hud__quick-chat--hidden { display: none; }
+.st-hud__quick-chat-toggle,
+.st-hud__quick-chat-option {
+  border: 1px solid rgba(255, 210, 63, 0.58);
+  border-radius: 5px;
+  padding: 6px 10px;
+  color: var(--text-gold, #ffe9b0);
+  background: rgba(30, 18, 48, 0.94);
+  font: inherit;
+  cursor: pointer;
+}
+.st-hud__quick-chat-toggle:hover,
+.st-hud__quick-chat-option:hover { background: rgba(100, 54, 28, 0.96); }
+.st-hud__quick-chat-toggle:focus-visible,
+.st-hud__quick-chat-option:focus-visible {
+  outline: 2px solid var(--ui-focus, #fff);
+  outline-offset: 2px;
+}
+.st-hud__quick-chat-panel {
+  display: grid;
+  gap: 4px;
+  min-width: 148px;
+}
+.st-hud__quick-chat-panel--hidden { display: none; }
 .st-hud__conn {
   position: absolute;
   top: 10px;
