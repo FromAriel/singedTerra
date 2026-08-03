@@ -3759,3 +3759,10 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - RED/GREEN receipt for the First Salvo fix: the new focused test failed against the prior standard-only gate (expected true, received false), then passed after the selected-weapon fix (14/14). Heavy Shield harness passed with exact overflow coverage.
 - Non-blocking low review note: no additional issue beyond the corrected replay documentation comment.
 - Confidence: high; cumulative diff is ready for commit-gate after final full-suite rerun.
+
+### 2026-08-03 - mvp1.heavyshield.0001 final committed-head receipt
+
+- Final reviewed commit before governance amendment: `2919eb9` (`feat(gameplay): add Heavy Shield tactical defense`).
+- Post-remediation full local gates on that exact code: `npm run check` PASS; `npm run check:edge` PASS (211 tests); `npm run test:client` PASS (128 files, 939 tests); `npm run typecheck` PASS; `npm run build` PASS; `npm run test:e2e` PASS (191 passed, 25 skipped); `git diff --check` PASS; state-free secrets scan `[]`.
+- Focused post-remediation proof: First Salvo controller 14/14 passed after the RED run against the old gate; Heavy Shield harness passed including exact overflow and replay checks.
+- Euler exact-diff follow-up found no product, security, replay, or data-integrity issues; the only finding was this missing final receipt, now corrected in the durable sprint package.
