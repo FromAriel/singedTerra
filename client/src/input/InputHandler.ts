@@ -209,17 +209,25 @@ export class InputHandler {
     const nativeControl = targetElement?.closest(
       'button, input, select, textarea, a[href], [contenteditable="true"]',
     );
-    const isSpaceKey = event.key === ' ' || event.key === 'Spacebar';
+    const isSpaceKey = event.key === ' ' || event.key === 'Spacebar' || event.code === 'Space';
     const isTextEntry = targetElement?.closest('input, textarea, [contenteditable="true"]');
-    const isButton = targetElement?.closest('button');
     const isDedicatedFireControl = targetElement?.closest(
       'button.st-hud__primary-action, button[data-command-action="fire-space"], button[data-command-action="fire-enter"]',
     );
 
-    // HUD buttons retain focus after a click. Keep game fire keys global for
-    // those buttons, but let text entry and the dedicated Fire button retain
+    // Non-text controls retain focus after a click. Keep Space global for
+    // those controls, but let text entry and the dedicated Fire button retain
     // native behavior so the latter cannot emit a duplicate action.
-    if (nativeControl && (!isSpaceKey || isTextEntry || !isButton || isDedicatedFireControl)) {
+    if (nativeControl && (!isSpaceKey || isTextEntry || isDedicatedFireControl)) {
+      return;
+    }
+    if (isSpaceKey) {
+      event.preventDefault();
+      this.emit(
+        IMPLEMENTED_WEAPONS[this.weaponIndex] === 'shield'
+          ? { type: 'use_shield' }
+          : { type: 'fire' },
+      );
       return;
     }
     switch (event.key) {
@@ -251,8 +259,6 @@ export class InputHandler {
         event.preventDefault();
         if (!event.repeat) this.stepMove(MAX_MOVE_DELTA);
         break;
-      case ' ':
-      case 'Spacebar': // legacy key name
       case 'Enter':
         event.preventDefault();
         // The shield is a defensive "weapon": firing it RAISES the field and ends

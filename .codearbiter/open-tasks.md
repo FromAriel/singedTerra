@@ -161,6 +161,9 @@ Decision forks split to `open-questions.md` (CONFIRM-04 rate-limiting, CONFIRM-0
 
 - (Possible-later, from room-browser-enrichment spec 2026-06-22) Surface `interestRate` / `suddenDeathTurn` on the public browse row too, now that `StoredOptions` declares them. Pure read-path addition mirroring the rounds/armsLevel/botCount work. [L/S]
 ## In-flight
+- [~] reliability.input.0001 - Restore Space fire after non-text UI focus  (from sprint:keyboard-focus-recovery)  (started 2026-08-03)
+  - Desc: Treat Space as the game fire key after focus moves to non-text UI controls, while preserving text-entry editing and dedicated Fire-button native activation.
+  - Boundaries: client InputHandler and tests only; no auth, secrets, crypto, database, migrations, or action protocol changes
 - [x] obs.edge.0001 - Normalize Edge error logging and correlate submit-action sequence conflicts  (from sprint:edge-log-context)  (done 2026-08-03)
   - Desc: Replace raw Supabase error-object logging with bounded messages and add room/player context where available, while preserving safe client responses and action behavior.
   - Boundaries: supabase/functions logging only; no auth, secrets, crypto, database, migration, or response/action protocol changes
