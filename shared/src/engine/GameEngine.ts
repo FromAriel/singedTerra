@@ -1551,7 +1551,7 @@ export class GameEngine {
     weaponType: WeaponType,
     impactType?: ExplosionImpactType,
   ): void {
-    const { radius, maxDamage, falloffExponent, raisesTerrain, style, color, durationFrames } =
+    const { radius, maxDamage, falloffExponent, raisesTerrain, preservesTerrain, style, color, durationFrames } =
       getWeapon(weaponType).detonation;
     const raise = raisesTerrain === true;
 
@@ -1560,7 +1560,7 @@ export class GameEngine {
     // into pendingSettle so the caller can decide whether to settle instantly
     // (mid-flight) or animate (end-of-turn). Signal the bitmap change so the
     // renderer rebuilds its offscreen without hashing 400k bytes every frame (P2-8).
-    const range = deform(this.terrain, cx, cy, radius, raise);
+    const range = preservesTerrain === true ? null : deform(this.terrain, cx, cy, radius, raise);
     if (range !== null) {
       // MERGE into pendingSettle (widen xStart = min, xEnd = max across all blasts
       // in this tick — cluster/MIRV/betty chain can fire multiple detonations).

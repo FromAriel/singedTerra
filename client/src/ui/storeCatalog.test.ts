@@ -28,7 +28,7 @@ describe('store catalog', () => {
     expect(new Set(catalogKeys)).toEqual(new Set(expectedKeys));
     expect(STORE_CATALOG.map((section) => section.entries.map((entry) => entry.type))).toEqual([
       ['missile', 'heavy_missile', 'baby_nuke', 'nuke'],
-      ['bouncing_betty', 'funky_bomb', 'cluster_bomb', 'mirv', 'deaths_head'],
+      ['bouncing_betty', 'funky_bomb', 'cluster_bomb', 'mirv', 'deaths_head', 'tracer'],
       ['dirt_bomb', 'riot_bomb', 'napalm', 'hot_napalm', 'sandhog'],
       ['shield', 'battery', 'fuel_tank', 'parachute'],
     ]);
@@ -46,6 +46,7 @@ describe('store catalog', () => {
       riot_bomb: 'Carves a wide crater without blast damage.',
       napalm: 'Spreads a lingering fire across the surface.',
       sandhog: 'Drills underground before its endpoint blast.',
+      tracer: 'Zero-damage shot that marks the real impact.',
       shield: 'Absorbs incoming damage before it reaches your tank.',
       battery: '+100 power cap.',
       fuel_tank: '+100 movement fuel.',

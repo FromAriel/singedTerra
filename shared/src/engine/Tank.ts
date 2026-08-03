@@ -62,6 +62,7 @@ const START_AMMO: Record<Exclude<WeaponType, 'baby_missile'>, number> = {
   deaths_head:     0, // premium — buy from the store
   hot_napalm:      0, // premium — buy from the store
   sandhog:         1, // signature terrain-drill round
+  tracer:          1, // one harmless ranging shot to learn the live arc
 };
 
 /** Horizontal placement fractions for the two MVP0 tanks. */
@@ -106,6 +107,7 @@ function defaultInventory(): Record<WeaponType, AmmoEntry> {
     riot_bomb: limited(START_AMMO.riot_bomb),
     hot_napalm: limited(START_AMMO.hot_napalm),
     sandhog: limited(START_AMMO.sandhog),
+    tracer: limited(START_AMMO.tracer),
     shield: limited(START_AMMO.shield),
   };
 }

@@ -25,6 +25,7 @@ type WeaponFamily =
   | 'mirv'
   | 'death'
   | 'drill'
+  | 'tracer'
   | 'defense';
 
 interface WeaponGlyphDefinition {
@@ -54,6 +55,7 @@ const WEAPON_GLYPHS = {
   riot_bomb: { icon: Mountain, family: 'terrain', tier: 2 },
   hot_napalm: { icon: Flame, family: 'fire', tier: 2 },
   sandhog: { icon: Drill, family: 'drill', tier: 2 },
+  tracer: { icon: CircleDot, family: 'tracer', tier: 0 },
   shield: { icon: Shield, family: 'defense', tier: 1 },
 } satisfies Record<WeaponType, WeaponGlyphDefinition>;
 

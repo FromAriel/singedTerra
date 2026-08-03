@@ -24,6 +24,7 @@ export type WeaponType =
   | 'riot_bomb'
   | 'hot_napalm'
   | 'sandhog'
+  | 'tracer'
   | 'shield';
 
 /**
@@ -41,6 +42,8 @@ export interface DetonationDef {
   falloffExponent?: number;
   /** Whether this weapon raises terrain instead of cratering it (e.g. dirt bomb). */
   raisesTerrain?: boolean;
+  /** Whether the impact is a visual-only marker that must preserve terrain bytes. */
+  preservesTerrain?: boolean;
   /** Visual style of the resulting explosion event(s). */
   style: ExplosionStyle;
   /** CSS color string the client renders the burst with. */
@@ -344,9 +347,8 @@ export const ACCESSORIES: Record<AccessoryType, AccessoryDefinition> = {
 };
 
 /**
- * Weapon definition table. MVP1 only implements Baby Missile + Missile; the
- * remaining entries are placeholders with rough tuning values so the type is
- * exhaustive and consumers can render a full shop UI later.
+ * Weapon definition table. Implemented entries carry playable tuning while the
+ * union remains exhaustive so the client can render the complete shop catalog.
  */
 export const WEAPONS: Record<WeaponType, WeaponDefinition> = {
   baby_missile: {
@@ -637,6 +639,22 @@ export const WEAPONS: Record<WeaponType, WeaponDefinition> = {
         verticalSpeed: 2.4,
         tunnelRadius: 7,
       },
+    },
+  },
+  tracer: {
+    type: 'tracer',
+    name: 'Tracer',
+    implemented: true,
+    price: 10,
+    bundleSize: 20,
+    armsLevel: 0,
+    detonation: {
+      radius: 10,
+      maxDamage: 0,
+      preservesTerrain: true,
+      style: 'blast',
+      color: '#55e6ff',
+      durationFrames: 28,
     },
   },
   shield: {

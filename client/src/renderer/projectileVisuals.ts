@@ -165,6 +165,15 @@ const BASE_PROFILES: Record<WeaponType, BaseProfile> = {
     trailAlphaOld: 0.08,
     trailAlphaNew: 0.46,
   },
+  tracer: {
+    silhouette: 'shell',
+    coreRadius: 2.2,
+    glowRadius: 7,
+    trailRadiusMin: 1,
+    trailRadiusMax: 3.2,
+    trailAlphaOld: 0.1,
+    trailAlphaNew: 0.52,
+  },
   shield: {
     // Defensive use never creates a projectile, but keep the total mapping safe
     // for malformed or future replay data.

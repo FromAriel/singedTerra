@@ -50,6 +50,7 @@ export const STORE_CATALOG: readonly StoreCatalogSection[] = [
         type: 'deaths_head',
         summary: 'Splits at the apex into seven heavy warheads.',
       },
+      { kind: 'weapon', type: 'tracer', summary: 'Zero-damage shot that marks the real impact.' },
     ],
   },
   {

@@ -1,4 +1,5 @@
 import { blastReachRadius } from '@shared/engine/BlastGeometry';
+import { WEAPONS } from '@shared/engine/WeaponSystem';
 import type { WeaponType } from '@shared/engine/WeaponSystem';
 import type { ExplosionEvent } from '@shared/types/GameState';
 
@@ -80,16 +81,24 @@ const BASE_PROFILES = {
   sandhog: {
     family: 'earth', coreScale: 0.3, detailScale: 0.76, verticalScale: 0.72, detailCount: 9,
   },
+  tracer: {
+    family: 'conventional', coreScale: 0.5, detailScale: 0.9, verticalScale: 1, detailCount: 4,
+  },
   shield: {
     // Defensive use never creates an event, but keep the total mapping safe.
     family: 'conventional', coreScale: 0.28, detailScale: 0.78, verticalScale: 1, detailCount: 9,
   },
 } satisfies Record<WeaponType, BaseProfile>;
 
+function isWeaponType(value: unknown): value is WeaponType {
+  return typeof value === 'string' && Object.hasOwn(WEAPONS, value);
+}
+
 export function getExplosionVisualProfile(
   event: Readonly<ExplosionEvent>,
 ): ExplosionVisualProfile {
-  const base = BASE_PROFILES[event.weaponType];
+  const type = isWeaponType(event.weaponType) ? event.weaponType : 'baby_missile';
+  const base = BASE_PROFILES[type];
   const rawReach = blastReachRadius(event.radius, event.style);
   const reachRadius = Number.isFinite(rawReach) && rawReach > 0 ? rawReach : 0;
 

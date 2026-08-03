@@ -123,7 +123,7 @@ for the current match without changing the match or the saved choice.
 
 ## Weapon families
 
-The Arsenal exposes sixteen deterministic weapons. The exact prices, blast
+The Arsenal exposes seventeen deterministic weapons. The exact prices, blast
 values, ammo, and behavior definitions live in
 [`shared/src/engine/WeaponSystem.ts`](../shared/src/engine/WeaponSystem.ts).
 
@@ -131,6 +131,11 @@ values, ammo, and behavior definitions live in
 
 Baby Missile, Missile, and Heavy Missile form the basic damage ladder. Baby
 Nuke and Nuke trade cost and scarcity for much larger blast reach.
+
+Tracer is a cheap, cyan, zero-damage ranging shot. It follows the real wind and
+collision path, leaves terrain and tanks untouched, marks its impact, consumes
+one round, and ends the turn. Use it when the launch guide is not enough to
+read a difficult arc.
 
 ### Airburst and spread
 

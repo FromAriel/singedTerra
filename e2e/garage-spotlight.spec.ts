@@ -258,7 +258,7 @@ test.describe('Garage spotlight', () => {
       + 'Turret: Cupola. Barrel: Cannon.',
     );
 
-    for (let index = 0; index < 15; index++) await page.keyboard.press('KeyQ');
+    for (let index = 0; index < 16; index++) await page.keyboard.press('KeyQ');
     await expect(page.locator('.st-hud__weapon-value')).toHaveText('Shield');
     await page.keyboard.press('Space');
     await expect(portrait).toHaveAttribute(

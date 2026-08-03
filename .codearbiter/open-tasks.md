@@ -161,6 +161,12 @@ Decision forks split to `open-questions.md` (CONFIRM-04 rate-limiting, CONFIRM-0
 
 - (Possible-later, from room-browser-enrichment spec 2026-06-22) Surface `interestRate` / `suddenDeathTurn` on the public browse row too, now that `StoredOptions` declares them. Pure read-path addition mirroring the rounds/armsLevel/botCount work. [L/S]
 ## In-flight
+- [~] mvp1.tracer.0001 - Deterministic tracer ranging shot  (started 2026-08-03)
+  - Desc: Give players a zero-damage ranging shot that previews the current aim arc through the existing deterministic projectile simulation and consumes an explicit tracer action.
+  - Boundaries: shared deterministic tracer weapon, client HUD/input/renderer affordance, existing fire-row replay, minimal submit_action weapon allowlist/test, and tests; no auth, secrets, migrations, new action kinds, dependencies, or persistence
+- [x] mvp1.tutorial.0001 - Interactive first-shot tutorial and onboarding  (done 2026-08-03)
+  - Desc: Guide a new player through one safe first shot using the existing aim, wind, power, and fire paths without blocking the normal start flow.
+  - Boundaries: client tutorial overlay, aim/power/wind guidance, existing input callbacks and tests; no engine, action protocol, network, backend, migration, dependency, auth, secrets, or persistence
 - [ ] mvp2.identity.0001 - Persistent users and progression
   - Desc: Provide persistent users and progression without trusting client-owned progress or weakening the current seat-token/network security boundary.
   - Boundaries: authenticated user identity, secure persistence, progression schema and rules; no implementation until auth/security controls and data-integrity design are cleared

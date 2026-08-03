@@ -43,6 +43,7 @@ const BASE_PROFILES: Record<WeaponType, BaseMuzzleProfile> = {
   riot_bomb: { motif: 'earth', scale: 1.05, sparkCount: 9, spread: 0.62, speedMin: 2.2, speedMax: 5.2, life: 8 },
   hot_napalm: { motif: 'flame', scale: 1.55, sparkCount: 15, spread: 0.58, speedMin: 2.7, speedMax: 6.5, life: 12 },
   sandhog: { motif: 'earth', scale: 1.25, sparkCount: 11, spread: 0.58, speedMin: 2.4, speedMax: 5.8, life: 9 },
+  tracer: { motif: 'needle', scale: 0.8, sparkCount: 6, spread: 0.25, speedMin: 2.2, speedMax: 4.2, life: 6 },
   shield: { motif: 'needle', scale: 0.8, sparkCount: 6, spread: 0.3, speedMin: 2, speedMax: 4.5, life: 6 },
 };
 

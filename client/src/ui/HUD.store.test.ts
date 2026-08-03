@@ -48,7 +48,7 @@ describe('HUD store catalog', () => {
       [...section.querySelectorAll('.st-hud__store-name')].map((name) => name.textContent),
     )).toEqual([
       ['Missile', 'Heavy Missile', 'Baby Nuke', 'Nuke'],
-      ['Bouncing Betty', 'Funky Bomb', 'Cluster Bomb', 'MIRV', "Death's Head"],
+      ['Bouncing Betty', 'Funky Bomb', 'Cluster Bomb', 'MIRV', "Death's Head", 'Tracer'],
       ['Dirt Bomb', 'Riot Bomb', 'Napalm', 'Hot Napalm', 'Sandhog'],
       ['Shield', 'Battery', 'Fuel Tank', 'Parachute'],
     ]);
@@ -63,6 +63,7 @@ describe('HUD store catalog', () => {
         'Splits at the apex into a tight bomblet carpet.',
         'Splits at the apex into three heavy warheads.',
         'Splits at the apex into seven heavy warheads.',
+        'Zero-damage shot that marks the real impact.',
         'Raises a mound instead of a crater.',
         'Carves a wide crater without blast damage.',
         'Spreads a lingering fire across the surface.',
