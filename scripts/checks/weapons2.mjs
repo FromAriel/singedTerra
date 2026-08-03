@@ -105,7 +105,7 @@ for (const type of ['mirv', 'deaths_head']) {
   grant(e, 0, 'hot_napalm');
   const before = e.getState().tanks.map((t) => t.health);
   // Same flat long lob the motion harness uses to land napalm on the far tank.
-  const r = fireTrace(e, { angle: 27, power: 68, weapon: 'hot_napalm' });
+  const r = fireTrace(e, { angle: 45, power: 100, weapon: 'hot_napalm' });
   const after = r.st.tanks.map((t) => t.health);
   const dmg = before.reduce((s, h, i) => s + (h - after[i]), 0);
   log(`[hot_napalm] fireTicks=${r.fireTicks} totalDOT=${dmg.toFixed(1)} healths ${before.join('/')} -> ${after.map((h) => h.toFixed(1)).join('/')}`);
@@ -125,7 +125,7 @@ for (const type of ['mirv', 'deaths_head']) {
   const napDet = getWeapon('napalm').detonation;
   const e = freshEngine();
   grant(e, 0, 'hot_napalm');
-  const r = fireTrace(e, { angle: 27, power: 68, weapon: 'hot_napalm' });
+  const r = fireTrace(e, { angle: 45, power: 100, weapon: 'hot_napalm' });
   // napalm-type weapons emit exactly one ExplosionEvent: the ignition flash.
   const flash = r.st.explosions[r.st.explosions.length - 1];
   if (flash === undefined) {
@@ -145,7 +145,7 @@ for (const [type, aim] of [
   ['mirv', { angle: 75, power: 50 }],
   ['deaths_head', { angle: 75, power: 50 }],
   ['riot_bomb', { angle: 60, power: 45 }],
-  ['hot_napalm', { angle: 27, power: 68 }],
+  ['hot_napalm', { angle: 45, power: 100 }],
 ]) {
   const run = () => { const e = freshEngine(); grant(e, 0, type); return serialize(fireTrace(e, { ...aim, weapon: type }).st); };
   const a = run();

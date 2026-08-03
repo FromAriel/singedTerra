@@ -384,7 +384,7 @@ console.log('\n[8] Swept collision: a FAST shot cannot tunnel through thin spike
   const tank = createTank('t', 'T', 400, tankLine, '#fff');
   let tankTunneled = 0;
   for (let phase = 0; phase < 60; phase++) {
-    const startX = 360 + phase / 60;
+    const startX = 370 + phase / 60;
     const tankY = tank.y; // base
     const p = mkProjectile(startX, tankY - TANK_HEIGHT / 2, 30, 0);
     const prevX = p.x;

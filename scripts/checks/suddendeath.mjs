@@ -26,7 +26,7 @@
 // Deterministic: no Math.random / Date. Run: npx tsx scripts/checks/suddendeath.mjs
 
 import { GameEngine, SUDDEN_DEATH_GRAVITY_RAMP, effectiveGravity } from '../../shared/src/engine/GameEngine.ts';
-import { GRAVITY, POWER_SCALE } from '../../shared/src/engine/Physics.ts';
+import { GRAVITY, POWER_SCALE, PROJECTILE_DRAG } from '../../shared/src/engine/Physics.ts';
 import { BARREL_LENGTH, BARREL_PIVOT_HEIGHT } from '../../shared/src/engine/Tank.ts';
 import { computeAiPlan } from '../../shared/src/engine/AI.ts';
 
@@ -68,7 +68,7 @@ function probeUp(opts, turn, K, P) {
 function resimY(gEff, K, P, y0) {
   let vy = -P * POWER_SCALE; // launchVelocity(90,P).vy
   let y = y0;
-  for (let i = 0; i < K; i++) { vy += gEff; y += vy; }
+  for (let i = 0; i < K; i++) { vy = (vy + gEff) * (1 - PROJECTILE_DRAG); y += vy; }
   return y;
 }
 

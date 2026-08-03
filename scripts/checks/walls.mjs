@@ -6,6 +6,7 @@ import { simulateImpact } from '../../shared/src/engine/AiShotSearch.ts';
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../../shared/src/engine/Terrain.ts';
 import {
   MAX_FLIGHT_TICKS,
+  PROJECTILE_DRAG,
   WALL_INSET,
   wrapSideWall,
 } from '../../shared/src/engine/Physics.ts';
@@ -37,8 +38,8 @@ function projectile(overrides = {}) {
   };
 }
 
-function engineWith(walls, p) {
-  const engine = new GameEngine({ seed: 0x51de, walls });
+function engineWith(walls, p, gravity = 0.15) {
+  const engine = new GameEngine({ seed: 0x51de, walls, gravity });
   const state = engine.getState();
   state.phase = 'FIRING';
   state.wind = 0;
@@ -159,16 +160,16 @@ for (const weaponType of ['bouncing_betty', 'sandhog']) {
     `x=${shot.x}`,
   );
   check(
-    Math.abs(shot.x - (CANVAS_WIDTH - WALL_INSET - 3)) < 1e-9,
+    Math.abs(shot.x - (CANVAS_WIDTH - WALL_INSET - 2.96)) < 1e-9,
     'left wrap preserves the exact unsampled remainder',
     `x=${shot.x}`,
   );
   check(
-    Math.abs(shot.y - 81.15) < 1e-9,
+    Math.abs(shot.y - (80 + 1.15 * (1 - PROJECTILE_DRAG))) < 1e-9,
     'left wrap preserves the complete integrated vertical endpoint',
     `y=${shot.y}`,
   );
-  check(shot.vx === -4, 'left wrap preserves horizontal velocity', `vx=${shot.vx}`);
+  check(shot.vx === -4 * (1 - PROJECTILE_DRAG), 'left wrap preserves horizontal velocity', `vx=${shot.vx}`);
   check(shot.age === 9, 'left wrap preserves the advancing flight age', `age=${shot.age}`);
   check(shot.bounces === 2, 'left wrap preserves weapon bounce state', `bounces=${shot.bounces}`);
   check(state.wallImpacts?.[0]?.side === 'left', 'left wrap emits an authoritative contact');
@@ -190,11 +191,11 @@ for (const weaponType of ['bouncing_betty', 'sandhog']) {
     `x=${shot.x}`,
   );
   check(
-    Math.abs(shot.x - (WALL_INSET + 3)) < 1e-9,
+    Math.abs(shot.x - (WALL_INSET + 2.96)) < 1e-9,
     'right wrap preserves the exact unsampled remainder',
     `x=${shot.x}`,
   );
-  check(shot.vx === 4, 'right wrap preserves horizontal velocity', `vx=${shot.vx}`);
+  check(shot.vx === 4 * (1 - PROJECTILE_DRAG), 'right wrap preserves horizontal velocity', `vx=${shot.vx}`);
   check(state.wallImpacts?.[0]?.side === 'right', 'right wrap emits an authoritative contact');
 }
 
@@ -314,8 +315,9 @@ for (const side of ['left', 'right']) {
 
 {
   function trace(walls) {
-    const shot = projectile({ x: CANVAS_WIDTH / 2, vx: 18, vy: -8 });
-    const { engine, state } = engineWith(walls, shot);
+    const shot = projectile({ x: CANVAS_WIDTH / 2, vx: 30, vy: 0 });
+    const { engine, state } = engineWith(walls, shot, 0);
+    state.terrain.fill(0);
     for (let i = 0; i < 180 && state.phase === 'FIRING'; i++) engine.tick();
     return {
       contacts: state.wallImpacts,

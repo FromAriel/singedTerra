@@ -43,9 +43,9 @@ const SHIELD_CAPACITY = getWeapon('shield').behavior.shield.capacity;
 // missile clearly damages P1 (~49) and the nuke clearly exceeds it (~79), which
 // the proportional-drain assertion requires. Re-swept after the muzzle fix
 // (barrel pivot +20px, length 18->22) shifted long-lob landings ~one blast radius.
-const MISSILE_AT_P1 = { angle: 116, power: 88, weapon: 'missile' };
-const NUKE_AT_P1    = { angle: 116, power: 88, weapon: 'nuke' };
-const NAPALM_AT_P1  = { angle: 115, power: 86, weapon: 'napalm' };
+const MISSILE_AT_P1 = { angle: 140, power: 100, weapon: 'missile' };
+const NUKE_AT_P1    = { angle: 140, power: 100, weapon: 'nuke' };
+const NAPALM_AT_P1  = { angle: 140, power: 100, weapon: 'napalm' };
 
 let failed = false;
 const log = (...a) => console.log(...a);
@@ -53,7 +53,9 @@ const fail = (m) => { failed = true; log(`FAIL: ${m}`); };
 const near = (a, b, eps = 0.5) => Math.abs(a - b) <= eps;
 
 function freshEngine() {
-  return new GameEngine({ players: [{ name: 'P1', color: PALETTE[0] }, { name: 'P2', color: PALETTE[1] }], maxPlayers: 2, seed: SEED });
+  const e = new GameEngine({ players: [{ name: 'P1', color: PALETTE[0] }, { name: 'P2', color: PALETTE[1] }], maxPlayers: 2, seed: SEED });
+  e.getState().tanks[0].x = 300;
+  return e;
 }
 
 function tickToRest(e) {

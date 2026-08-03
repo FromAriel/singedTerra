@@ -3774,3 +3774,20 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - Deployment receipts on merge commit: backend run `30816260309` passed with migrations intentionally skipped and Edge Functions deployed; Pages run `30816250289` passed build, current-main verification, deployment, and live smoke; main CI `30816250298` passed; main CodeQL `30816250322` passed.
 - Production smoke: Pages HTML 200; current JS `https://suadtl.github.io/singedTerra/assets/index-D4YCDi1i.js` returned 200 and contains `heavy_shield` plus `Heavy Shield`; Supabase `submit_action` OPTIONS returned 200 with `POST, OPTIONS` and expected authorization, apikey, and content-type CORS headers.
 - No database migration was deployed. `mvp2.identity.0001` remains queued behind auth/security and data-integrity design. The deferred `.codearbiter/open-tasks.md.lock` remains untouched.
+
+### 2026-08-03 - mvp1.drag.0001 selection and RED
+
+- SMARTS decision: select deterministic projectile drag as the next bounded player-facing improvement. It scores high for artillery feel, wind readability, and shared live/AI parity, while touching no auth, persistence, migration, dependency, or network-action surface. Confidence: medium-high.
+- Source rescout confirmed the candidate is genuinely unshipped: `stepProjectile` currently adds gravity and wind acceleration without drag; prior backlog items for replay yielding, finish-game retry, rematch polling, impact audio, and heavy impact feedback are already implemented in current source.
+- RED evidence: the new motion contract failed against the baseline integrator because zero-wind velocity did not decay and 5,000 wind steps reached `vx=300.00000000000983`.
+- GREEN evidence after the named `PROJECTILE_DRAG` implementation: `npx tsx scripts/checks/motion.mjs` passed after retuning the deterministic napalm DOT fixture from the observed pre-drag miss to angle 45 / power 100.
+
+### 2026-08-03 - mvp1.drag.0001 local GREEN
+- TDD RED was reproduced before implementation: zero-wind velocity stayed unchanged and sustained wind reached vx=300 after 5,000 fixed steps.
+- GREEN implementation adds named `PROJECTILE_DRAG = 0.01` after gravity and wind acceleration in the shared `stepProjectile` integrator; live engine and AI forward simulation continue to share the same path.
+- Deterministic fixture retunes were limited to projectile-dependent aims, wall/timestep expectations, fire-projection digest, economy fall-damage accounting, scoreboard accounting, and sudden-death vertical re-simulation. No production behavior outside shared projectile physics changed.
+- `npm run check` passed in full (exit 0), including typecheck, deterministic engine, collision/wall, weapon, AI, lockstep, replay, collapse, economy, and edge-contract harnesses.
+- `git diff --check` passed. No auth, persistence, progression, migration, dependency, network-action, or Supabase surface is in this slice. Confidence: high.
+- Client contract retunes after drag: NetworkClient world-preservation replay uses a deterministic 5°/15-power crater; GAME_OVER session replay uses the drag-aware 45°/100-power napalm kill. Focused client tests passed 15/15.
+- Full local delivery matrix passed: `npm run check` exit 0; `npm run check:edge` exit 0; `npm run test:client` passed 128 files / 939 tests; `npm run typecheck` exit 0; `npm run build` exit 0; `npm run test:e2e` passed 191 with 25 intentional skips; `git diff --check` passed; state-free secret scan returned `[]`.
+- Euler exact-package review: APPROVED; Critical 0, High 0, Medium 0, merge blockers 0, Low 1. The sole Low finding was stale pre-drag comments in gameover/timestep harnesses; comments were corrected mechanically with no assertion or behavior change. Confidence: high.
