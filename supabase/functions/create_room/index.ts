@@ -19,6 +19,7 @@ import {
   coerceGravity,
   coerceMaxWind,
   coerceWallMode,
+  coerceTeamMode,
 } from './validate.ts'
 
 interface CreateRoomDependencies {
@@ -37,7 +38,7 @@ async function handleCreateRoomWithDependencies(
     options?: {
       maxPlayers?: unknown; maxWind?: unknown; gravity?: unknown; visibility?: unknown; rounds?: unknown; walls?: unknown; battlefieldWorld?: unknown
       // SE-parity economy (optional, additive). Coerced by coerceEconomyOptions.
-      interestRate?: unknown; suddenDeathTurn?: unknown; armsLevel?: unknown
+      interestRate?: unknown; suddenDeathTurn?: unknown; armsLevel?: unknown; teamMode?: unknown
     }
     // Optional CPU seats to seed into the room (single-player / fill-a-room).
     bots?: unknown
@@ -203,6 +204,7 @@ async function handleCreateRoomWithDependencies(
     ...(rounds !== undefined ? { rounds } : {}),
     // SE-parity economy — coerced + omitted-when-absent so every client builds an identical engine.
     ...coerceEconomyOptions(options),
+    ...(coerceTeamMode(options.teamMode, maxPlayers) ? { teamMode: true } : {}),
   }
 
   // Insert room

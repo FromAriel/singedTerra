@@ -1,5 +1,5 @@
 import type { TankState, AmmoEntry, AiDifficulty } from '../types/GameState';
-import type { GameOptions } from '../types/GameOptions';
+import { normalizeTeamId, type GameOptions, type TeamId } from '../types/GameOptions';
 import type { AccessoryType, WeaponType } from './WeaponSystem';
 import {
   normalizeTankLoadout,
@@ -138,6 +138,7 @@ export function createTank(
   color: string,
   ai: AiDifficulty | null = null,
   loadout?: TankLoadout,
+  team: TeamId | null = null,
 ): TankState {
   return {
     id,
@@ -163,6 +164,7 @@ export function createTank(
     buried: false, // #15 burial: not trapped at spawn
     buriedTurns: 0,
     ai, // null => human; a difficulty => CPU-controlled
+    team,
   };
 }
 
@@ -203,11 +205,17 @@ export function placeTanks(
     color: string;
     ai?: AiDifficulty;
     loadout?: TankLoadout;
+    team?: TeamId;
   }>,
   opts?: GameOptions,
 ): TankState[] {
   void opts;
   const n = players.length;
+  const explicitTeams = players.map((player) => normalizeTeamId(player.team));
+  const hasValidExplicitTeams =
+    explicitTeams.every((team): team is TeamId => team !== undefined) &&
+    explicitTeams.filter((team) => team === 1).length === 2 &&
+    explicitTeams.filter((team) => team === 2).length === 2;
   const tanks: TankState[] = [];
   for (const [i, player] of players.entries()) {
     // Evenly distribute across the band. With n===1 place at the band start.
@@ -228,6 +236,9 @@ export function placeTanks(
       color,
       player.ai ?? null,
       player.loadout,
+      opts?.teamMode === true && n === 4
+        ? (hasValidExplicitTeams ? explicitTeams[i]! : (i % 2 === 0 ? 1 : 2))
+        : null,
     ));
   }
   return orientTanksTowardNearestOpponent(tanks);

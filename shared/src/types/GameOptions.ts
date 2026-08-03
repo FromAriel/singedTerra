@@ -10,6 +10,14 @@ export type StarterWeaponFalloff = 'linear' | 'decisive';
 /** Deterministic network-room contract understood by the current client. */
 export type NetworkRulesetVersion = 1 | 2;
 
+/** Stable team identifiers used by the opt-in 2v2 ruleset. */
+export type TeamId = 1 | 2;
+
+/** Fail closed for legacy or malformed roster metadata. */
+export function normalizeTeamId(value: unknown): TeamId | undefined {
+  return value === 1 || value === 2 ? value : undefined;
+}
+
 /** Presentation-only authored battlefield choice; absent means automatic. */
 export type BattlefieldWorldId =
   | 'ember-dusk'
@@ -52,7 +60,11 @@ export interface GameOptions {
     ai?: AiDifficulty;
     /** Presentation-only authored part selection. */
     loadout?: TankLoadout;
+    /** Optional 2v2 team metadata; omitted values use deterministic seat assignment. */
+    team?: TeamId;
   }>;
+  /** Opt-in four-seat 2v2 rules; malformed/non-four-seat activation is ignored. */
+  teamMode?: boolean;
   /** Terrain RNG seed; same seed → same terrain. */
   seed?: number;
   /** Wind strength cap; defaults to MAX_WIND. */

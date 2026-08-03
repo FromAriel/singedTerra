@@ -22,6 +22,7 @@ export interface StoredOptions {
   armsLevel?: number;
   interestRate?: number;
   suddenDeathTurn?: number;
+  teamMode?: boolean;
 }
 
 export type StoredAction =

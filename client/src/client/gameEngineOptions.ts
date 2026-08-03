@@ -53,6 +53,7 @@ export function buildClientEngineOptions(
       interestRate: settings?.interestRate,
       suddenDeathTurn: settings?.suddenDeathTurn,
       armsLevel: settings?.armsLevel,
+      teamMode: settings?.teamMode,
       rulesetVersion,
       starterWeaponFalloff: rulesetVersion === 2 ? 'decisive' : 'linear',
     };
@@ -74,6 +75,7 @@ export function buildClientEngineOptions(
     ...(settings?.interestRate != null ? { interestRate: settings.interestRate } : {}),
     ...(settings?.suddenDeathTurn != null ? { suddenDeathTurn: settings.suddenDeathTurn } : {}),
     ...(settings?.armsLevel != null ? { armsLevel: settings.armsLevel } : {}),
+    ...(settings?.teamMode === true ? { teamMode: true } : {}),
     starterWeaponFalloff: 'decisive',
   };
 }

@@ -122,6 +122,11 @@ describe('coerceSettings', () => {
     expect(coerceSettings(blankRaw({ battlefieldWorld: 'volcanic-moon' }))).toBeUndefined();
   });
 
+  it('enables 2v2 only through the explicit team choice', () => {
+    expect(coerceSettings(blankRaw({ teamMode: '2v2' }))).toEqual({ teamMode: true });
+    expect(coerceSettings(blankRaw({ teamMode: 'free-for-all' }))).toBeUndefined();
+  });
+
   it('clamps rounds into range then forces odd (even in-range input)', () => {
     // 4 is in range [1,9] but even -> +1 => 5
     expect(coerceSettings(blankRaw({ rounds: '4' }))).toEqual({ rounds: 5 });

@@ -70,6 +70,7 @@ export type RoomOptions = {
   interestRate?: number;
   suddenDeathTurn?: number;
   armsLevel?: number;
+  teamMode?: boolean;
 };
 
 /** A public room as returned by the list_rooms Edge Function. */
@@ -170,6 +171,7 @@ export interface CreateRoomParams {
   interestRate: string;
   suddenDeath: string;
   armsLevel: string;
+  teamMode?: boolean;
 }
 
 export interface JoinRoomParams {
@@ -219,6 +221,7 @@ export class LobbyTransport {
         ...(gravity !== undefined ? { gravity: clamp(gravity, GRAVITY_MIN, GRAVITY_MAX) } : {}),
         ...(rounds !== undefined ? { rounds } : {}),
         ...economy,
+        ...(params.teamMode && params.maxPlayers === 4 ? { teamMode: true } : {}),
       },
     };
 

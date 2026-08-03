@@ -52,7 +52,8 @@ function applyNetworkAction(engine, a) {
 function serialize(st) {
   return JSON.stringify({
     phase: st.phase, turn: st.turn, activePlayerId: st.activePlayerId, wind: st.wind, winner: st.winner,
-    tanks: st.tanks.map((t) => ({ id: t.id, x: t.x, y: t.y, health: t.health, alive: t.alive })),
+    winnerTeam: st.winnerTeam ?? null,
+    tanks: st.tanks.map((t) => ({ id: t.id, team: t.team ?? null, x: t.x, y: t.y, health: t.health, alive: t.alive })),
     terrain: Buffer.from(st.terrain).toString('hex'),
   });
 }

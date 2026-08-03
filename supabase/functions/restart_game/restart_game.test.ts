@@ -128,6 +128,18 @@ Deno.test('normalizeRematchOptions preserves a valid battlefield world and omits
   )
 })
 
+Deno.test('normalizeRematchOptions preserves team mode only for four-seat rematches', () => {
+  const teamOptions = {
+    maxPlayers: 4,
+    maxWind: 7,
+    gravity: 0.2,
+    teamMode: true,
+  }
+  assertEquals(normalizeRematchOptions(teamOptions, 4).teamMode, true)
+  assertEquals(normalizeRematchOptions({ ...teamOptions, maxPlayers: 2 }, 2).teamMode, undefined)
+  assertEquals(normalizeRematchOptions({ ...teamOptions, teamMode: false }, 4).teamMode, undefined)
+})
+
 Deno.test('successor normalization and both response projectors preserve rulesets 1 and 2', () => {
   const players: StoredPlayer[] = [
     { id: 'uid-a', name: 'Ana', color: '#f00', ready: true },

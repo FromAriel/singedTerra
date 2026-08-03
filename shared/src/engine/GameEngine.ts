@@ -10,6 +10,7 @@ import {
   normalizeWallMode,
   type GameOptions,
   type StarterWeaponFalloff,
+  type TeamId,
 } from '../types/GameOptions';
 import {
   generate,
@@ -70,6 +71,10 @@ import {
 import { createRng } from './Random';
 import { blastReachRadius } from './BlastGeometry';
 import { resolveTankMove } from './Movement';
+
+function playersAreFour(players: GameOptions['players']): boolean {
+  return Array.isArray(players) && players.length === 4;
+}
 
 /**
  * Burial safety valve (#15): the maximum number of turns a tank may stay trapped under
@@ -279,6 +284,9 @@ export class GameEngine {
    *  the same way the opening round did (same player roster / layout path). */
   private options?: GameOptions;
 
+  /** True only for an explicitly opted-in four-seat 2v2 ruleset. */
+  private teamMode = false;
+
   /**
    * Pending unsettled column range from the most recent detonation(s), merged
    * across multiple detonations in the same tick (cluster/MIRV/betty chain).
@@ -363,6 +371,7 @@ export class GameEngine {
     // 2–4 explicit players => generalized placement; otherwise the MVP0 default
     // two-tank layout (byte-identical to before for back-compat).
     const players = options?.players;
+    this.teamMode = options?.teamMode === true && playersAreFour(players);
     const tanks =
       players && players.length >= 2 && players.length <= 4
         ? placeTanks(terrainArr, players, options)
@@ -374,6 +383,7 @@ export class GameEngine {
       round: 1,
       totalRounds: this.totalRounds,
       lastRoundWinnerId: null,
+      lastRoundWinnerTeam: null,
       activePlayerId: tanks[0]?.id ?? '',
       // Opening turn's wind: drift from a 0 baseline, advancing the stream once.
       wind: this.nextWind(0),
@@ -390,6 +400,7 @@ export class GameEngine {
       wallImpacts: [],
       fire: [],
       winner: null,
+      winnerTeam: null,
     };
   }
 
@@ -479,6 +490,7 @@ export class GameEngine {
     c.armsLevel     = this.armsLevel;
     c.starterWeaponFalloff = this.starterWeaponFalloff;
     c.options       = this.options; // GameOptions is treated as immutable config
+    c.teamMode      = this.teamMode;
     // Deep-copy pending settle range (a plain {xStart,xEnd} value object or null).
     c.pendingSettle = this.pendingSettle !== null ? { ...this.pendingSettle } : null;
     c.fallDistances = new Map(this.fallDistances);
@@ -540,6 +552,7 @@ export class GameEngine {
       round:             s.round,
       totalRounds:       s.totalRounds,
       lastRoundWinnerId: s.lastRoundWinnerId,
+      lastRoundWinnerTeam: s.lastRoundWinnerTeam,
       activePlayerId:    s.activePlayerId,
       wind:              s.wind,
       walls:             s.walls,
@@ -553,6 +566,7 @@ export class GameEngine {
       wallImpacts:       s.wallImpacts.map((event) => ({ ...event })),
       fire:              cloneFire,
       winner:            s.winner,
+      winnerTeam:        s.winnerTeam,
     };
 
     return c;
@@ -1199,22 +1213,46 @@ export class GameEngine {
    */
   private endRoundIfDecided(): boolean {
     const alive = this.state.tanks.filter((t) => t.alive);
-    if (alive.length > 1) return false;
+    const aliveTeams = this.teamMode
+      ? [...new Set(alive.map((tank) => tank.team).filter((team): team is TeamId => team === 1 || team === 2))]
+      : [];
+    if (this.teamMode ? aliveTeams.length > 1 : alive.length > 1) return false;
 
-    // 1 alive => that tank won the round; 0 alive (mutual kill) => draw (no one scores).
-    const roundWinner = alive.length === 1 ? (alive[0] ?? null) : null;
+    // In team mode the first living tank is the stable representative for the
+    // compatibility winner ID; every living teammate receives the team score.
+    const roundWinner = alive.length > 0 && (!this.teamMode || aliveTeams.length === 1)
+      ? (alive[0] ?? null)
+      : null;
+    const roundWinnerTeam = this.teamMode && aliveTeams.length === 1
+      ? (aliveTeams[0] ?? null)
+      : null;
     this.state.lastRoundWinnerId = roundWinner?.id ?? null;
-    if (roundWinner) roundWinner.roundWins += 1;
+    this.state.lastRoundWinnerTeam = roundWinnerTeam;
+    if (roundWinner) {
+      if (this.teamMode && roundWinnerTeam !== null) {
+        for (const tank of this.state.tanks) {
+          if (tank.team === roundWinnerTeam) tank.roundWins += 1;
+        }
+      } else {
+        roundWinner.roundWins += 1;
+      }
+    }
 
     // First to clinch ceil(N/2) round wins takes the match; or the match ends once all
     // N rounds have been played (only reachable past a clinch via draws).
     const clinch = Math.ceil(this.totalRounds / 2);
-    const clinched = roundWinner !== null && roundWinner.roundWins >= clinch;
+    const winningTeamScore = this.teamMode && roundWinnerTeam !== null
+      ? this.state.tanks
+        .filter((tank) => tank.team === roundWinnerTeam)
+        .reduce((score, tank) => Math.max(score, tank.roundWins), 0)
+      : roundWinner?.roundWins ?? 0;
+    const clinched = roundWinner !== null && winningTeamScore >= clinch;
     const matchOver = clinched || this.state.round >= this.totalRounds;
 
     if (matchOver) {
       this.state.phase = 'GAME_OVER';
       this.state.winner = this.computeMatchWinner();
+      this.state.winnerTeam = this.computeMatchWinnerTeam();
       return true;
     }
 
@@ -1294,6 +1332,11 @@ export class GameEngine {
   private computeMatchWinner(): string | null {
     const tanks = this.state.tanks;
     if (tanks.length === 0) return null;
+    if (this.teamMode) {
+      const team = this.computeMatchWinnerTeam();
+      if (team === null) return null;
+      return tanks.find((tank) => tank.team === team)?.id ?? null;
+    }
     let best = tanks[0];
     if (!best) return null;
     let tie = false;
@@ -1308,6 +1351,20 @@ export class GameEngine {
       }
     }
     return tie ? null : best.id;
+  }
+
+  /** Return the strict-leading team, or null for an unresolved team tie. */
+  private computeMatchWinnerTeam(): TeamId | null {
+    if (!this.teamMode) return null;
+    const scores = new Map<TeamId, number>();
+    for (const tank of this.state.tanks) {
+      if (tank.team === 1 || tank.team === 2) scores.set(tank.team, Math.max(scores.get(tank.team) ?? 0, tank.roundWins));
+    }
+    const entries = [...scores.entries()];
+    if (entries.length === 0) return null;
+    entries.sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+    if (entries.length > 1 && entries[0]![1] === entries[1]![1]) return null;
+    return entries[0]![0];
   }
 
   /**
@@ -1407,6 +1464,8 @@ export class GameEngine {
    */
   private applyBlastDamage(tank: TankState, amount: number): void {
     if (amount <= 0) return;
+    const shooter = this.state.tanks.find((candidate) => candidate.id === this.shooterId);
+    if (this.teamMode && tank.id !== this.shooterId && shooter?.team !== null && shooter?.team === tank.team) return;
     if (tank.shieldHp > 0) {
       const absorbed = Math.min(tank.shieldHp, amount);
       tank.shieldHp -= absorbed;
@@ -1423,7 +1482,6 @@ export class GameEngine {
       this.shotDamage += dealt;
       // V1 scoreboard: accrue the shooter's match damage tally, and credit a kill
       // when this hit takes the opponent from alive to dead.
-      const shooter = this.state.tanks.find((t) => t.id === this.shooterId);
       if (shooter) {
         shooter.totalDamage += dealt;
         if (before > 0 && tank.health <= 0) shooter.kills += 1;
