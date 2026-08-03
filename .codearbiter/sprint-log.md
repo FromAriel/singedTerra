@@ -3730,3 +3730,12 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - Test-first remediation updated `e2e/hud-layout.spec.ts` with Tracer and 19 round-shop entries, and `e2e/garage-spotlight.spec.ts` to cycle through the added weapon.
 - Targeted E2E: 7 passed, 2 skipped across all viewport projects. Full E2E: 191 passed, 25 skipped.
 - SMARTS decision: update stale authoritative contracts (confidence high); do not change gameplay behavior or suppress the failing guardrails.
+
+### 2026-08-03 - mvp1.tracer.0001 delivery receipt
+- PR #308 merged to `main` at `957ec453b15ffd8129bc1f4b0e237108d30125d7`; exact reviewed head `0d18531a7325aad15ff9195dc761987a5ea5f566`.
+- Hosted checks on the exact reviewed head: typecheck/harness/build, Edge tests, E2E rendering guardrails, CodeQL, analyze, and CodeRabbit all passed; Supabase Preview skipped as expected.
+- Backend workflow `30813189805` passed on merge commit, with functions deployed and migrations explicitly skipped.
+- Pages workflow `30813173296` passed build, deploy, and post-deploy live render smoke.
+- Production checks: `https://suadtl.github.io/singedTerra/` HTML 200; current JS asset 200 and contains tracer; `submit_action` OPTIONS 200 with `Access-Control-Allow-Origin: *` and expected authorization/apikey/content-type headers.
+- Task `mvp1.tracer.0001` marked done. `mvp2.identity.0001` remains queued behind auth/security/data-integrity design.
+- Final local gate receipts: `npm run check` passed (deterministic harness chain including tracer); `npm run check:edge` passed (210 tests); `npm run test:client` passed (128 files, 937 tests); `npm run typecheck` passed; `npm run build` passed; `npm run test:e2e` passed (191 passed, 25 skipped); `git diff --check` passed; state-free secrets scan returned `[]`.

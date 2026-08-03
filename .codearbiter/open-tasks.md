@@ -161,7 +161,7 @@ Decision forks split to `open-questions.md` (CONFIRM-04 rate-limiting, CONFIRM-0
 
 - (Possible-later, from room-browser-enrichment spec 2026-06-22) Surface `interestRate` / `suddenDeathTurn` on the public browse row too, now that `StoredOptions` declares them. Pure read-path addition mirroring the rounds/armsLevel/botCount work. [L/S]
 ## In-flight
-- [~] mvp1.tracer.0001 - Deterministic tracer ranging shot  (started 2026-08-03)
+- [x] mvp1.tracer.0001 - Deterministic tracer ranging shot  (done 2026-08-03)
   - Desc: Give players a zero-damage ranging shot that previews the current aim arc through the existing deterministic projectile simulation and consumes an explicit tracer action.
   - Boundaries: shared deterministic tracer weapon, client HUD/input/renderer affordance, existing fire-row replay, minimal submit_action weapon allowlist/test, and tests; no auth, secrets, migrations, new action kinds, dependencies, or persistence
 - [x] mvp1.tutorial.0001 - Interactive first-shot tutorial and onboarding  (done 2026-08-03)
