@@ -3766,3 +3766,11 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - Post-remediation full local gates on that exact code: `npm run check` PASS; `npm run check:edge` PASS (211 tests); `npm run test:client` PASS (128 files, 939 tests); `npm run typecheck` PASS; `npm run build` PASS; `npm run test:e2e` PASS (191 passed, 25 skipped); `git diff --check` PASS; state-free secrets scan `[]`.
 - Focused post-remediation proof: First Salvo controller 14/14 passed after the RED run against the old gate; Heavy Shield harness passed including exact overflow and replay checks.
 - Euler exact-diff follow-up found no product, security, replay, or data-integrity issues; the only finding was this missing final receipt, now corrected in the durable sprint package.
+
+### 2026-08-03 - mvp1.heavyshield.0001 delivery
+
+- Task `mvp1.heavyshield.0001` marked done after exact reviewed PR #310 head `ace7e81359447f260f14f3c47f01020c89e4c25c` merged to `main` as `ddaeb774444d41bf35b975c556ccd2a17105911a`.
+- Hosted PR checks were green on the exact reviewed head: CodeQL run `91693770857`; analyze run `30815906567`; CI run `30815907191` with E2E, Edge, and typecheck/harness/build jobs green; CodeRabbit skipped because automatic reviews are disabled; Supabase Preview skipped as expected.
+- Deployment receipts on merge commit: backend run `30816260309` passed with migrations intentionally skipped and Edge Functions deployed; Pages run `30816250289` passed build, current-main verification, deployment, and live smoke; main CI `30816250298` passed; main CodeQL `30816250322` passed.
+- Production smoke: Pages HTML 200; current JS `https://suadtl.github.io/singedTerra/assets/index-D4YCDi1i.js` returned 200 and contains `heavy_shield` plus `Heavy Shield`; Supabase `submit_action` OPTIONS returned 200 with `POST, OPTIONS` and expected authorization, apikey, and content-type CORS headers.
+- No database migration was deployed. `mvp2.identity.0001` remains queued behind auth/security and data-integrity design. The deferred `.codearbiter/open-tasks.md.lock` remains untouched.
