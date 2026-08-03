@@ -3933,3 +3933,26 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 ### 2026-08-03 - reliability.lockstep-live-drain exact-head review remediation
 - Euler found one Medium merge-blocking governance receipt: live-lockstep plan Task 1 Step 6 still showed commit unchecked after commit `386bf45`, strengthening commit `40c17cd`, and main-integration commit `1b5308f`.
 - Remediation: checked Task 1 Step 6; no product or test behavior changed. Task 2 Steps 3-4 remain pending until hosted PR validation, merge, and production-branch verification.
+### 2026-08-03 delivery receipt - reliability.lockstep.0001
+- PR #322 exact reviewed head `2f6d33bcf9eed69655786c2d78c72e742e8f040c` passed adversarial and coverage review with zero Critical, High, Medium, Low, or merge-blocking findings.
+- Hosted PR checks on the exact head passed: CI run `30836409916` including typecheck/harness/build, Edge tests, and E2E rendering guardrails; CodeQL run `30836410224` plus CodeQL check `91762813499`; CodeRabbit succeeded with automatic review disabled; Supabase Preview skipped because no backend files changed.
+- PR #322 merged to `main` as `f1d6614a7e2592270563c96fd4513ef8dee139c3`.
+- Post-merge main workflows passed: CI `30836768237`, CodeQL `30836768285`, and GitHub Pages deployment `30836768293`.
+- Production health: `https://suadtl.github.io/singedTerra/` returned HTTP 200; deployed asset `assets/index-D-IkERi7.js` returned HTTP 200 with length 361788 bytes. No Supabase deployment was associated because production code and backend files were unchanged.
+- Task `reliability.lockstep.0001` is complete. Persistent users/progression `mvp2.identity.0001` remains queued behind the auth/security/data-integrity gate. The protected `.codearbiter/open-tasks.md.lock` remains untouched.
+### 2026-08-03 - reliability.lockstep.0001 closeout coverage remediation
+- Closeout coverage audit initially BLOCKED with Medium 1 and Low 1: the stale-sequence assertion did not prove state-preserving duplicate suppression, and stop cancellation counted the API call without exercising a queued callback after teardown.
+- Test-first remediation: the stale duplicate assertion now snapshots phase, turn, active seat, and both finite missile counts; the live drain test snapshots turn/ownership/ammo, captures pending RAF callbacks, calls `stop()`, and proves invoking the captured callback has no effect.
+- Mutation evidence: replacing the ordered `pendingActions.has(nextExpectedSeq)` guard with a size-based drain failed the focused suite in the out-of-order and live-handoff tests; production was restored with no runtime diff.
+- Remediation verification: focused lockstep test 15/15; full client 131 files and 953 tests; typecheck passed; `git diff --check` passed; state-free secrets scan `[]`.
+### 2026-08-03 - reliability.lockstep.0001 scheduler-liveness remediation
+- Coverage audit exposed a real teardown defect: invoking a queued RAF callback after `stop()` preserved game state but scheduled one new RAF, so the loop could be resurrected.
+- TDD RED: the new `rafQueue` emptiness assertion failed with one newly scheduled callback after `stop()`.
+- GREEN fix: `NetworkClient.start()` now returns before rescheduling when `_disposed` is set. No auth, persistence, protocol, dependency, or Supabase surface changed.
+- Full remediation matrix: `npm run check` passed; `npm run check:edge` passed 216; `npm run test:client` passed 131 files and 953 tests; `npm run typecheck` passed; `npm run build` passed; `npm run test:e2e` passed 191 with 25 intentional skips; `git diff --check` passed; state-free secrets scan `[]`.
+### 2026-08-03 - reliability.lockstep.0001 receipt supersession for PR #323
+- The earlier delivery receipt is scoped to PR #322 and exact head `2f6d33b`; it does not claim that the later teardown correction was hosted-validated or deployed.
+- The current production correction is scoped to PR #323. Its exact-head hosted validation, merge, Pages deployment, and production smoke are the remaining landing obligations; no completion claim is made here until those gates pass.
+### 2026-08-03 - reliability.teardown.0001 correction slice
+- SMARTS/governance correction: the original live-drain task and PR #322 remain complete as delivered; the review-found teardown defect is tracked as a separate bounded task with its own spec and plan so the original receipt is not retroactively rewritten.
+- The new task covers only the disposal guard and causal scheduler-inert regression. It has local RED/GREEN and full-matrix evidence; hosted validation, merge, Pages deployment, production smoke, and task closure remain pending for PR #323.
