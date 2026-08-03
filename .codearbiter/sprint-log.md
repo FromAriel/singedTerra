@@ -3723,3 +3723,10 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - High resolved: spec, plan, task boundaries, and this log now explicitly include only the minimal submit_action tracer weapon allowlist/test update; auth, authorization, migrations, and payload shape remain out of scope.
 - Medium resolved test-first: malformed explosion provenance now has a failing-then-green client regression and `getExplosionVisualProfile` falls back to the baby-missile visual family without throwing.
 - Focused remediation GREEN: explosion visual tests 8/8 and npm run typecheck passed.
+
+### 2026-08-03 - mvp1.tracer.0001 CI remediation
+- Hosted PR #308 E2E failed because the intended tracer catalog expansion left two stale browser fixtures: the HUD catalog expected 16 weapons, the round shop expected 18 entries, and the garage cycle expected Shield after 15 Q presses.
+- Root cause was confirmed from hosted logs before editing; no product runtime defect was present.
+- Test-first remediation updated `e2e/hud-layout.spec.ts` with Tracer and 19 round-shop entries, and `e2e/garage-spotlight.spec.ts` to cycle through the added weapon.
+- Targeted E2E: 7 passed, 2 skipped across all viewport projects. Full E2E: 191 passed, 25 skipped.
+- SMARTS decision: update stale authoritative contracts (confidence high); do not change gameplay behavior or suppress the failing guardrails.
