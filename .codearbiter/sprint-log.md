@@ -3798,3 +3798,28 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - Hosted post-merge validation on exact merge head: main CI run `30819871164` PASS; CodeQL run `30819870990` PASS; Pages run `30819871058` PASS.
 - Production smoke: Pages HTML 200; current JS `assets/index-xXUAp-4M.js` returned 200 and contains the deployed drag implementation.
 - No Supabase deployment was required because this slice changed no backend, migration, auth, or persistence surface. The deferred `.codearbiter/open-tasks.md.lock` remains untouched.
+### 2026-08-03 - mvp1.ai2 selection and bounded design
+
+- SMARTS decision: select deterministic AI weapon personalities as the next player-facing slice. It scores high for single-player variety and weapon discoverability, while remaining local to shared AI preference ranking and deterministic harnesses. Confidence: medium-high.
+- Source rescout corrected a stale movement candidate: fuel-limited movement is already shipped on main in 0137eb9; no duplicate implementation will be started. The authored battlefield selector and three authored worlds are also already shipped.
+- The user request for persistent users/progression remains recorded as mvp2.identity.0001; it is deferred because authenticated identity, secure persistence, and data-integrity controls are a genuine hard gate.
+- Design decision: use an optional AiPersonality input with stable AI-id derivation when omitted. No UI selector, new action kind, stored room schema, auth, migration, dependency, or referee change.
+- Spec: .codearbiter/specs/ai-personalities.md; plan: .codearbiter/plans/ai-personalities.md. Standing goal authority covers this bounded spec and plan.
+### 2026-08-03 - mvp1.ai2 local GREEN
+
+- TDD RED: the new personality fixture failed with the pre-change planner returning the same weapon for every explicit profile; all legacy AI assertions remained green.
+- GREEN: shared AiPersonality type, stable id-derived default, and profile-aware deterministic loadout/restock ordering added in shared/src/engine/AI.ts. Conservative preserves the prior p1 behavior; aggressive prefers the strongest stocked finisher; area_denial prefers stocked area weapons and respects difficulty/ammo gates.
+- Focused proof: npx tsx scripts/checks/ai.mjs PASS, including explicit profiles, unavailable-area fallback, medium heavy-tier rejection, derived-profile stability, AI competence, shields, parachutes, restock, and replay determinism. npm run typecheck PASS.
+- Full local matrix PASS: npm run check; npm run check:edge; npm run test:client; npm run build; npm run test:e2e (191 passed, 25 skipped); git diff --check; state-free secrets scan [].
+- Scope remains limited to shared AI/type definitions, the AI harness, and governed sprint/task artifacts. No client, Edge, auth, persistence, migration, dependency, or network-action changes.
+### 2026-08-03 - mvp1.ai2 Euler remediation
+
+- Euler initial review BLOCKED the slice with High 1, Medium 1, Low 0, merge blockers 1.
+- High resolution: the plan now explicitly authorizes omitted personality to use stable AI-id derivation, documents p1's conservative compatibility mapping, and the harness asserts that baseline.
+- Medium resolution: the AI harness now covers aggressive and area-denial restock ordering, target-health selection, and unaffordable fallback.
+- Focused re-run: npx tsx scripts/checks/ai.mjs PASS.
+### 2026-08-03 - mvp1.ai2 final reviewed-head receipt
+
+- Euler follow-up APPROVED after remediation: Critical 0, High 0, Medium 0, Low 0, merge blockers 0.
+- Fresh post-remediation local matrix remained green: npm run check; npm run check:edge; npm run test:client; npm run build; npm run test:e2e (191 passed, 25 skipped); git diff --check; secrets scan [].
+- Final package covers explicit and derived personality selection, p1 conservative compatibility, area fallback, medium difficulty protection, aggressive/area restocking, affordability, and prior AI replay/competence behavior.
