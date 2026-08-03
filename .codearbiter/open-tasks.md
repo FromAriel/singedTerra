@@ -161,7 +161,7 @@ Decision forks split to `open-questions.md` (CONFIRM-04 rate-limiting, CONFIRM-0
 
 - (Possible-later, from room-browser-enrichment spec 2026-06-22) Surface `interestRate` / `suddenDeathTurn` on the public browse row too, now that `StoredOptions` declares them. Pure read-path addition mirroring the rounds/armsLevel/botCount work. [L/S]
 ## In-flight
-- [~] mvp1.drag.0001 - Deterministic projectile drag  (started 2026-08-03)
+- [x] mvp1.drag.0001 - Deterministic projectile drag  (done 2026-08-03)
   - Desc: Add a bounded per-tick aerodynamic drag term to shared projectile physics without weakening deterministic lockstep or changing auth, persistence, migrations, or dependencies.
   - Boundaries: shared Physics stepProjectile, deterministic harnesses, affected AI forward-sim parity tests, player-facing docs if controls or tuning change; no auth, persistence, migrations, dependencies, or network action changes
 - [x] mvp1.heavyshield.0001 - Heavy Shield tactical defense  (done 2026-08-03)
