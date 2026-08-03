@@ -3707,3 +3707,9 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - User nudge incorporated: the original rendered post-apocalyptic world remains in the catalog; the icy world is Glassstorm Expanse; the new slice exposes both plus the third world and Automatic in hot-seat and network setup.
 - Persistent users and progression are recorded as a follow-on track, not folded into this slice: authenticated persistence and progression rules cross the auth/security hard gate and need their own governed design.
 - Confidence: high. Standing sprint authority covers the bounded spec and plan; no separate approval pause.
+### 2026-08-03 delivery receipt - mvp1.world.0001
+- PR #306 exact reviewed head d25026a passed hosted typecheck/harness/build, Edge tests, CodeQL, E2E, CodeRabbit, and all required checks; merged to main as a27c125.
+- Main CI run 30809573961, CodeQL run 30809573714, and Pages deployment run 30809573955 passed on merge head a27c125.
+- Backend workflow run 30809594604 passed on merge head a27c125 with migrations skipped and Edge Functions deployed.
+- Production evidence: Pages HTML and current JavaScript asset returned 200; deployed asset contains the world-choice catalog. Supabase create_room and restart_game OPTIONS smoke checks returned 200 with POST, OPTIONS allowed.
+- No database migration was deployed. Task mvp1.world.0001 is complete; mvp2.identity.0001 remains queued behind auth/security and data-integrity design. Deferred open-tasks lock remains untouched.

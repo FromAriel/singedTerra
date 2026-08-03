@@ -164,7 +164,7 @@ Decision forks split to `open-questions.md` (CONFIRM-04 rate-limiting, CONFIRM-0
 - [ ] mvp2.identity.0001 - Persistent users and progression
   - Desc: Provide persistent users and progression without trusting client-owned progress or weakening the current seat-token/network security boundary.
   - Boundaries: authenticated user identity, secure persistence, progression schema and rules; no implementation until auth/security controls and data-integrity design are cleared
-- [~] mvp1.world.0001 - Let lobby players choose an authored battlefield world and carry it through hot-seat and network setup  (started 2026-08-03)
+- [x] mvp1.world.0001 - Let lobby players choose an authored battlefield world and carry it through hot-seat and network setup  (done 2026-08-03)
   - Desc: Let players choose among the existing authored worlds in hot-seat and network setup; keep the choice presentation-only and fail closed to the existing deterministic selection.
   - Boundaries: shared presentation identifier, lobby UI, client option transport, deterministic renderer selection; no auth, migration, dependency, or secret changes
 - [x] mvp1.ai.0001 - Teach hard AI deterministic Parachute counterplay  (done 2026-08-03)
