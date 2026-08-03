@@ -88,7 +88,9 @@ export function canCommitFirstSalvoAction(
   action: PlayerAction,
 ): boolean {
   if (action.type !== 'fire' && action.type !== 'use_shield') return true;
-  const weapon = action.type === 'use_shield' ? 'shield' : tank.selectedWeapon;
+  const weapon = action.type === 'use_shield'
+    ? (tank.selectedWeapon === 'heavy_shield' ? 'heavy_shield' : 'shield')
+    : tank.selectedWeapon;
   const ammo = tank.inventory[weapon];
   return ammo.unlimited || ammo.count > 0;
 }

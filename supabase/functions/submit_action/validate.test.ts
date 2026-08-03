@@ -157,6 +157,37 @@ Deno.test('validateActionShape: Tracer fire and buy pass the network allowlist',
   assertEquals(buy, { ok: true })
 })
 
+Deno.test('validateActionShape: Heavy Shield provenance is accepted only on use_shield', () => {
+  const valid = validateActionShape({
+    roomId: 'room-1',
+    playerId: 'player-1',
+    action: { type: 'use_shield', weapon: 'heavy_shield' },
+  })
+  assertEquals(valid, { ok: true })
+
+  const invalid = validateActionShape({
+    roomId: 'room-1',
+    playerId: 'player-1',
+    action: { type: 'use_shield', weapon: 'nuke' },
+  })
+  assertEquals(invalid, {
+    ok: false,
+    status: 400,
+    error: 'Invalid input: use_shield weapon must be shield or heavy_shield',
+  })
+
+  const invalidFire = validateActionShape({
+    roomId: 'room-1',
+    playerId: 'player-1',
+    action: { type: 'fire', angle: 45, power: 80, weapon: 'heavy_shield' },
+  })
+  assertEquals(invalidFire, {
+    ok: false,
+    status: 400,
+    error: 'Invalid input: shield weapons must use use_shield',
+  })
+})
+
 Deno.test('validateActionShape: fire with an unknown weapon returns 400', () => {
   const result = validateActionShape({
     roomId: 'room-1',

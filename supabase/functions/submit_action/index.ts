@@ -241,7 +241,7 @@ export async function submitActionCore(body: unknown, injectedClient?: ServiceCl
   const a = action!
   const validatedAction: NetworkAction =
     a.type === 'use_shield'
-      ? { type: 'use_shield' }
+      ? { type: 'use_shield', ...(a.weapon === 'heavy_shield' ? { weapon: 'heavy_shield' } : {}) }
       : a.type === 'next_round'
         ? { type: 'next_round' }
         : a.type === 'move'

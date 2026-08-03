@@ -71,7 +71,8 @@ describe('getExplosionVisualProfile', () => {
       hot_napalm: 'incendiary',
       sandhog: 'earth',
       tracer: 'conventional',
-      shield: 'conventional',
+  shield: 'conventional',
+  heavy_shield: 'conventional',
     } satisfies Record<WeaponType, ExplosionVisualFamily>;
 
     for (const weaponType of Object.keys(expected) as WeaponType[]) {

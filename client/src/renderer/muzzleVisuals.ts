@@ -45,6 +45,7 @@ const BASE_PROFILES: Record<WeaponType, BaseMuzzleProfile> = {
   sandhog: { motif: 'earth', scale: 1.25, sparkCount: 11, spread: 0.58, speedMin: 2.4, speedMax: 5.8, life: 9 },
   tracer: { motif: 'needle', scale: 0.8, sparkCount: 6, spread: 0.25, speedMin: 2.2, speedMax: 4.2, life: 6 },
   shield: { motif: 'needle', scale: 0.8, sparkCount: 6, spread: 0.3, speedMin: 2, speedMax: 4.5, life: 6 },
+  heavy_shield: { motif: 'needle', scale: 1.05, sparkCount: 10, spread: 0.42, speedMin: 2.2, speedMax: 5.2, life: 8 },
 };
 
 function isWeaponType(value: unknown): value is WeaponType {

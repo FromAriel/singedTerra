@@ -24,6 +24,7 @@ const ARSENAL_WEAPONS = [
   ['sandhog', 'Sandhog'],
   ['tracer', 'Tracer'],
   ['shield', 'Shield'],
+  ['heavy_shield', 'Heavy Shield'],
 ] as const;
 
 const STORE_WEAPONS = ARSENAL_WEAPONS.slice(1);
@@ -934,7 +935,7 @@ test.describe('HUD layout guardrails', () => {
 
     const roundShopMinimums = await page.locator('.st-hud__roundshop-grid .st-hud__store-buy')
       .evaluateAll((buttons) => buttons.map((button) => getComputedStyle(button).minHeight));
-    expect(roundShopMinimums).toHaveLength(19);
+    expect(roundShopMinimums).toHaveLength(20);
     expect(roundShopMinimums.every((minimum) => minimum === '44px')).toBe(true);
 
     await page.getByRole('button', { name: /Store/ }).click();

@@ -3739,3 +3739,23 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - Production checks: `https://suadtl.github.io/singedTerra/` HTML 200; current JS asset 200 and contains tracer; `submit_action` OPTIONS 200 with `Access-Control-Allow-Origin: *` and expected authorization/apikey/content-type headers.
 - Task `mvp1.tracer.0001` marked done. `mvp2.identity.0001` remains queued behind auth/security/data-integrity design.
 - Final local gate receipts: `npm run check` passed (deterministic harness chain including tracer); `npm run check:edge` passed (210 tests); `npm run test:client` passed (128 files, 937 tests); `npm run typecheck` passed; `npm run build` passed; `npm run test:e2e` passed (191 passed, 25 skipped); `git diff --check` passed; state-free secrets scan returned `[]`.
+
+### 2026-08-03 - mvp1.heavyshield.0001 selection
+- SMARTS selection: liveness, replay-yielding, finish-game retry, impact audio, and sanitizer coverage are already implemented in the current source despite stale backlog wording; do not duplicate them.
+- Selected the next unshipped bounded player-facing slice: Heavy Shield tactical defense. It extends the existing finite damage-pool shield and `use_shield` replay family, adds explicit shield provenance, and excludes auth, persistence, migrations, dependencies, new action kinds, and progression.
+- Confidence: medium-high. Value is meaningful tactical variety while remaining deterministic and local-first; implementation risk is bounded by the existing shield, store, and replay contracts.
+
+### 2026-08-03 - mvp1.heavyshield.0001 local verification
+
+- RED evidence was captured before implementation: `npx tsx scripts/checks/heavy_shield.mjs` failed because `heavy_shield` was unknown; the temporary probe was removed after the shared contract was implemented.
+- GREEN/full local receipts: `npm run check` passed; `npm run check:edge` passed; `npm run test:client` passed (128 files, 938 tests); `npm run typecheck` passed; `npm run build` passed (Vite production bundle); `npm run test:e2e` passed (191 passed, 25 skipped); `git diff --check` passed; state-free secrets scan returned `[]`.
+- SMARTS decision: retain the existing `use_shield` action/replay family and add explicit optional provenance rather than a new action kind or migration. This keeps the slice deterministic and bounded while preserving legacy omitted-provenance replay.
+- Confidence: high for local correctness; hosted validation, adversarial review, exact-head PR, merge, deployment, and production smoke remain outstanding.
+
+### 2026-08-03 - mvp1.heavyshield.0001 adversarial remediation
+
+- Euler review: APPROVED; Critical 0, High 0, Medium 2, Low 1. No merge blockers.
+- Remediated the substantive follow-ups: added a direct Heavy Shield finite-pool/exact-overflow regression to `scripts/checks/shield.mjs`; changed the First Salvo local ammo gate to resolve Heavy Shield from the selected weapon and added standard-empty/Heavy-stocked coverage; updated the replay contract comment for optional shield provenance and legacy omission.
+- RED/GREEN receipt for the First Salvo fix: the new focused test failed against the prior standard-only gate (expected true, received false), then passed after the selected-weapon fix (14/14). Heavy Shield harness passed with exact overflow coverage.
+- Non-blocking low review note: no additional issue beyond the corrected replay documentation comment.
+- Confidence: high; cumulative diff is ready for commit-gate after final full-suite rerun.

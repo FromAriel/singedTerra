@@ -67,6 +67,16 @@ describe('HUD unified primary action', () => {
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 
+  it('uses the shield activation affordance for Heavy Shield', () => {
+    const { hud, state, action } = mount();
+    const tank = state.tanks.find((candidate) => candidate.id === state.activePlayerId)!;
+    tank.selectedWeapon = 'heavy_shield';
+
+    hud.update(state, false, true);
+    expect(action().textContent).toContain('Activate shield');
+    expect(action().getAttribute('aria-label')).toBe('Activate shield');
+  });
+
   it('disables a selected finite action at zero ammo and re-enables it when stocked', () => {
     const { hud, state, action } = mount();
     const tank = state.tanks.find((candidate) => candidate.id === state.activePlayerId)!;

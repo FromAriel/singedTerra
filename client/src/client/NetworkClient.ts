@@ -563,10 +563,11 @@ export class NetworkClient implements GameClient {
     if (action.type === 'use_shield') {
       const shielder = state.tanks.find(t => t.id === engineTankId);
       if (!shielder) return;
-      const ammo = shielder.inventory.shield;
+      const shieldWeapon = action.weapon ?? (shielder.selectedWeapon === 'heavy_shield' ? 'heavy_shield' : 'shield');
+      const ammo = shielder.inventory[shieldWeapon];
       if (!ammo.unlimited && ammo.count <= 0) return;
       this.setFiring(true); // lock input until the Realtime echo applies it
-      this.submitAction({ type: 'use_shield' });
+      this.submitAction({ type: 'use_shield', weapon: shieldWeapon });
       return;
     }
 

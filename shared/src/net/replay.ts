@@ -13,7 +13,8 @@ import type { WeaponType, AccessoryType } from '../engine/WeaponSystem';
  *
  * Only turn-ending and turn-neutral COMMITTED actions are logged:
  *  - `fire`       — turn-ending; carries the committed aim (angle/power/weapon).
- *  - `use_shield` — turn-ending; no payload (raises the active tank's field).
+ *  - `use_shield` — turn-ending; optionally carries shield provenance (legacy rows
+ *    omit it and raise the standard Shield field).
  *  - `buy`        — turn-neutral; a store purchase. `tankId` is set ONLY for the
  *                   ROUND_OVER between-rounds shop (any tank may buy); during a
  *                   normal turn it is omitted (the engine buys for the active tank).
@@ -30,6 +31,8 @@ export interface NetworkFireAction {
 }
 export interface NetworkShieldAction {
   type: 'use_shield';
+  /** Omitted on legacy rows; defaults to the standard Shield. */
+  weapon?: 'shield' | 'heavy_shield';
 }
 export interface NetworkBuyAction {
   type:    'buy';
@@ -101,7 +104,7 @@ export async function replayInChunks<A>(
 export function replayNetworkAction(engine: GameEngine, action: NetworkAction): void {
   switch (action.type) {
     case 'use_shield':
-      engine.applyAction({ type: 'use_shield' });
+      engine.applyAction({ type: 'use_shield', ...(action.weapon ? { weapon: action.weapon } : {}) });
       return;
     case 'next_round':
       engine.applyAction({ type: 'next_round' });

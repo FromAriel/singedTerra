@@ -38,6 +38,10 @@ const POWER_MAX = 100;
 const IMPLEMENTED_WEAPONS: WeaponType[] = (Object.keys(WEAPONS) as WeaponType[])
   .filter((type) => WEAPONS[type].implemented);
 
+function isShieldWeapon(type: WeaponType): boolean {
+  return type === 'shield' || type === 'heavy_shield';
+}
+
 const DEFAULT_ANGLE = 45;
 const DEFAULT_POWER = 50;
 const DEFAULT_ANGLE_STEP = 2;
@@ -172,7 +176,7 @@ export class InputHandler {
   /** Emit a fire or use_shield action for the currently selected weapon. */
   triggerFire(): void {
     this.emit(
-      IMPLEMENTED_WEAPONS[this.weaponIndex] === 'shield'
+      isShieldWeapon(IMPLEMENTED_WEAPONS[this.weaponIndex]!)
         ? { type: 'use_shield' }
         : { type: 'fire' },
     );
@@ -227,7 +231,7 @@ export class InputHandler {
     if (isSpaceKey) {
       event.preventDefault();
       this.emit(
-        IMPLEMENTED_WEAPONS[this.weaponIndex] === 'shield'
+        isShieldWeapon(IMPLEMENTED_WEAPONS[this.weaponIndex]!)
           ? { type: 'use_shield' }
           : { type: 'fire' },
       );
@@ -267,7 +271,7 @@ export class InputHandler {
         // The shield is a defensive "weapon": firing it RAISES the field and ends
         // the turn (use_shield) rather than launching a projectile.
         this.emit(
-          IMPLEMENTED_WEAPONS[this.weaponIndex] === 'shield'
+          isShieldWeapon(IMPLEMENTED_WEAPONS[this.weaponIndex]!)
             ? { type: 'use_shield' }
             : { type: 'fire' },
         );

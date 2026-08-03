@@ -114,6 +114,19 @@ describe('FirstSalvoController', () => {
     expect(storage.getItem(FIRST_SALVO_PREFERENCE_KEY)).toBeNull();
   });
 
+  it('gates Heavy Shield by its selected inventory instead of standard Shield ammo', () => {
+    const tank = activeTank();
+    tank.selectedWeapon = 'heavy_shield';
+    tank.inventory.shield = { count: 0, unlimited: false };
+    tank.inventory.heavy_shield = { count: 1, unlimited: false };
+
+    expect(canCommitFirstSalvoAction(tank, { type: 'use_shield' })).toBe(true);
+
+    tank.inventory.heavy_shield.count = 0;
+    tank.inventory.shield.count = 1;
+    expect(canCommitFirstSalvoAction(tank, { type: 'use_shield' })).toBe(false);
+  });
+
   it.each([
     [{ type: 'fire' } as const, 'missile' as const],
     [{ type: 'use_shield' } as const, 'shield' as const],
