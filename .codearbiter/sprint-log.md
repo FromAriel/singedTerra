@@ -3956,3 +3956,17 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 ### 2026-08-03 - reliability.teardown.0001 correction slice
 - SMARTS/governance correction: the original live-drain task and PR #322 remain complete as delivered; the review-found teardown defect is tracked as a separate bounded task with its own spec and plan so the original receipt is not retroactively rewritten.
 - The new task covers only the disposal guard and causal scheduler-inert regression. It has local RED/GREEN and full-matrix evidence; hosted validation, merge, Pages deployment, production smoke, and task closure remain pending for PR #323.
+### 2026-08-03 delivery receipt - reliability.teardown.0001
+- PR #323 exact reviewed head `e0357d0cb3d3edb03df4695bec8efeb1945ec772` passed the adversarial and coverage reviews with zero Critical, High, Medium, Low, or merge-blocking findings.
+- Hosted PR checks on the exact head passed: CI `30838648311` with typecheck/harness/build, Edge tests, and E2E rendering guardrails; CodeQL `30838647298` plus CodeQL check `91770263374`; CodeRabbit succeeded with automatic review disabled; Supabase Preview skipped because no backend files changed.
+- PR #323 merged to `main` as `0158661349e6c2af497cd7912fcf70fc48c1be0c`.
+- Post-merge workflows passed: CI `30838949532`, CodeQL `30838948432`, and GitHub Pages deployment `30838947253`, including current-main verification and post-deploy live render smoke `91771170754`.
+- Production health: `https://suadtl.github.io/singedTerra/` returned HTTP 200; deployed asset `assets/index-DgMKD4pH.js` returned HTTP 200 with length 361788 bytes. No Supabase deployment was needed because the correction changed only the client runtime and tests.
+- Task `reliability.teardown.0001` is complete. The protected `.codearbiter/open-tasks.md.lock` remains untouched.
+### 2026-08-03 - PR #324 closeout pre-landing receipt
+- Exact reviewed closeout head: PR #324 at `8fe33f2`; origin/main is already at the completed product merge `0158661`, so this PR contains governance-only changes.
+- Applicable hosted contexts for PR #324: CodeRabbit succeeded with automatic review disabled; Supabase Preview skipped because no backend files changed. CI and deployment workflows are path-skipped for this governance-only delta.
+- PR #324 merge SHA, post-merge workflow results, and production evidence are intentionally pending and are not claimed until the closeout PR lands; the product delivery and production evidence are recorded in the PR #323 receipt above.
+### 2026-08-03 - PR #324 receipt wording correction
+- The preceding pre-landing note is a historical checkpoint, not an exact-head claim for the current commit. The authoritative PR #324 head is the GitHub PR head reviewed and checked at landing time; its applicable contexts remain CodeRabbit success and Supabase Preview skipped, with merge pending.
+- The completed product delivery receipt above remains authoritative for PR #323 and its exact reviewed head, merge, Pages deployment, and production evidence.
