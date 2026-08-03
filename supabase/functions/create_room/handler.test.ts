@@ -142,6 +142,26 @@ Deno.test('handleCreateRoom: stores and echoes explicit legacy ruleset 1', async
   assertEquals(response.options, storedOptions)
 })
 
+Deno.test('handleCreateRoom: stores team mode only for four-seat rooms', async () => {
+  const valid = captureRoomInsert()
+  const validResponse = await createRoomHandler({ serviceClient: valid.serviceClient as never })({
+    playerName: 'Ana',
+    color: '#e84d4d',
+    options: { maxPlayers: 4, teamMode: true },
+  })
+  assertEquals(validResponse.status, 200)
+  assertEquals((valid.insertedRoom()?.options as { teamMode?: boolean }).teamMode, true)
+
+  const legacy = captureRoomInsert()
+  const legacyResponse = await createRoomHandler({ serviceClient: legacy.serviceClient as never })({
+    playerName: 'Ana',
+    color: '#e84d4d',
+    options: { maxPlayers: 2, teamMode: true },
+  })
+  assertEquals(legacyResponse.status, 200)
+  assertEquals((legacy.insertedRoom()?.options as { teamMode?: boolean }).teamMode, undefined)
+})
+
 Deno.test('handleCreateRoom: stores and echoes explicit ruleset 2', async () => {
   const capture = captureRoomInsert()
   const res = await createRoomHandler({

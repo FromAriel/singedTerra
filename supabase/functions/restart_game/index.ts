@@ -29,6 +29,7 @@ interface RematchInfo {
     rulesetVersion: 1 | 2
     walls: 'open' | 'reflective' | 'wrap' | 'concrete'
     battlefieldWorld?: 'ember-dusk' | 'obsidian-caldera' | 'glassstorm-expanse'
+    teamMode?: boolean
   }
   players: Array<{
     id: string
@@ -67,6 +68,7 @@ export function normalizeRematchOptions(
       || storedOptions.battlefieldWorld === 'glassstorm-expanse'
       ? { battlefieldWorld: storedOptions.battlefieldWorld }
       : {}),
+    ...(storedOptions.teamMode === true && playerCount === 4 ? { teamMode: true } : {}),
   }
 }
 

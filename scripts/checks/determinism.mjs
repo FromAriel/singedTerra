@@ -71,6 +71,7 @@ function serialize(state) {
   // of them pass the byte-comparison silently.
   const tanks = state.tanks.map((t) => ({
     id: t.id,
+    team: t.team ?? null,
     x: t.x,
     y: t.y,
     angle: t.angle,
@@ -94,9 +95,11 @@ function serialize(state) {
     round: state.round,
     totalRounds: state.totalRounds,
     lastRoundWinnerId: state.lastRoundWinnerId,
+    lastRoundWinnerTeam: state.lastRoundWinnerTeam ?? null,
     activePlayerId: state.activePlayerId,
     wind: state.wind,
     winner: state.winner,
+    winnerTeam: state.winnerTeam ?? null,
     tanks,
     projectiles: state.projectiles,
     projectile: state.projectile,

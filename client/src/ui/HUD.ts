@@ -395,7 +395,9 @@ export class HUD {
       const completed = state.round - 1;
       const winner = state.tanks.find((t) => t.id === state.lastRoundWinnerId);
       this.flashMessage(
-        winner ? `${winner.playerName} won round ${completed}` : `Round ${completed} drawn`,
+        winner
+          ? `${winner.playerName}${state.lastRoundWinnerTeam ? ` (Team ${state.lastRoundWinnerTeam})` : ''} won round ${completed}`
+          : `Round ${completed} drawn`,
       );
     }
     this.lastSeenRound = state.round;
@@ -2363,7 +2365,7 @@ export class HUD {
     } else {
       const winner = state.tanks.find((t) => t.id === state.winner);
       this.overlayTextEl.textContent = winner
-        ? `${winner.playerName} wins`
+        ? `${winner.playerName}${state.winnerTeam ? ` — Team ${state.winnerTeam}` : ''} wins`
         : 'Game Over';
       this.overlayStatusEl.textContent = winner ? 'Match winner' : 'Match complete';
       if (winner) {
@@ -2516,7 +2518,8 @@ export class HUD {
   /** Inject the HUD stylesheet exactly once per document. */
   /** Health-bar label: a 🤖 prefix marks a CPU-controlled tank. */
   private static playerLabel(tank: TankState): string {
-    return `${tank.ai ? '🤖 ' : ''}${tank.playerName}`;
+    const team = tank.team === 1 || tank.team === 2 ? ` · T${tank.team}` : '';
+    return `${tank.ai ? '🤖 ' : ''}${tank.playerName}${team}`;
   }
 
   /** Create an SVG element with the correct namespace and a fixed viewBox. */

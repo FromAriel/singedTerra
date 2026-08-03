@@ -193,6 +193,7 @@ interface SettingsState {
   suddenDeathTurn: string;
   /** Arms level as a select value ('' = default/4). */
   armsLevel: string;
+  teamMode: string;
 }
 
 /** A working row of player config state in the setup UI. */
@@ -234,7 +235,7 @@ export class Lobby {
   private players: PlayerRowState[] = [];
 
   /** Raw working state for the advanced-settings inputs (blank = use default). */
-  private settings: SettingsState = { maxWind: '', gravity: '', walls: '', battlefieldWorld: '', seed: '', rounds: '', interestRate: '', suddenDeathTurn: '', armsLevel: '' };
+  private settings: SettingsState = { maxWind: '', gravity: '', walls: '', battlefieldWorld: '', seed: '', rounds: '', interestRate: '', suddenDeathTurn: '', armsLevel: '', teamMode: '' };
 
   /** Whether the advanced-settings <details> is open (persist across renders). */
   private settingsOpen = false;
@@ -263,6 +264,8 @@ export class Lobby {
   private onlineSuddenDeath = '';
   /** Arms level select value for the room being created ('' = default/4). */
   private onlineArmsLevel = '';
+  /** Opt-in 2v2 setting; the Edge validator activates it only for four seats. */
+  private onlineTeamMode = false;
   /** Visibility for the room being created; defaults to public. */
   private onlineVisibility: RoomVisibility = 'public';
   /** Number of CPU opponents to seed into the room on create (0..maxPlayers-1). */
@@ -1627,6 +1630,7 @@ export class Lobby {
         ...(liveRoom.options.interestRate !== undefined ? { interestRate: liveRoom.options.interestRate } : {}),
         ...(liveRoom.options.suddenDeathTurn !== undefined ? { suddenDeathTurn: liveRoom.options.suddenDeathTurn } : {}),
         ...(liveRoom.options.armsLevel !== undefined ? { armsLevel: liveRoom.options.armsLevel } : {}),
+        ...(liveRoom.options.teamMode === true ? { teamMode: true } : {}),
         rulesetVersion: normalizeNetworkRulesetVersion(liveRoom.options.rulesetVersion),
       },
     };
@@ -1723,6 +1727,16 @@ export class Lobby {
           ],
           'visual world only; terrain and physics stay unchanged',
         ),
+        this.onlineChoiceField(
+          'Teams',
+          this.onlineTeamMode ? '2v2' : '',
+          (value) => { this.onlineTeamMode = value === '2v2'; },
+          [
+            { value: '', label: 'Free-for-all' },
+            { value: '2v2', label: '2v2 — alternating seats' },
+          ],
+          'four seats only; teammates cannot damage each other',
+        ),
         this.onlineNumberField('Rounds', this.onlineRounds, (value) => { this.onlineRounds = value; }, {
           min: ROUNDS_MIN, max: ROUNDS_MAX, step: 2, placeholder: String(ROUNDS_DEFAULT),
           hint: 'best-of-N, odd',
@@ -1811,6 +1825,7 @@ export class Lobby {
         interestRate: this.onlineInterestRate,
         suddenDeath: this.onlineSuddenDeath,
         armsLevel: this.onlineArmsLevel,
+        teamMode: this.onlineTeamMode,
       });
 
       if (!ok || data?.error) {
@@ -1859,6 +1874,7 @@ export class Lobby {
           : {}),
         ...(rounds !== undefined ? { rounds } : {}),
         ...economy,
+        ...(this.onlineTeamMode && this.onlineMaxPlayers === 4 ? { teamMode: true } : {}),
       };
       const authoritativeOptions = data.options ?? fallbackOptions;
       this.waitingOptions = {
@@ -2175,6 +2191,7 @@ export class Lobby {
         ...(room.options.interestRate !== undefined ? { interestRate: room.options.interestRate } : {}),
         ...(room.options.suddenDeathTurn !== undefined ? { suddenDeathTurn: room.options.suddenDeathTurn } : {}),
         ...(room.options.armsLevel !== undefined ? { armsLevel: room.options.armsLevel } : {}),
+        ...(room.options.teamMode === true ? { teamMode: true } : {}),
         rulesetVersion: normalizeNetworkRulesetVersion(room.options.rulesetVersion),
       },
     };
@@ -2651,6 +2668,15 @@ export class Lobby {
           { value: 'glassstorm-expanse', label: 'Glassstorm Expanse — ice' },
         ],
         'visual world only; terrain and physics stay unchanged',
+      ),
+      this.settingsChoiceField(
+        'Teams',
+        'teamMode',
+        [
+          { value: '', label: 'Free-for-all' },
+          { value: '2v2', label: '2v2 — alternating seats' },
+        ],
+        'four seats only; teammates cannot damage each other',
       ),
       this.numberField('Seed', 'seed', {
         step: 1,

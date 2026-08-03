@@ -27,6 +27,8 @@ export interface LobbySettings {
   suddenDeathTurn?: number;
   /** Arms-level store gate, integer 0..4 (engine default 4 = everything buyable). */
   armsLevel?: number;
+  /** Opt-in deterministic 2v2 mode; only valid with four seats. */
+  teamMode?: boolean;
   /** Non-open sidewall rule; omitted means the legacy open boundary. */
   walls?: WallMode;
   /** Presentation-only authored world; omitted means Automatic. */
@@ -67,6 +69,7 @@ export interface RawSettings {
   walls: string;
   /** Presentation-only authored world select value (blank = Automatic). */
   battlefieldWorld: string;
+  teamMode?: string;
 }
 
 /** Parse a trimmed numeric string; undefined for blank or non-finite input. */
@@ -126,6 +129,8 @@ export function coerceSettings(raw: RawSettings): LobbySettings | undefined {
 
   const battlefieldWorld = normalizeBattlefieldWorldId(raw.battlefieldWorld);
   if (battlefieldWorld !== undefined) out.battlefieldWorld = battlefieldWorld;
+
+  if (raw.teamMode === '2v2') out.teamMode = true;
 
   return Object.keys(out).length > 0 ? out : undefined;
 }

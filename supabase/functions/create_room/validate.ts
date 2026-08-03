@@ -46,6 +46,11 @@ export function coerceBattlefieldWorld(value: unknown):
     : undefined;
 }
 
+/** Team rules are an opt-in four-seat mode; malformed or undersized requests fail closed. */
+export function coerceTeamMode(value: unknown, maxPlayers: unknown): boolean {
+  return value === true && maxPlayers === 4;
+}
+
 export function coerceEconomyOptions(
   options:
     | { interestRate?: unknown; suddenDeathTurn?: unknown; armsLevel?: unknown; [key: string]: unknown }

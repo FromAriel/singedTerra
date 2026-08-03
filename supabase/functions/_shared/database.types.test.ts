@@ -47,6 +47,7 @@ type ExpectedStoredOptions = {
   armsLevel?: number;
   interestRate?: number;
   suddenDeathTurn?: number;
+  teamMode?: boolean;
 };
 type ExpectedStoredAction =
   | { type: "fire"; angle: number; power: number; weapon: string }

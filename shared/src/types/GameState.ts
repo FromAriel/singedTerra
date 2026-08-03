@@ -1,5 +1,5 @@
 import type { AccessoryType, WeaponType } from '../engine/WeaponSystem';
-import type { WallMode } from './GameOptions';
+import type { TeamId, WallMode } from './GameOptions';
 import type { TankLoadout } from './TankLoadout';
 
 /** Turn-system phases (SPEC §4.3 / §6). */
@@ -39,6 +39,8 @@ export interface GameState {
    * match winner: the overall winner is `winner`, set only at GAME_OVER.
    */
   lastRoundWinnerId: string | null;
+  /** Team that won the most recently resolved round, or null for a draw/initial state. */
+  lastRoundWinnerTeam?: TeamId | null;
   /** Current wind value, range [-MAX_WIND, +MAX_WIND]. */
   wind: number;
   /** Normalized horizontal boundary rule for engine, AI, and presentation. */
@@ -113,6 +115,8 @@ export interface GameState {
    */
   fire: FireCell[];
   winner: string | null;
+  /** Winning team at GAME_OVER; null while the match is live or drawn. */
+  winnerTeam?: TeamId | null;
 }
 
 /** One burning terrain column in the napalm fire field (see {@link GameState.fire}). */
@@ -227,6 +231,8 @@ export interface TankState {
    * it "CPU"). Deterministic (a static flag).
    */
   ai: AiDifficulty | null;
+  /** Stable team assignment in an active 2v2 room; null for legacy free-for-all. */
+  team?: TeamId | null;
   /**
    * Store credits (SPEC §9 weapon shop). Spent on `buy` actions during the tank's
    * turn; earned deterministically in the engine — per point of damage dealt to an

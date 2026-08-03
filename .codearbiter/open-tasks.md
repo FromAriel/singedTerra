@@ -161,6 +161,9 @@ Decision forks split to `open-questions.md` (CONFIRM-04 rate-limiting, CONFIRM-0
 
 - (Possible-later, from room-browser-enrichment spec 2026-06-22) Surface `interestRate` / `suddenDeathTurn` on the public browse row too, now that `StoredOptions` declares them. Pure read-path addition mirroring the rounds/armsLevel/botCount work. [L/S]
 ## In-flight
+- [~] mvp2.teams.0001 - Deterministic 2v2 team mode  (started 2026-08-03)
+  - Desc: Add an opt-in deterministic 2v2 team mode with alternating seat assignment, team-based round and match victory, and friendly-fire suppression.
+  - Boundaries: shared GameOptions/TankState/GameEngine rules; hot-seat and network lobby settings; Edge option validation and transport; deterministic harnesses and client/Edge tests; no auth, persistence, migrations, secrets, dependencies, or new action kinds
 - [x] mvp1.ai2.0001 - Deterministic AI weapon personalities  (done 2026-08-03)
   - Desc: Give CPU opponents deterministic aggressive, conservative, and area-denial weapon preferences without changing the action protocol or human controls.
   - Boundaries: shared AI loadout ranking, deterministic personality input, existing AI harnesses and focused tests; no auth, persistence, migrations, secrets, dependencies, or new network action kinds
