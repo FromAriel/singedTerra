@@ -177,6 +177,9 @@ export interface AmmoEntry {
  *  the engine AI and the options/lobby plumbing can reference it cycle-free. */
 export type AiDifficulty = 'easy' | 'medium' | 'hard';
 
+/** Deterministic CPU weapon preference profile. */
+export type AiPersonality = 'aggressive' | 'conservative' | 'area_denial';
+
 export interface TankState {
   id: string;
   playerName: string;

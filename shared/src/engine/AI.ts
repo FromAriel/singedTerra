@@ -20,7 +20,7 @@
  * so the bot "sees" exactly the trajectory the engine will fly.
  */
 
-import type { GameState, TankState, AiDifficulty } from '../types/GameState';
+import type { GameState, TankState, AiDifficulty, AiPersonality } from '../types/GameState';
 import { GRAVITY } from './Physics';
 import { TANK_HEIGHT } from './Tank';
 import { searchShot } from './AiShotSearch';
@@ -32,6 +32,7 @@ import { clamp } from './math';
 // AiDifficulty is defined in types/GameState (a leaf module) and re-exported here
 // for convenience so callers can `import { AiDifficulty } from './AI'`.
 export type { AiDifficulty };
+export type { AiPersonality };
 
 /** The bot's chosen shot. The driver applies it as select_weapon + set_angle +
  *  set_power + fire (in that order). The driver commits optional turn-neutral purchases before the shot. `buy` restocks a weapon; `buyAccessory` purchases non-weapon equipment. */
@@ -44,6 +45,11 @@ export interface AiPlan {
   buy?: WeaponType;
   /** Buy one non-weapon accessory before the shot (turn-neutral). */
   buyAccessory?: AccessoryType;
+}
+
+/** Stable default profile for a CPU seat; no room option or random source is needed. */
+export function deriveAiPersonality(aiTankId: string): AiPersonality {
+  return (['aggressive', 'conservative', 'area_denial'] as const)[hashId(aiTankId) % 3]!;
 }
 
 /** Per-difficulty aim error. */
@@ -80,6 +86,7 @@ export function computeAiPlan(
   difficulty: AiDifficulty,
   gravity: number = GRAVITY,
   armsLevel: number = Number.POSITIVE_INFINITY,
+  personality: AiPersonality = deriveAiPersonality(aiTankId),
 ): AiPlan | null {
   const me = state.tanks.find((t) => t.id === aiTankId && t.alive);
   if (!me) return null;
@@ -88,7 +95,7 @@ export function computeAiPlan(
   if (!target) return null;
 
   const tune = TUNING[difficulty];
-  const { weapon, buy, buyAccessory } = chooseLoadout(me, target, difficulty, state, armsLevel);
+  const { weapon, buy, buyAccessory } = chooseLoadout(me, target, difficulty, state, armsLevel, personality);
 
   // Shield is not a projectile — raise it and end the turn (both drivers map the
   // 'shield' weapon to use_shield). No ballistic search / aim error needed; the
@@ -199,6 +206,7 @@ function chooseLoadout(
   difficulty: AiDifficulty,
   state: GameState,
   armsLevel: number,
+  personality: AiPersonality,
 ): { weapon: WeaponType; buy?: WeaponType; buyAccessory?: AccessoryType } {
   const has = (w: WeaponType): boolean => {
     const a = me.inventory[w];
@@ -214,7 +222,7 @@ function chooseLoadout(
   const leftSurface = surfaceAt(state.terrain, me.x - 24);
   const rightSurface = surfaceAt(state.terrain, me.x + 24);
   const riskyLedge = Math.abs(leftSurface - rightSurface) >= PARACHUTE_SLOPE_RISK;
-  const weaponBuy = difficulty === 'hard' ? chooseBuy(me, target) : null;
+  const weaponBuy = difficulty === 'hard' ? chooseBuy(me, target, personality) : null;
   const weaponBuyCost = weaponBuy ? getWeapon(weaponBuy).price : 0;
   const buyAccessory = difficulty === 'hard'
     && parachuteCount === 0
@@ -232,8 +240,14 @@ function chooseLoadout(
     .filter((w) => has(w) && (difficulty === 'hard' || !HEAVY_TIER.has(w)))
     .sort((a, b) => AI_EFFECTIVE_DAMAGE[a]! - AI_EFFECTIVE_DAMAGE[b]!);
 
+  if (personality === 'area_denial') {
+    const areaWeapon = AREA_DENIAL_ORDER.find((w) => ranked.includes(w));
+    if (areaWeapon) return { weapon: areaWeapon, ...(buyAccessory ? { buyAccessory } : {}) };
+  }
+
   // Weakest in-stock one-shot finisher (don't overkill).
-  const finisher = ranked.find((w) => AI_EFFECTIVE_DAMAGE[w]! >= target.health);
+  const finisher = (personality === 'aggressive' ? [...ranked].reverse() : ranked)
+    .find((w) => AI_EFFECTIVE_DAMAGE[w]! >= target.health);
   if (finisher) return { weapon: finisher, ...(buyAccessory ? { buyAccessory } : {}) };
 
   // Nothing in stock one-shots. A hard bot restocks if it can afford a finisher.
@@ -245,6 +259,10 @@ function chooseLoadout(
   // Fall back to the strongest weapon in stock (baby_missile is always available).
   return { weapon: ranked.at(-1) ?? 'baby_missile', ...(buyAccessory ? { buyAccessory } : {}) };
 }
+
+const AREA_DENIAL_ORDER: readonly WeaponType[] = [
+  'hot_napalm', 'napalm', 'bouncing_betty', 'cluster_bomb', 'mirv', 'deaths_head',
+];
 
 /**
  * Buy-to-restock pick (P1-7b): the cheapest affordable weapon the bot LACKS that
@@ -258,7 +276,7 @@ function chooseLoadout(
  * the buy and the fire land as two ordered log entries with no extra coordination.
  * Pure function of state => deterministic.
  */
-function chooseBuy(me: TankState, target: TankState): WeaponType | null {
+function chooseBuy(me: TankState, target: TankState, personality: AiPersonality): WeaponType | null {
   const candidates = (Object.keys(AI_EFFECTIVE_DAMAGE) as WeaponType[])
     .filter((w) => {
       const slot = me.inventory[w];
@@ -268,6 +286,14 @@ function chooseBuy(me: TankState, target: TankState): WeaponType | null {
         && def.price <= me.credits                  // affordable now
         && AI_EFFECTIVE_DAMAGE[w]! >= target.health; // and finishes the target
     })
-    .sort((a, b) => AI_EFFECTIVE_DAMAGE[a]! - AI_EFFECTIVE_DAMAGE[b]!);
+    .sort((a, b) => {
+      if (personality === 'aggressive') return AI_EFFECTIVE_DAMAGE[b]! - AI_EFFECTIVE_DAMAGE[a]!;
+      if (personality === 'area_denial') {
+        const ai = AREA_DENIAL_ORDER.indexOf(a);
+        const bi = AREA_DENIAL_ORDER.indexOf(b);
+        if (ai !== -1 || bi !== -1) return (ai === -1 ? AREA_DENIAL_ORDER.length : ai) - (bi === -1 ? AREA_DENIAL_ORDER.length : bi);
+      }
+      return AI_EFFECTIVE_DAMAGE[a]! - AI_EFFECTIVE_DAMAGE[b]!;
+    });
   return candidates[0] ?? null;
 }

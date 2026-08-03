@@ -321,5 +321,59 @@ function playGame(seed, difficulty, turnCap = 120) {
   if (!failed) log("PASS: hard bots use the premium Phase-2 weapons when owned + apt; medium stays capped.");
 }
 
+// --- Check 10: explicit weapon personalities vary only deterministic loadout preference. ---
+{
+  const e = engine(0x5eed1234);
+  const st = e.getState();
+  for (const w of Object.keys(st.tanks[0].inventory)) {
+    if (!st.tanks[0].inventory[w].unlimited) st.tanks[0].inventory[w].count = 5;
+  }
+  st.tanks[1].health = 100;
+  const aggressive = computeAiPlan(st, 'p1', 'hard', undefined, Number.POSITIVE_INFINITY, 'aggressive');
+  const conservative = computeAiPlan(st, 'p1', 'hard', undefined, Number.POSITIVE_INFINITY, 'conservative');
+  const areaDenial = computeAiPlan(st, 'p1', 'hard', undefined, Number.POSITIVE_INFINITY, 'area_denial');
+  log(`[personality] aggressive=${aggressive?.weapon} conservative=${conservative?.weapon} area=${areaDenial?.weapon}`);
+  if (aggressive?.weapon !== 'deaths_head') {
+    fail(`aggressive personality should prefer the strongest stocked finisher, got ${aggressive?.weapon}`);
+  }
+  if (conservative?.weapon !== 'nuke') {
+    fail(`conservative personality should preserve the weakest sufficient finisher, got ${conservative?.weapon}`);
+  }
+  if (!['hot_napalm', 'napalm', 'bouncing_betty', 'cluster_bomb'].includes(areaDenial?.weapon)) {
+    fail(`area-denial personality should prefer an area weapon, got ${areaDenial?.weapon}`);
+  }
+  for (const weapon of ['hot_napalm', 'napalm', 'bouncing_betty', 'cluster_bomb']) {
+    st.tanks[0].inventory[weapon].count = 0;
+  }
+  const fallback = computeAiPlan(st, 'p1', 'hard', undefined, Number.POSITIVE_INFINITY, 'area_denial');
+  if (['hot_napalm', 'napalm', 'bouncing_betty', 'cluster_bomb'].includes(fallback?.weapon)) {
+    fail(`area-denial personality selected an unavailable area weapon: ${fallback.weapon}`);
+  }
+  st.tanks[0].inventory.hot_napalm.count = 1;
+  const medium = computeAiPlan(st, 'p1', 'medium', undefined, Number.POSITIVE_INFINITY, 'area_denial');
+  if (medium?.weapon === 'hot_napalm') fail('area-denial personality bypassed the medium difficulty heavy-tier gate');
+  const derivedA = computeAiPlan(st, 'p1', 'hard');
+  const derivedB = computeAiPlan(st, 'p1', 'hard');
+  if (JSON.stringify(derivedA) !== JSON.stringify(derivedB)) fail('omitted personality derivation is not stable');
+  if (derivedA?.weapon !== conservative?.weapon) fail('p1 omitted personality should retain the conservative baseline profile');
+
+  const restock = engine(0x5eed1234);
+  const restockState = restock.getState();
+  for (const weapon of Object.keys(restockState.tanks[0].inventory)) {
+    if (!restockState.tanks[0].inventory[weapon].unlimited) restockState.tanks[0].inventory[weapon].count = 0;
+  }
+  restockState.tanks[1].health = 70;
+  restockState.tanks[0].credits = 30_000;
+  const aggressiveBuy = computeAiPlan(restockState, 'p1', 'hard', undefined, Number.POSITIVE_INFINITY, 'aggressive');
+  const areaBuy = computeAiPlan(restockState, 'p1', 'hard', undefined, Number.POSITIVE_INFINITY, 'area_denial');
+  if (aggressiveBuy?.buy !== 'deaths_head') fail(`aggressive restock should buy the strongest finisher, got ${aggressiveBuy?.buy}`);
+  if (areaBuy?.buy !== 'hot_napalm') fail(`area-denial restock should buy the preferred affordable area finisher, got ${areaBuy?.buy}`);
+  restockState.tanks[0].credits = 0;
+  const brokeAggressive = computeAiPlan(restockState, 'p1', 'hard', undefined, Number.POSITIVE_INFINITY, 'aggressive');
+  const brokeArea = computeAiPlan(restockState, 'p1', 'hard', undefined, Number.POSITIVE_INFINITY, 'area_denial');
+  if (brokeAggressive?.buy || brokeArea?.buy) fail('unaffordable personality restocks must fall back without a purchase');
+  if (!failed) log('PASS: explicit and derived AI personalities are deterministic and distinct.');
+}
+
 if (failed) { log('\nAI CHECK: FAILED'); process.exit(1); }
 else { log('\nAI CHECK: PASSED'); process.exit(0); }
