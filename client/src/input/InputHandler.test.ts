@@ -301,6 +301,28 @@ describe('InputHandler public contract', () => {
     button.remove();
   });
 
+  it('keeps Space firing after a non-text select has focus', () => {
+    const select = document.createElement('select');
+    select.append(new Option('Aim left', 'left'));
+    document.body.append(select);
+    handler.attach();
+
+    select.focus();
+    select.dispatchEvent(new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      key: ' ',
+    }));
+    select.dispatchEvent(new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      key: 'Unidentified',
+      code: 'Space',
+    }));
+    expect(emitted()).toEqual([{ type: 'fire' }, { type: 'fire' }]);
+    select.remove();
+  });
+
   it('keeps Enter native on a focused non-fire HUD button', () => {
     const button = document.createElement('button');
     button.dataset.command = 'aim-left';
