@@ -6,6 +6,7 @@ import type {
   WallMode,
 } from '@shared/types/GameOptions';
 import type { TankLoadout } from '@shared/types/TankLoadout';
+import type { QuickChatKey } from './quickChat';
 
 /**
  * Everything needed to start the SUCCESSOR game after a rematch: the new room's
@@ -52,6 +53,12 @@ export type TurnWatch =
   | { state: 'clear' }
   | { state: 'waiting'; playerName: string }
   | { state: 'stalled'; playerName: string };
+
+export interface QuickChatMessage {
+  key: QuickChatKey;
+  playerId: string;
+  playerName: string;
+}
 
 /**
  * GameClient abstracts the difference between hot-seat and networked play
@@ -145,4 +152,8 @@ export interface GameClient {
    * remote player's turn goes idle. Returns an unsubscribe function.
    */
   onTurnWatch?(listener: (watch: TurnWatch) => void): () => void;
+
+  /** Send and receive fixed, ephemeral networked quick-chat messages. */
+  sendQuickChat?(key: QuickChatKey): boolean;
+  onQuickChat?(listener: (message: QuickChatMessage) => void): () => void;
 }

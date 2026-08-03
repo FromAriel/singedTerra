@@ -1,5 +1,5 @@
 import type { SupabaseClient, RealtimeChannel, RealtimePostgresInsertPayload, RealtimePostgresUpdatePayload } from '@supabase/supabase-js';
-import type { GameClient, RematchInfo, ConnectionState, TurnWatch } from './GameClient';
+import type { GameClient, RematchInfo, ConnectionState, TurnWatch, QuickChatMessage } from './GameClient';
 import type { GameState } from '@shared/types/GameState';
 import type { PlayerAction } from '@shared/types/PlayerAction';
 import {
@@ -22,6 +22,7 @@ import { fastForwardTicks } from './fastForward';
 import { callFunction, edgeUrl, edgeHeaders } from '../lib/edgeFunctions';
 import { clearSession } from '../lib/sessionDescriptor';
 import { normalizeNetworkRulesetVersion } from './networkRuleset';
+import { isQuickChatKey, parseQuickChatPayload, type QuickChatKey } from './quickChat';
 
 // The logged-action contract now lives in shared/ (one source of truth for the
 // log→engine replay, exercised by both this client and the determinism harnesses).
@@ -118,6 +119,7 @@ export class NetworkClient implements GameClient {
   private rafId:            number | null;
   private channel:          RealtimeChannel | null;   // room_actions INSERT subscription
   private roomsChannel:     RealtimeChannel | null;   // rooms UPDATE subscription (lobby)
+  private quickChatChannel: RealtimeChannel | null;
 
   // Maps Supabase player UUID → engine tank ID ('p1'..'pN').
   // Derived once from the ordered players array at construction time.
@@ -180,6 +182,9 @@ export class NetworkClient implements GameClient {
   private turnStallTimer:   ReturnType<typeof setTimeout> | null = null;
   private turnWatchKey:     string | null = null;          // armed `${turn}:${activeTankId}`
   private _turnWatch:       TurnWatch = { state: 'clear' };
+  private quickChatListeners = new Set<(message: QuickChatMessage) => void>();
+  private lastQuickChatAt = -Infinity;
+  private static readonly QUICK_CHAT_COOLDOWN_MS = 800;
   private static readonly TURN_WAIT_MS  = 12000;
   private static readonly TURN_STALL_MS = 30000;
 
@@ -238,6 +243,7 @@ export class NetworkClient implements GameClient {
     this.rafId            = null;
     this.channel          = null;
     this.roomsChannel     = null;
+    this.quickChatChannel = null;
     this.pendingActions   = new Map();
     this.nextExpectedSeq  = 0;
     this.isReplaying      = false;
@@ -400,6 +406,44 @@ export class NetworkClient implements GameClient {
         }
       )
       .subscribe();
+
+    this.quickChatChannel = this.supabase
+      .channel(`quick_chat:${this.roomId}`)
+      .on(
+        'broadcast',
+        { event: 'quick_chat' },
+        (message: { payload?: unknown }) => {
+          if (this._disposed) return;
+          const parsed = parseQuickChatPayload(message?.payload);
+          if (!parsed) return;
+          const player = (this.options.players ?? []).find((candidate) => candidate.id === parsed.playerId);
+          if (!player) return;
+          const notification: QuickChatMessage = {
+            ...parsed,
+            playerName: player.name,
+          };
+          for (const listener of this.quickChatListeners) listener(notification);
+        },
+      )
+      .subscribe();
+  }
+
+  sendQuickChat(key: QuickChatKey): boolean {
+    const channel = this.quickChatChannel;
+    const now = Date.now();
+    if (!channel || !isQuickChatKey(key) || now - this.lastQuickChatAt < NetworkClient.QUICK_CHAT_COOLDOWN_MS) return false;
+    this.lastQuickChatAt = now;
+    void channel.send({
+      type: 'broadcast',
+      event: 'quick_chat',
+      payload: { key, playerId: this.playerId },
+    }).catch(() => undefined);
+    return true;
+  }
+
+  onQuickChat(listener: (message: QuickChatMessage) => void): () => void {
+    this.quickChatListeners.add(listener);
+    return () => this.quickChatListeners.delete(listener);
   }
 
   /**
@@ -474,6 +518,11 @@ export class NetworkClient implements GameClient {
       this.supabase.removeChannel(this.roomsChannel);
       this.roomsChannel = null;
     }
+    if (this.quickChatChannel) {
+      this.supabase.removeChannel(this.quickChatChannel);
+      this.quickChatChannel = null;
+    }
+    this.quickChatListeners.clear();
   }
 
   /**

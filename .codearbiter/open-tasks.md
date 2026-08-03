@@ -161,6 +161,9 @@ Decision forks split to `open-questions.md` (CONFIRM-04 rate-limiting, CONFIRM-0
 
 - (Possible-later, from room-browser-enrichment spec 2026-06-22) Surface `interestRate` / `suddenDeathTurn` on the public browse row too, now that `StoredOptions` declares them. Pure read-path addition mirroring the rounds/armsLevel/botCount work. [L/S]
 ## In-flight
+- [~] mvp2.social.0001 - Networked quick chat emotes  (started 2026-08-03)
+  - Desc: Add a bounded ephemeral quick-chat palette for networked rooms without writing messages to the deterministic action log.
+  - Boundaries: Client NetworkClient Realtime broadcast channel, fixed message catalog, accessible HUD affordance, receive/send tests; no free text, auth, persistence, migrations, secrets, dependencies, or deterministic action changes
 - [x] mvp2.teams.0001 - Deterministic 2v2 team mode  (done 2026-08-03)
   - Desc: Add an opt-in deterministic 2v2 team mode with alternating seat assignment, team-based round and match victory, and friendly-fire suppression.
   - Boundaries: shared GameOptions/TankState/GameEngine rules; hot-seat and network lobby settings; Edge option validation and transport; deterministic harnesses and client/Edge tests; no auth, persistence, migrations, secrets, dependencies, or new action kinds
