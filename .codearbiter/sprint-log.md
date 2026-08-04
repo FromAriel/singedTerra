@@ -3989,3 +3989,103 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - Primary adversarial review: APPROVED. Critical 0, High 0, Medium 0, Low 0, merge blockers 0. It confirmed the reduced-motion gate separation, mobile stage scaling, canvas ordering, causal geometry assertions, and bounded scope.
 - Coverage audit initially BLOCKED with Medium 1 merge blocker because the review package was not yet represented as tracked governance state: the spec/plan were untracked, the plan had no completion marks, and no review receipt existed. This was a governance-only finding; no behavioral deficiency was identified.
 - Remediation: added `reliability.impact.0001` through sanctioned taskwrite and marked it in progress; marked plan steps 1-4 complete; recorded this exact review receipt. The delivery step remains open until exact-head hosted checks, merge, and production smoke complete.
+
+### 2026-08-04 - mvp2.identity.0001 direction reset and auth gate
+- User explicitly changed product direction: the earlier no-auth decision was appropriate then but is no longer the desired product posture because the project has received substantially more investment. Persistent users/progression is now the next priority.
+- Sanctioned taskwrite started `mvp2.identity.0001` on 2026-08-04. No implementation code or schema change has been made.
+- Existing ADR-0006 is now a supersession candidate. ADR-0009's seat-token boundary remains relevant for room-seat ownership, but it is not sufficient as durable account identity.
+- Threat-model gate: persistent identity crosses the Supabase Auth/JWT boundary, durable profile ownership, progression writes, and RLS policy surface. Spoofing, tampering, repudiation, disclosure, denial-of-service, and privilege-escalation controls must be specified before implementation. The remaining hard gate is the security design detail, not the product decision to pursue accounts.
+
+## 2026-08-04 — mvp2.identity.0001 bounded foundation design
+
+**Decision point:** How much of persistent players/progression belongs in the first auth slice after ADR-0011?
+**Options weighed:** (A) account/session + owner-only profile foundation; (B) foundation plus match linkage and progression counters; (C) Google SSO first.
+**SMARTS verdict:** A is strongest. Securable and Reliable require a narrow authenticated/RLS boundary before trusted match attribution; Maintainable and Testable favor independently reviewable identity and linkage slices; Available preserves anonymous play; Scalable remains neutral. B expands the migration and trust blast radius, while C adds OAuth configuration before the zero-cost password path is proven.
+**Chosen:** A — optional password account/session restore and trigger-owned profile only. Match linkage/progression and Google SSO follow after production verification.
+**Strength:** strong
+**Confidence:** high
+
+**Security gate:** STRIDE result PROCEED WITH CONSTRAINTS. Supabase Auth owns passwords/JWT storage; profiles contain no email or credentials; anon has no profile access; authenticated reads require `auth.uid() = id`; no client progression writes; gameplay seat-token authorization remains unchanged.
+
+## 2026-08-04 - mvp2.identity.0001 implementation and first adversarial review
+
+- TDD RED/GREEN completed for the auth/config contract, lazy account session, account panel, lobby composition, and mobile-width regression. The profile migration is additive, installs its trigger before backfilling existing Auth users, and keeps profile insertion server-owned.
+- First adversarial review BLOCKED on four High findings and three merge-blocking Medium findings: credential-bearing backend error reflection, signup-before-trigger deployment order, profile-load failure removing the sign-out path, missing server-side password minimum, migration-harness false greens, and the account panel inheriting the lobby's full-width mobile rule.
+- Remediation replaced backend error reflection with generic copy, preserved an authenticated-error state with sign-out, moved database migration before auth config push, set the platform password minimum to eight, backfilled pre-trigger users, hardened the SQL contract against commented controls and forbidden RLS/grant mutations, and added a scoped width override plus regression coverage.
+- SMARTS variance: responsive account styles remain in Lobby.ts's existing injected lobby stylesheet instead of a new global style.css edit. This is stronger for Maintainability, Scope, and Testability because all existing lobby selectors and the regression fixture share that ownership boundary; no architecture or behavior changed. Strength: strong. Confidence: high.
+- Merge, deployment, and completion remain unclaimed until final exact-diff re-review, local verification, hosted checks, main merge, Supabase/Pages deployment, and production health all pass.
+
+## 2026-08-04 - mvp2.identity.0001 local verification receipt
+
+- Full client suite: 135 files and 978 tests passed.
+- Full deterministic/config check passed, including the hardened password-auth/profile contract; Edge suite passed 216 tests; production build passed; dependency audit found 0 vulnerabilities.
+- Playwright E2E passed 191 tests with 25 intentional project skips.
+- Browser smoke passed: no-env lobby omitted accounts and entered hot-seat; a focused aim control followed by Space produced the live Shot in flight state; dummy-config signed-out account UI stayed horizontally bounded at the mobile viewport, tabbed from email to the password field, and left anonymous Start Game enabled. No real credential or account was used.
+- Final exact-diff adversarial re-review remains pending. CONTEXT.md remains protected for commit-gate provenance auto-heal and must be included in the re-reviewed diff before commit.
+
+## 2026-08-04 - mvp2.identity.0001 migration-harness adversarial remediation
+
+- Migration re-review BLOCKED with one High finding: the contract harness still accepted a required RLS control placed in an inline comment and did not reject authenticated table ownership.
+- TDD RED: added inline-comment and ownership-escalation mutation probes; the focused harness failed on the inline-comment decoy.
+- GREEN: replaced regex-only comment removal with quote-aware line/nested-block comment stripping, masked single-quoted and dollar-quoted literals for structural assertions, required active classification statements for every stored field, and conservatively rejected ownership changes, role reassignment/RLS-bypass mutations, public policies, role switching, and dynamic SQL. Added a string-literal decoy probe. The focused harness passes.
+- Exact migration re-review and full check rerun remain pending; no migration pass marker is claimed yet.
+
+## 2026-08-04 - mvp2.identity.0001 migration-harness allowlist remediation
+
+- Second migration re-review BLOCKED with one High finding: equivalent unqualified ownership, ALTER POLICY, and EXECUTE-variable forms were not covered by the denylist.
+- TDD RED: added all three exact mutation probes; the focused harness failed.
+- GREEN: exact-allowlisted the sole ALTER TABLE RLS statement and sole owner-only CREATE POLICY statement, bounded function/trigger definitions to one each, and blanket-rejected policy/role/ownership mutation, anonymous DO blocks, dynamic SQL other than CREATE TRIGGER EXECUTE FUNCTION, derived views, and default-privilege changes. The focused harness passes.
+- Migration marker remains absent pending exact follow-up PASS.
+
+## 2026-08-04 - mvp2.identity.0001 immutable-migration pin remediation
+
+- Third migration re-review BLOCKED on generic existing-table UPDATE and quoted unterminated ownership variants that remained outside semantic deny rules.
+- TDD RED: added the immutable migration digest gate with an unpinned sentinel; the focused harness failed on the reviewed migration.
+- GREEN: pinned the normalized LF SHA-256 of exact reviewed 012_profiles.sql while retaining the semantic configuration, RLS, policy, grant, trigger, backfill, classification, and adversarial checks. Any byte-changing SQL mutation now fails closed, including unrelated gameplay DML, quoted identifiers, EOF variants, or future decoys. No dependency was added.
+- Exact migration re-review and marker remain pending.
+
+## 2026-08-04 - mvp2.identity.0001 exact-review hard-gate receipt
+
+- Migration re-review PASS: zero Critical, High, Medium, or Low findings. The staged normalized migration digest independently matched fe714f86c31dcc01a41227d1b273965b20bf50cbe8ccdd76fadeec2f572e6b43; the content-bound migration marker was recorded.
+- Security review PASS: zero Critical, High, or security merge blockers; the content-bound security marker covers the staged sensitive lines.
+- Whole-slice adversarial review found zero Critical or High findings and cleared the implementation, auth boundary, migration, and tests. One Medium merge-blocker remains: CONTEXT.md still says accounts are out of scope and identity is ephemeral.
+- Hard-gate mechanics: this Codex host exposes patch edits only; codeArbiter H-18 rejects every patch operation against CONTEXT.md because it cannot verify resulting activation frontmatter. No provenance records exist for commit-gate auto-heal. A full-content Write tool is unavailable. No override, shell-write bypass, commit, PR, deployment, or completion claim was made.
+- Reopen condition: a human updates CONTEXT.md while preserving its exact arbiter: enabled and stage: 1 frontmatter, or explicitly authorizes the sanctioned ca-override path for a full-file rewrite. Then re-stage, rerun exact-diff review/full verification, commit gate, PR, hosted checks, merge, deploy, and production health.
+
+## 2026-08-04 - mvp2.identity.0001 H-18 override resolution
+
+- User explicitly invoked ca-override and authorized editing CONTEXT.md. The override was logged to overrides.log under SUaDtL@users.noreply.github.com before the action.
+- Scoped bypass: because this Codex host has no full-content Write tool and H-18 rejects patch operations, the file was rewritten once through a full-content UTF-8 operation after exact replacement counts were validated.
+- Preserved invariants: frontmatter remains exactly arbiter: enabled and stage: 1; the INITIALIZED marker and all unrelated project context remain.
+- Context now reflects ADR-0011: optional Supabase password accounts and owner-only profiles, anonymous compatibility, account JWT separation from seat-token gameplay authorization, authenticated match linkage/progression next, and Google SSO later.
+- The earlier CONTEXT merge blocker is resolved locally. Final exact-staged-diff review and verification remain required before commit.
+
+## 2026-08-04 - mvp2.identity.0001 final adversarial review receipt
+
+- Whole-slice adversarial reviewer Beauvoir reviewed staged diff `4d126e4a995240b7e7e094daa1ff48aa738f7266` with the approved spec, implementation plan, sprint log, RED/GREEN and full-suite evidence, security constraints, migration review, and complete staged diff.
+- Verdict CLEAR: Critical 0, High 0, Medium 0, Low 0, merge blockers 0. The reviewer confirmed the scoped H-18 override was append-only and preserved `arbiter: enabled` plus `stage: 1`; the protected untracked task lock remained excluded.
+- Plan Step 4 is closed from that review. This append-only receipt and checkbox are governance-only follow-up; exact staged hash confirmation remains required before commit.
+
+## 2026-08-04 - mvp2.identity.0001 PR path-matrix remediation
+
+- The PR auth reviewer BLOCKED with one High finding: once the shared Supabase client restores an account JWT, direct room, action-log, Realtime, resync, rematch, and score reads run as `authenticated`, while migrations 001 and 003 expose those gameplay reads only to `anon`. Signed-in players could therefore lose networked-play visibility.
+- TDD RED: extended the profile identity harness to require a separate authenticated-gameplay compatibility migration. The focused harness failed because migration 013 was absent.
+- GREEN: added immutable migration 013, explicitly revoked authenticated INSERT/UPDATE/DELETE on `rooms`, `room_actions`, and `match_scores`, granted SELECT, and installed read-only authenticated RLS policies matching anonymous visibility. Seat-token and service-role write authorization are unchanged. The focused harness passes.
+- Coverage audit BLOCKED on three Medium merge blockers: plan commands used root-relative `client/src` filters after entering the client workspace; malformed-email and short-password validation branches were short-circuited by one invalid-name test; and the concrete Supabase adapter plus initialization/sign-out/interleaving failure paths lacked direct coverage.
+- Remediation corrected all focused commands to workspace-relative `src` paths and expanded AccountSession coverage to 23 tests. The focused five-file command passes 39 tests; focused AccountSession coverage is 92.8% statements, 82.55% branches, 92.3% functions, and 98.21% lines.
+- Causal mutation proof: forcing restored/auth-event user mapping to null failed the new adapter test at the expected restored-user assertion; disabling the eight-character password branch failed only the independent short-password test because account creation was reached. Both mutations were removed, and the focused AccountSession suite returned green.
+- Dependency/deployment review remained CLEAR with zero findings. Exact migration, security, coverage, and whole-diff re-review remain required before the remediation commit.
+
+## 2026-08-04 - mvp2.identity.0001 authenticated-read scope reconciliation
+
+- Coverage follow-up confirmed all three earlier test blockers resolved, then BLOCKED on one new Medium governance mismatch: the spec required exactly one migration while the necessary signed-in gameplay-read compatibility fix added migration 013.
+- SMARTS verdict: retain migration 013 and explicitly reconcile the bounded scope. Securable and Reliable require signed-in users to keep public read visibility without gaining writes; Maintainable and Testable favor a separate immutable compatibility migration over rewriting profile migration 012; Scope remains bounded to preserving existing gameplay behavior. Strength: strong. Confidence: high.
+- Updated the spec, plan, and security controls to require exactly migrations 012 and 013, authenticated SELECT parity for `rooms`, `room_actions`, and `match_scores`, explicit authenticated write revocation, immutable harness coverage, and unchanged seat-token/service-role mutation authority.
+- Exact staged re-review remains required after this governance reconciliation.
+
+## 2026-08-04 - mvp2.identity.0001 migration-header remediation
+
+- Whole-diff re-review BLOCKED with one Medium merge blocker: migration 013 omitted the repository-required version, date, rationale, safety posture, and lock-profile header.
+- Added the required header, documenting ADR-0011 compatibility, additive policy/grant-only safety, no row mutation or rewrite, and brief catalog locks without data scans.
+- The immutable migration harness then failed on the changed digest as intended. Rebound the normalized-LF digest to the reviewed header-bearing migration and restored the focused harness to green.
+- Exact final migration and whole-diff re-review remain required before commit.
