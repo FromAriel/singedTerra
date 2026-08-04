@@ -200,14 +200,14 @@ Run `npm run test:client`, `npm run check:edge`, `npm run check`, `npm run build
 
 Include the approved spec, this plan, append-only sprint log, every RED/GREEN and mutation receipt, focused/full test outputs, security-control delta, and complete final diff. Require reviewers for auth/security, coverage, and architecture. Resolve every Critical, High, and other merge-blocking finding, then obtain exact-final-diff re-clear.
 
-- [ ] **Step 3: Commit and open a ready PR**
+- [x] **Step 3: Commit and open a ready PR**
 
 Run `$ca-commit` and `$ca-pr`; never stage `.codearbiter/open-tasks.md.lock`. Require all hosted checks green on the exact reviewed PR head.
 
-- [ ] **Step 4: Merge, deploy, and verify**
+- [x] **Step 4: Merge, deploy, and verify**
 
 Log the standing-authority merge override, commit its audit-only line, obtain exact-head adversarial re-clear, and require hosted checks green again. Squash merge with an expected-head guard. Deploy `account_summary` through the linked local Supabase CLI, require ACTIVE plus missing-auth `401` and anonymous `list_rooms` `200`, then require exact-main Pages provenance, CI, CodeQL, and live-render smoke green.
 
-- [ ] **Step 5: Close and continue**
+- [x] **Step 5: Close and honor run-stop steering**
 
-Mark `mvp2.progression.0003` done through `$ca-task`, keep `mvp2.identity.0001` in progress, and SMARTS-select the next bounded persistent-player improvement.
+Mark `mvp2.progression.0003` done through `$ca-task` and keep `mvp2.identity.0001` in progress. The user explicitly superseded automatic continuation for this run: reconcile the three pre-existing PRs, then stop without selecting another improvement slice.
