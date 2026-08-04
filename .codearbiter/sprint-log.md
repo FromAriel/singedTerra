@@ -4119,3 +4119,22 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - TDD RED: added the four adversarial command variants; the focused harness failed because the existing predicate accepted at least one.
 - GREEN: replaced heuristic command parsing with an exact allowlist for the reviewed lockfile-pinned deployment sequence and retained all adversarial probes. The focused harness passes.
 - Exact final staged re-review remains required before commit.
+
+## 2026-08-04 - mvp2.identity.0001 merge, deployment, and production closeout
+
+- PR #330 merged reviewed head `03a9f404dde829ab1201b8fd859663e0b6f2cef9`; PR #331 merged reviewed head `de087a00b500f263b4600632e869a9119d9ed287`. On both exact heads, the required CI, Edge, rendering/E2E, CodeQL analysis, and CodeQL status checks passed. Supabase Preview was neutral/skipped, and the CodeRabbit status passed while reporting automatic review disabled; neither was represented as an executed green review. The standing adversarial-review obligation was satisfied separately by the recorded exact-diff subagent reviews.
+- Supabase deployment completed with the lockfile-pinned CLI: migrations 012 and 013 are present locally and remotely; API, database, Auth, and Storage config report up to date; all ten Edge Functions deployed. No paid vector feature, provider, SMTP service, account, or secret was created.
+- Exact production Pages deployment for main `4ce01cf7fb3015f8b80947a9623a866ad07c2899` completed successfully. The production page, JavaScript, and CSS returned HTTP 200 and the deployed bundle contains the Account surface.
+- Public backend health passed: Auth settings returned 200 with signup enabled, email/password enabled, and email auto-confirm enabled; anonymous room reads returned 200; anonymous profile reads were denied with 401; migrations 001 through 013 matched between local and remote.
+- Mobile production smoke at 390x844 passed without real credentials: Space dismissed the splash, the Account panel exposed email and password inputs plus Sign in/Create account, anonymous Start Game remained visible, and document width equaled viewport width.
+- The broad `mvp2.identity.0001` task remains in progress because match linkage and progression are still undelivered. The protected untracked `.codearbiter/open-tasks.md.lock` remained excluded.
+
+## 2026-08-04 - progression linkage selection and closeout-review remediation
+
+- Options weighed: (A) authenticated account-to-completed-match linkage; (B) immediately add XP, levels, and counters; (C) return to mobile impact-window polish. SMARTS verdict: A, strong, confidence high. Securable and Reliable require trusted server-side attribution before derived progression; Maintainable and Testable favor a narrow linkage seam; Available preserves anonymous and seat-token gameplay; Scope is smaller than a complete progression system.
+- First closeout review BLOCKED on a High overstatement of hosted-check status and a merge-blocking Medium premature completion of the broad persistent-users-and-progression task. The closeout was rebuilt from `origin/main`: exact pass/neutral statuses are now recorded, and the broad task stays in progress.
+- Sanctioned taskwrite added and started `mvp2.progression.0001`: link authenticated accounts to completed matches without trusting client-owned progression totals. XP, levels, and player-facing progression remain subsequent slices after this attribution boundary is proven.
+
+## 2026-08-04 - mvp2.identity.0001 closeout exact re-review
+
+- Adversarial reviewer Ampere reviewed the rebuilt package containing the spec, plan, sprint log, full test and deployment evidence, and final diff. Verdict CLEAR: Critical 0, High 0, Medium 0, Low 0, merge blockers 0. The reviewer confirmed both prior blockers resolved, the sprint-log change append-only, and the protected task lock untracked and excluded.
