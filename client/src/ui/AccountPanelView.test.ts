@@ -1,6 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { AccountState } from '../client/AccountSession'
+import type { AccountState, AccountSummary } from '../client/AccountSession'
 import { buildAccountPanelView, type AccountPanelViewOptions } from './AccountPanelView'
+
+const validSummary: AccountSummary = {
+  matchesPlayed: 8,
+  wins: 4,
+  progressionVersion: 1,
+  totalXp: 1200,
+  level: 3,
+  levelXp: 200,
+  nextLevelXp: 500,
+}
 
 function options(overrides: Partial<AccountPanelViewOptions> = {}): AccountPanelViewOptions {
   return {
@@ -137,7 +147,7 @@ describe('buildAccountPanelView', () => {
       profile: {
         id: 'user-1',
         displayName: 'Ranger',
-        summary: { matchesPlayed: 7, wins: 3 },
+        summary: validSummary,
       },
     }
     const root = buildAccountPanelView(options({ state, onSignOut }))
@@ -145,15 +155,17 @@ describe('buildAccountPanelView', () => {
 
     expect(root.querySelector('dl.account-panel__progress')).not.toBeNull()
     expect(progressPairs(root)).toEqual([
-      ['Matches', '7'],
-      ['Recorded wins', '3'],
+      ['Matches', '8'],
+      ['Recorded wins', '4'],
+      ['Level', '3'],
+      ['XP', '200 / 500'],
     ])
     expect(root.querySelector('form')).toBeNull()
     button(root, 'Sign out').click()
     expect(onSignOut).toHaveBeenCalledOnce()
   })
 
-  it('keeps definition pairs local and id-free when two account panels coexist', () => {
+  it('keeps definition pairs local and both account subtrees id-free when panels coexist', () => {
     const state: AccountState = {
       status: 'authenticated',
       busy: false,
@@ -161,11 +173,19 @@ describe('buildAccountPanelView', () => {
       profile: {
         id: 'user-1',
         displayName: 'Ranger',
-        summary: { matchesPlayed: 7, wins: 3 },
+        summary: validSummary,
       },
     }
     const first = buildAccountPanelView(options({ state }))
-    const second = buildAccountPanelView(options({ state }))
+    const second = buildAccountPanelView(options({
+      state: {
+        ...state,
+        profile: {
+          ...state.profile,
+          summary: null,
+        },
+      },
+    }))
     if (!first || !second) throw new Error('Expected authenticated account panels')
     document.body.append(first, second)
 
@@ -173,13 +193,14 @@ describe('buildAccountPanelView', () => {
       expect(first.querySelectorAll('[id]')).toHaveLength(0)
       expect(second.querySelectorAll('[id]')).toHaveLength(0)
       expect(progressPairs(first)).toEqual([
-        ['Matches', '7'],
-        ['Recorded wins', '3'],
+        ['Matches', '8'],
+        ['Recorded wins', '4'],
+        ['Level', '3'],
+        ['XP', '200 / 500'],
       ])
-      expect(progressPairs(second)).toEqual([
-        ['Matches', '7'],
-        ['Recorded wins', '3'],
-      ])
+      expect(second.querySelector('.account-panel__summary-unavailable')?.textContent)
+        .toBe('Progress summary unavailable')
+      expect(second.querySelector('[role="alert"]')).toBeNull()
     } finally {
       first.remove()
       second.remove()
