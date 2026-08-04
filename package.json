@@ -15,7 +15,7 @@
     "dev": "npm -w @singedterra/client run dev",
     "dev:client": "npm -w @singedterra/client run dev",
     "build": "npm run typecheck && npm -w @singedterra/client run build",
-    "deploy:backend": "npx supabase db push --yes && npx supabase config push --yes && npx supabase functions deploy --use-api --yes",
+    "deploy:backend": "supabase db push --yes && supabase config push && supabase functions deploy --use-api --yes",
     "deploy": "npm run deploy:backend",
     "typecheck": "npm -w @singedterra/shared run typecheck && npm -w @singedterra/client run typecheck",
     "check:hazards": "npx tsx scripts/checks/terrain_hazards.mjs",
@@ -31,6 +31,7 @@
     "@types/node": "^24.13.3",
     "@typescript/native": "npm:typescript@7.0.2",
     "concurrently": "^10.0.4",
+    "supabase": "2.105.0",
     "tsx": "^4.23.1",
     "typescript": "npm:@typescript/typescript6@6.0.2"
   }

@@ -184,6 +184,12 @@ if (
 
 const authBlock = config.match(/^\[auth\]\s*$([\s\S]*?)(?=^\[|\Z)/m)?.[1] ?? '';
 const emailBlock = config.match(/^\[auth\.email\]\s*$([\s\S]*?)(?=^\[|\Z)/m)?.[1] ?? '';
+const apiBlock = config.match(/^\[api\]\s*$([\s\S]*?)(?=^\[|\Z)/m)?.[1] ?? '';
+const mfaTotpBlock = config.match(/^\[auth\.mfa\.totp\]\s*$([\s\S]*?)(?=^\[|\Z)/m)?.[1] ?? '';
+const storageVectorBlock = config.match(/^\[storage\.vector\]\s*$([\s\S]*?)(?=^\[|\Z)/m)?.[1] ?? '';
+if (!/^schemas\s*=\s*\["public",\s*"graphql_public"\]\s*$/m.test(apiBlock)) {
+  fail('[api].schemas must preserve the deployed public and graphql_public schemas');
+}
 if (!/^enabled\s*=\s*true\s*$/m.test(authBlock)) fail('[auth].enabled must be true');
 if (!/^enable_signup\s*=\s*true\s*$/m.test(authBlock)) fail('[auth].enable_signup must be true');
 if (!/^minimum_password_length\s*=\s*8\s*$/m.test(authBlock)) {
@@ -197,12 +203,40 @@ if (!/^additional_redirect_urls\s*=\s*\["http:\/\/localhost:5173"\]\s*$/m.test(a
 }
 if (!/^enable_signup\s*=\s*true\s*$/m.test(emailBlock)) fail('[auth.email].enable_signup must be true');
 if (!/^enable_confirmations\s*=\s*false\s*$/m.test(emailBlock)) fail('[auth.email].enable_confirmations must be false');
+if (!/^max_frequency\s*=\s*"1m0s"\s*$/m.test(emailBlock)) {
+  fail('[auth.email].max_frequency must preserve the deployed abuse-control interval');
+}
+if (!/^otp_length\s*=\s*8\s*$/m.test(emailBlock)) {
+  fail('[auth.email].otp_length must preserve the deployed setting while delivery remains disabled');
+}
+if (
+  !/^enroll_enabled\s*=\s*true\s*$/m.test(mfaTotpBlock)
+  || !/^verify_enabled\s*=\s*true\s*$/m.test(mfaTotpBlock)
+) {
+  fail('[auth.mfa.totp] must preserve the deployed enrollment and verification posture');
+}
+if (!/^enabled\s*=\s*false\s*$/m.test(storageVectorBlock)) {
+  fail('[storage.vector] must remain disabled so config push cannot request a paid feature');
+}
 
 const deployBackend = packageJson.scripts?.['deploy:backend'] ?? '';
-const dbPushIndex = deployBackend.indexOf('supabase db push');
-const configPushIndex = deployBackend.indexOf('supabase config push');
-if (dbPushIndex < 0 || configPushIndex < 0 || dbPushIndex > configPushIndex) {
-  fail('deploy:backend must install the profile migration before enabling signup config');
+if (packageJson.devDependencies?.supabase !== '2.105.0') {
+  fail('deploy tooling must pin the reviewed Supabase CLI at exact version 2.105.0');
+}
+function isReviewedDeployCommand(command) {
+  return command === 'supabase db push --yes && supabase config push && supabase functions deploy --use-api --yes';
+}
+if (!isReviewedDeployCommand(deployBackend)) {
+  fail('deploy:backend must exactly match the reviewed pinned-CLI and interactive-config command');
+}
+const unsafeDeployVariants = [
+  'npx --yes supabase db push --yes && supabase config push',
+  'supabase db push --yes && supabase --yes config push',
+  'supabase db push --yes && supabase config --yes push',
+  'supabase db push --yes && yes | supabase config push',
+];
+if (unsafeDeployVariants.some(isReviewedDeployCommand)) {
+  fail('deploy command guard accepted an unpinned or auto-confirmed equivalent');
 }
 
 const sqlWithoutComments = stripSqlComments(migration);

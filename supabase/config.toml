@@ -3,7 +3,7 @@ project_id = "your-project-id"
 [api]
 enabled = true
 port = 54321
-schemas = ["public"]
+schemas = ["public", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
@@ -26,6 +26,11 @@ pop3_port = 54326
 enabled = true
 file_size_limit = "50MiB"
 
+[storage.vector]
+# Keep the linked free-tier project posture explicit. Omitting this lets the CLI
+# scaffold default request vector buckets during a full config push.
+enabled = false
+
 [auth]
 # ADR-0011: optional durable accounts use password auth while anonymous play and
 # per-room seat-token authorization remain available and unchanged.
@@ -43,6 +48,14 @@ double_confirm_changes = true
 # No SMTP/provider dependency in the foundation slice. Revisit before enabling
 # email ownership claims, recovery, or magic-link/OTP flows.
 enable_confirmations = false
+max_frequency = "1m0s"
+otp_length = 8
+
+[auth.mfa.totp]
+# Preserve the linked project's existing MFA posture even though the foundation
+# UI does not expose enrollment yet.
+enroll_enabled = true
+verify_enabled = true
 
 [realtime]
 enabled = true
