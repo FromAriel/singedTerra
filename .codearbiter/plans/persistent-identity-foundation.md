@@ -194,14 +194,14 @@ Verify unconfigured hot-seat boot, configured signed-out panel, form keyboard op
 
 Provide one adversarial subagent the approved spec, this plan, sprint-log additions, RED/GREEN/full test evidence, threat constraints, and final diff. Resolve every Critical, High, and any other merge-blocking finding, rerun affected tests, and obtain exact final-diff re-review.
 
-- [ ] **Step 5: Commit and publish through codeArbiter gates**
+- [x] **Step 5: Commit and publish through codeArbiter gates**
 
 Run the auth/secret scan and migration reviewer, record content-bound pass markers only on genuine PASS, run the commit gate, push the active governed branch, and open a ready PR. Do not stage `.codearbiter/open-tasks.md.lock`.
 
-- [ ] **Step 6: Hosted checks, merge, deploy, and production verification**
+- [x] **Step 6: Hosted checks, merge, deploy, and production verification**
 
 Wait for every required hosted check on the exact reviewed PR head. When green, merge under standing authority; run `npm run deploy:backend` through the existing linked local Supabase CLI while preserving unrelated remote config and keeping vector buckets disabled; wait for Pages deployment; verify the production client, auth signup/sign-in surface without creating a paid dependency, profile RLS behavior using a disposable test account only if safe, and anonymous gameplay health.
 
-- [ ] **Step 7: Close and continue**
+- [x] **Step 7: Close and continue**
 
-Mark `mvp2.identity.0001` done only after production verification, append the sprint receipt, then select the next highest-value progression slice—expected to be authenticated match/account linkage before XP/levels.
+After production verification, append the sprint receipt and leave the broad `mvp2.identity.0001` umbrella in progress while authenticated match/account linkage and progression remain undelivered. Add and start the next bounded progression task—expected to be authenticated match/account linkage before XP/levels.
