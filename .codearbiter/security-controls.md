@@ -1,14 +1,17 @@
 # Security controls
 
-Thin, boundary-focused. This is a casual browser game with **no end-user authentication by
-design**; the controls that matter are database write-access and the Edge Function referee.
-Extracted from code 2026-06-20.
+Thin, boundary-focused. Anonymous hot-seat and online play remain supported, while ADR-0011 adds
+optional durable Supabase Auth accounts for profiles and future progression. Gameplay authorization
+continues to use the existing per-seat credential; account identity is a separate boundary.
+Originally extracted from code 2026-06-20; account transition accepted 2026-08-04.
 
 ## Auth / identity
 
-- **No account or JWT auth** — no login, no Supabase Auth (GoTrue), user sessions, or JWT verification. Each human seat instead has two server-minted values: a public `playerId`, which is safe to put in room rows and action logs, and a secret 128-bit CSPRNG UUID seat token, which is the bearer credential for that seat. `create_room` and `join_room` mint and return the token once with the new seat.
+- **Optional account auth (ADR-0011)** — Supabase Auth email/password supplies a durable user id and browser-managed JWT session for owner-only profile access. Signup begins with email confirmation disabled: no magic link, OTP, resend, SMTP, password-recovery delivery, or paid provider. Google SSO is deferred. Passwords and session tokens are handled only by Supabase Auth and MUST NOT enter repo source, logs, URLs, public tables, Realtime, or application-owned persistence.
+- **Gameplay identity remains split** — each human seat has two server-minted values: a public `playerId`, which is safe to put in room rows and action logs, and a secret 128-bit CSPRNG UUID seat token, which remains the bearer credential for that seat. `create_room` and `join_room` mint and return the token once with the new seat. An account JWT does not replace or imply ownership of a seat.
 - The client persists that secret only in its existing best-effort `localStorage` entry keyed by the public `playerId`, so it can follow the same seat through a rematch. The token is never a Realtime value, URL value, log value, or identity/display field.
-- `verify_jwt = false` on **all 10 Edge Functions** (`supabase/config.toml`). They are public POST endpoints. This is acceptable **only because** writes are locked at the database layer (below) and gated in-function.
+- The existing 10 gameplay Edge Functions retain `verify_jwt = false`; they remain public POST endpoints gated by seat token and database controls. Account profile access uses the Supabase Data API's authenticated role plus RLS, not those functions. Any future account-aware function MUST verify the JWT/`auth.uid()` boundary explicitly and MUST NOT accept a client-supplied user id as authority.
+- `profiles` contains only the Supabase user id, display name, and timestamps. It MUST NOT contain email, password material, access/refresh tokens, seat tokens, or client-reported progression. RLS default-denies anonymous access and limits authenticated reads to `id = auth.uid()`; profile insertion is server-trigger-owned in the identity-foundation slice.
 
 ## Database access — the real control (RLS)
 
