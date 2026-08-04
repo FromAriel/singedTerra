@@ -4,7 +4,7 @@
 
 **Goal:** Add optional password-based Supabase accounts and owner-only durable profiles without changing anonymous play or seat-token authorization.
 
-**Architecture:** A DOM-free `AccountSession` lazily owns Supabase Auth/session/profile state. A pure `AccountPanelView` renders that state inside the lobby shell. One additive migration creates trigger-owned, RLS-protected profiles, while a deterministic harness pins both SQL and auth configuration.
+**Architecture:** A DOM-free `AccountSession` lazily owns Supabase Auth/session/profile state. A pure `AccountPanelView` renders that state inside the lobby shell. One additive migration creates trigger-owned, RLS-protected profiles; a second preserves the existing public gameplay reads for authenticated sessions without granting writes. A deterministic harness pins both SQL migrations and auth configuration.
 
 **Tech Stack:** TypeScript 7, Vitest/jsdom, Supabase JS 2.111.0, Supabase Auth, Postgres 15 RLS, Vite 8, PowerShell-hosted npm/Deno verification.
 
@@ -24,6 +24,7 @@
 **Files:**
 - Create: `scripts/checks/profile_identity.mjs`
 - Create: `supabase/migrations/012_profiles.sql`
+- Create: `supabase/migrations/013_authenticated_gameplay_reads.sql`
 - Modify: `supabase/config.toml`
 - Modify: `package.json`
 
@@ -33,17 +34,17 @@
 
 - [x] **Step 1: Write the failing migration/config contract harness**
 
-Create a Node harness that reads `supabase/config.toml` and `012_profiles.sql`, requires auth/signup enabled with email confirmation disabled, and requires the additive table, `auth.users` foreign key, normalized trigger, RLS, owner-only authenticated SELECT policy, revoked anonymous access, and classification comments. Assert that the migration contains no `email`, `password`, `token`, destructive statement, anon SELECT grant, or authenticated INSERT grant.
+Create a Node harness that reads `supabase/config.toml`, `012_profiles.sql`, and `013_authenticated_gameplay_reads.sql`; requires auth/signup enabled with email confirmation disabled; and requires the additive profile table, `auth.users` foreign key, normalized trigger, RLS, owner-only authenticated profile SELECT, revoked anonymous profile access, and classification comments. Require authenticated SELECT parity for `rooms`, `room_actions`, and `match_scores`, with authenticated INSERT/UPDATE/DELETE explicitly revoked. Assert that neither migration contains credential storage, destructive statements, permissive profile access, or authenticated gameplay writes.
 
 - [x] **Step 2: Verify RED**
 
 Run: `node scripts/checks/profile_identity.mjs`
 
-Expected: FAIL because `012_profiles.sql` is missing and auth is disabled.
+Expected: FAIL because the required migrations are missing and auth is disabled.
 
 - [x] **Step 3: Add the minimal additive migration and auth configuration**
 
-Create `012_profiles.sql` with a constrained profile table; `SECURITY DEFINER SET search_path = ''` trigger function; qualified insert; trigger on `auth.users`; RLS; revoked public/anon access; authenticated owner SELECT; and classification comments. Set `[auth].enabled = true`, `[auth].enable_signup = true`, `[auth.email].enable_signup = true`, and `[auth.email].enable_confirmations = false`. Add the harness to `npm run check` and run `npx supabase db push --yes` before `npx supabase config push --yes` in `deploy:backend`, so signup cannot precede the profile trigger.
+Create `012_profiles.sql` with a constrained profile table; `SECURITY DEFINER SET search_path = ''` trigger function; qualified insert; trigger on `auth.users`; RLS; revoked public/anon access; authenticated owner SELECT; and classification comments. Create `013_authenticated_gameplay_reads.sql` with SELECT-only authenticated grants and policies for the public gameplay tables plus explicit write revokes. Set `[auth].enabled = true`, `[auth].enable_signup = true`, `[auth.email].enable_signup = true`, and `[auth.email].enable_confirmations = false`. Add the harness to `npm run check` and run `npx supabase db push --yes` before `npx supabase config push --yes` in `deploy:backend`, so both migrations precede signup.
 
 - [x] **Step 4: Verify GREEN**
 
@@ -75,7 +76,7 @@ Assert config is unavailable when either Vite variable is blank and available on
 
 - [x] **Step 2: Verify config RED**
 
-Run: `npm run test:client -- client/src/lib/supabaseConfig.test.ts`
+Run: `npm run test:client -- src/lib/supabaseConfig.test.ts`
 
 Expected: FAIL because the module does not exist.
 
@@ -89,7 +90,7 @@ Cover unavailable boot without calling the loader; configured anonymous boot; re
 
 - [x] **Step 5: Verify session RED**
 
-Run: `npm run test:client -- client/src/client/AccountSession.test.ts`
+Run: `npm run test:client -- src/client/AccountSession.test.ts`
 
 Expected: FAIL because `AccountSession` does not exist.
 
@@ -99,7 +100,7 @@ Keep the Supabase loader injected and default it to `await import('../lib/supaba
 
 - [x] **Step 7: Verify session GREEN**
 
-Run: `npm run test:client -- client/src/lib/supabaseConfig.test.ts client/src/client/AccountSession.test.ts`
+Run: `npm run test:client -- src/lib/supabaseConfig.test.ts src/client/AccountSession.test.ts`
 
 Expected: PASS.
 
@@ -125,7 +126,7 @@ Assert unavailable omits the panel; anonymous renders `Account` and the selected
 
 - [x] **Step 2: Verify panel RED**
 
-Run: `npm run test:client -- client/src/ui/AccountPanelView.test.ts`
+Run: `npm run test:client -- src/ui/AccountPanelView.test.ts`
 
 Expected: FAIL because the view does not exist.
 
@@ -139,7 +140,7 @@ Extend shell-order assertions for the account slot. In `Lobby.account.test.ts`, 
 
 - [x] **Step 5: Verify wiring RED**
 
-Run: `npm run test:client -- client/src/ui/LobbyShellView.test.ts client/src/ui/Lobby.account.test.ts`
+Run: `npm run test:client -- src/ui/LobbyShellView.test.ts src/ui/Lobby.account.test.ts`
 
 Expected: FAIL because the shell and Lobby have no account composition.
 
@@ -149,7 +150,7 @@ Add the account slot after the title, inject `AccountSession` through an optiona
 
 - [x] **Step 7: Verify UI GREEN**
 
-Run: `npm run test:client -- client/src/ui/AccountPanelView.test.ts client/src/ui/LobbyShellView.test.ts client/src/ui/Lobby.account.test.ts`
+Run: `npm run test:client -- src/ui/AccountPanelView.test.ts src/ui/LobbyShellView.test.ts src/ui/Lobby.account.test.ts`
 
 Expected: PASS.
 

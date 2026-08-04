@@ -18,6 +18,7 @@ This slice delivers the identity foundation only:
 - A `profiles` table keyed one-to-one to `auth.users.id`, created by a server-side trigger and readable only by its owner in this slice.
 - A lobby account panel that reports loading, signed-out, busy/error, and signed-in states and works on desktop and mobile.
 - Existing hot-seat and anonymous online play remain available when signed out or when Supabase configuration is absent.
+- Signed-in players retain the same public, read-only visibility of rooms, action logs, Realtime events, and match scores as anonymous players; account JWTs grant no gameplay writes.
 - Deployment pushes the auth configuration and forward-only migration through the already-linked local Supabase CLI.
 
 Explicitly out of scope:
@@ -46,6 +47,7 @@ Explicitly out of scope:
 - `Lobby` owns only panel-open/mode policy and composes the session and view.
 - Postgres creates `profiles` from an `auth.users` trigger. The public profile row contains only `id`, `display_name`, and timestamps—never email, password material, access tokens, refresh tokens, or seat tokens.
 - RLS is enabled. `anon` has no profile access. `authenticated` can select only the row where `id = auth.uid()`; profile insertion remains trigger-only in this slice.
+- Existing public gameplay reads are mirrored for `authenticated` through explicit SELECT grants and read-only policies on `rooms`, `room_actions`, and `match_scores`. Direct authenticated writes remain revoked and policy-denied.
 - Existing `room_seats` tokens remain the sole room/action bearer credential. Account JWTs do not replace them in this slice.
 
 ## Threat-model constraints
@@ -61,12 +63,13 @@ STRIDE verdict: **PROCEED WITH CONSTRAINTS**.
 
 ## Migration contract
 
-- Add exactly one forward-only migration after `011`: `012_profiles.sql`.
-- The migration is additive: create table, constraints, comments/classification, RLS, grants/policies, trigger function, and trigger. It drops no data and alters no existing gameplay table.
+- Add exactly two forward-only migrations after `011`: `012_profiles.sql` and `013_authenticated_gameplay_reads.sql`.
+- Migration 012 is additive: create table, constraints, comments/classification, RLS, grants/policies, trigger function, and trigger. It drops no data and alters no existing gameplay table.
+- Migration 013 preserves online play after authentication by granting SELECT and adding authenticated read-only policies for the three existing public gameplay tables. It explicitly revokes authenticated INSERT, UPDATE, and DELETE and changes no rows or table definitions.
 - `profiles.id` references `auth.users(id) ON DELETE CASCADE`; account deletion itself is out of scope.
 - Trigger logic normalizes a non-empty display name to at most 24 characters and falls back to `Commander` if metadata is absent.
 - The trigger function is `SECURITY DEFINER` with an empty search path and qualified object names.
-- A deterministic harness proves the required SQL/config statements and rejects credential columns or permissive profile policies.
+- A deterministic harness pins both migrations, proves the required SQL/config statements, and rejects credential columns, permissive profile policies, or authenticated gameplay writes.
 
 ## Acceptance criteria
 
@@ -77,7 +80,7 @@ STRIDE verdict: **PROCEED WITH CONSTRAINTS**.
 5. No Supabase module is evaluated on an unconfigured hot-seat boot.
 6. The account panel is keyboard-operable, labelled, and responsive; it does not gate existing lobby controls.
 7. The migration creates one owner-only profile row per auth user with RLS and no public credential data.
-8. Existing seat-token behavior, deterministic checks, client tests, Edge tests, build, and e2e checks remain green.
+8. Signed-in and anonymous clients retain public gameplay reads, while direct client writes remain denied and existing seat-token behavior, deterministic checks, client tests, Edge tests, build, and e2e checks remain green.
 9. The exact reviewed PR head passes every required hosted check before merge; merged auth config/migration are deployed through local CLI auth and production health is verified.
 
 ## Reopen triggers

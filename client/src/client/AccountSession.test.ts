@@ -65,6 +65,103 @@ describe('createSupabaseAccountBackend', () => {
     expect(eq).toHaveBeenCalledWith('id', 'user-7')
     expect(profile).toEqual({ id: 'user-7', displayName: 'Ash Walker' })
   })
+
+  it('maps restored and changed Supabase sessions and unsubscribes the listener', async () => {
+    const unsubscribe = vi.fn()
+    let onAuthStateChange: ((_event: string, session: { user: { id: string } } | null) => void) | undefined
+    const getSession = vi.fn(async () => ({
+      data: { session: { user: { id: 'restored-user' } } },
+      error: null,
+    }))
+    const client = {
+      auth: {
+        getSession,
+        onAuthStateChange: vi.fn((callback) => {
+          onAuthStateChange = callback
+          return { data: { subscription: { unsubscribe } } }
+        }),
+        signUp: vi.fn(),
+        signInWithPassword: vi.fn(),
+        signOut: vi.fn(),
+      },
+      from: vi.fn(),
+    }
+    const gateway = createSupabaseAccountBackend(client as never)
+    const changed: Array<{ id: string } | null> = []
+
+    expect(await gateway.restoreUser()).toEqual({ id: 'restored-user' })
+    const stop = gateway.subscribe((user) => changed.push(user))
+    onAuthStateChange?.('SIGNED_IN', { user: { id: 'changed-user' } })
+    onAuthStateChange?.('SIGNED_OUT', null)
+    stop()
+
+    expect(changed).toEqual([{ id: 'changed-user' }, null])
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('maps password sign-in and sign-out through the Supabase auth adapter', async () => {
+    const signInWithPassword = vi.fn(async () => ({
+      data: { user: { id: 'signed-in-user' } },
+      error: null,
+    }))
+    const signOut = vi.fn(async () => ({ error: null }))
+    const client = {
+      auth: {
+        getSession: vi.fn(),
+        onAuthStateChange: vi.fn(),
+        signUp: vi.fn(),
+        signInWithPassword,
+        signOut,
+      },
+      from: vi.fn(),
+    }
+    const gateway = createSupabaseAccountBackend(client as never)
+
+    await expect(gateway.signIn({
+      email: 'ranger@example.test',
+      password: 'not-a-real-secret',
+    })).resolves.toEqual({ id: 'signed-in-user' })
+    await expect(gateway.signOut()).resolves.toBeUndefined()
+
+    expect(signInWithPassword).toHaveBeenCalledWith({
+      email: 'ranger@example.test',
+      password: 'not-a-real-secret',
+    })
+    expect(signOut).toHaveBeenCalledOnce()
+  })
+
+  it('rejects incomplete auth responses and malformed profile rows', async () => {
+    const client = {
+      auth: {
+        getSession: vi.fn(async () => ({ data: { session: null }, error: { message: 'restore failed' } })),
+        onAuthStateChange: vi.fn(),
+        signUp: vi.fn(async () => ({ data: { user: { id: 'user-1' }, session: null }, error: null })),
+        signInWithPassword: vi.fn(async () => ({ data: { user: null }, error: null })),
+        signOut: vi.fn(async () => ({ error: { message: 'sign-out failed' } })),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(async () => ({ data: { id: 'user-1', display_name: 7 }, error: null })),
+          })),
+        })),
+      })),
+    }
+    const gateway = createSupabaseAccountBackend(client as never)
+
+    await expect(gateway.restoreUser()).rejects.toThrow('restore failed')
+    await expect(gateway.signUp({
+      displayName: 'Ranger',
+      email: 'ranger@example.test',
+      password: 'not-a-real-secret',
+    })).rejects.toThrow('automatic sign-in')
+    await expect(gateway.signIn({
+      email: 'ranger@example.test',
+      password: 'not-a-real-secret',
+    })).rejects.toThrow('did not return an account')
+    await expect(gateway.signOut()).rejects.toThrow('sign-out failed')
+    await expect(gateway.loadProfile('user-1')).rejects.toThrow('profile is unavailable')
+  })
 })
 
 describe('AccountSession', () => {
@@ -130,6 +227,53 @@ describe('AccountSession', () => {
 
     expect(source.signUp).not.toHaveBeenCalled()
     expect(session.state.error).toBe('Enter a display name between 1 and 24 characters.')
+  })
+
+  it.each([
+    {
+      label: 'an overlong display name',
+      credentials: { displayName: 'x'.repeat(25), email: 'ranger@example.test', password: 'valid-password' },
+      error: 'Enter a display name between 1 and 24 characters.',
+    },
+    {
+      label: 'a malformed email',
+      credentials: { displayName: 'Ranger', email: 'not-email', password: 'valid-password' },
+      error: 'Enter a valid email address.',
+    },
+    {
+      label: 'a short password',
+      credentials: { displayName: 'Ranger', email: 'ranger@example.test', password: 'short' },
+      error: 'Password must be at least 8 characters.',
+    },
+  ])('rejects $label independently before account creation', async ({ credentials, error }) => {
+    const source = backend()
+    const session = new AccountSession((state) => states.push(state), {
+      isConfigured: () => true,
+      loadBackend: async () => source,
+    })
+    await session.initialize()
+
+    await session.submit('create', credentials)
+
+    expect(source.signUp).not.toHaveBeenCalled()
+    expect(session.state.error).toBe(error)
+  })
+
+  it.each(['A', 'x'.repeat(24)])('accepts display-name boundary %s', async (displayName) => {
+    const source = backend()
+    const session = new AccountSession((state) => states.push(state), {
+      isConfigured: () => true,
+      loadBackend: async () => source,
+    })
+    await session.initialize()
+
+    await session.submit('create', {
+      displayName,
+      email: 'ranger@example.test',
+      password: 'valid-password',
+    })
+
+    expect(source.signUp).toHaveBeenCalledOnce()
   })
 
   it('creates an authenticated profile and never retains the password in state', async () => {
@@ -241,6 +385,69 @@ describe('AccountSession', () => {
     await session.signOut()
     expect(source.signOut).toHaveBeenCalledOnce()
     expect(session.state.status).toBe('anonymous')
+  })
+
+  it('preserves authenticated state with a bounded error when sign-out fails', async () => {
+    const source = backend({
+      restoreUser: vi.fn(async () => ({ id: 'user-1' })),
+      signOut: vi.fn(async () => { throw new Error('sensitive backend detail') }),
+    })
+    const session = new AccountSession((state) => states.push(state), {
+      isConfigured: () => true,
+      loadBackend: async () => source,
+    })
+    await session.initialize()
+
+    await session.signOut()
+
+    expect(session.state).toEqual({
+      status: 'authenticated',
+      busy: false,
+      error: 'Account request failed. Try again.',
+      profile: { id: 'user-1', displayName: 'Ranger' },
+    })
+  })
+
+  it('surfaces initialization failure without retaining backend detail', async () => {
+    const session = new AccountSession((state) => states.push(state), {
+      isConfigured: () => true,
+      loadBackend: async () => { throw new Error('sensitive initialization detail') },
+    })
+
+    await session.initialize()
+
+    expect(session.state).toEqual({
+      status: 'anonymous',
+      busy: false,
+      error: 'Account request failed. Try again.',
+    })
+  })
+
+  it('lets a newer auth event supersede an in-flight restored user', async () => {
+    let onUser: ((user: { id: string } | null) => void) | undefined
+    const restored = deferred<{ id: string } | null>()
+    const source = backend({
+      restoreUser: vi.fn(() => restored.promise),
+      subscribe: vi.fn((callback) => {
+        onUser = callback
+        return vi.fn()
+      }),
+      loadProfile: vi.fn(async (userId) => ({ id: userId, displayName: userId })),
+    })
+    const session = new AccountSession((state) => states.push(state), {
+      isConfigured: () => true,
+      loadBackend: async () => source,
+    })
+    const initializing = session.initialize()
+    await Promise.resolve()
+
+    onUser?.({ id: 'new-user' })
+    restored.resolve({ id: 'stale-user' })
+    await initializing
+    await vi.waitFor(() => expect(session.state.status).toBe('authenticated'))
+
+    expect(source.loadProfile).toHaveBeenCalledWith('new-user')
+    expect(source.loadProfile).not.toHaveBeenCalledWith('stale-user')
   })
 
   it('refreshes profile state from auth events', async () => {

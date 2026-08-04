@@ -4065,3 +4065,27 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - Whole-slice adversarial reviewer Beauvoir reviewed staged diff `4d126e4a995240b7e7e094daa1ff48aa738f7266` with the approved spec, implementation plan, sprint log, RED/GREEN and full-suite evidence, security constraints, migration review, and complete staged diff.
 - Verdict CLEAR: Critical 0, High 0, Medium 0, Low 0, merge blockers 0. The reviewer confirmed the scoped H-18 override was append-only and preserved `arbiter: enabled` plus `stage: 1`; the protected untracked task lock remained excluded.
 - Plan Step 4 is closed from that review. This append-only receipt and checkbox are governance-only follow-up; exact staged hash confirmation remains required before commit.
+
+## 2026-08-04 - mvp2.identity.0001 PR path-matrix remediation
+
+- The PR auth reviewer BLOCKED with one High finding: once the shared Supabase client restores an account JWT, direct room, action-log, Realtime, resync, rematch, and score reads run as `authenticated`, while migrations 001 and 003 expose those gameplay reads only to `anon`. Signed-in players could therefore lose networked-play visibility.
+- TDD RED: extended the profile identity harness to require a separate authenticated-gameplay compatibility migration. The focused harness failed because migration 013 was absent.
+- GREEN: added immutable migration 013, explicitly revoked authenticated INSERT/UPDATE/DELETE on `rooms`, `room_actions`, and `match_scores`, granted SELECT, and installed read-only authenticated RLS policies matching anonymous visibility. Seat-token and service-role write authorization are unchanged. The focused harness passes.
+- Coverage audit BLOCKED on three Medium merge blockers: plan commands used root-relative `client/src` filters after entering the client workspace; malformed-email and short-password validation branches were short-circuited by one invalid-name test; and the concrete Supabase adapter plus initialization/sign-out/interleaving failure paths lacked direct coverage.
+- Remediation corrected all focused commands to workspace-relative `src` paths and expanded AccountSession coverage to 23 tests. The focused five-file command passes 39 tests; focused AccountSession coverage is 92.8% statements, 82.55% branches, 92.3% functions, and 98.21% lines.
+- Causal mutation proof: forcing restored/auth-event user mapping to null failed the new adapter test at the expected restored-user assertion; disabling the eight-character password branch failed only the independent short-password test because account creation was reached. Both mutations were removed, and the focused AccountSession suite returned green.
+- Dependency/deployment review remained CLEAR with zero findings. Exact migration, security, coverage, and whole-diff re-review remain required before the remediation commit.
+
+## 2026-08-04 - mvp2.identity.0001 authenticated-read scope reconciliation
+
+- Coverage follow-up confirmed all three earlier test blockers resolved, then BLOCKED on one new Medium governance mismatch: the spec required exactly one migration while the necessary signed-in gameplay-read compatibility fix added migration 013.
+- SMARTS verdict: retain migration 013 and explicitly reconcile the bounded scope. Securable and Reliable require signed-in users to keep public read visibility without gaining writes; Maintainable and Testable favor a separate immutable compatibility migration over rewriting profile migration 012; Scope remains bounded to preserving existing gameplay behavior. Strength: strong. Confidence: high.
+- Updated the spec, plan, and security controls to require exactly migrations 012 and 013, authenticated SELECT parity for `rooms`, `room_actions`, and `match_scores`, explicit authenticated write revocation, immutable harness coverage, and unchanged seat-token/service-role mutation authority.
+- Exact staged re-review remains required after this governance reconciliation.
+
+## 2026-08-04 - mvp2.identity.0001 migration-header remediation
+
+- Whole-diff re-review BLOCKED with one Medium merge blocker: migration 013 omitted the repository-required version, date, rationale, safety posture, and lock-profile header.
+- Added the required header, documenting ADR-0011 compatibility, additive policy/grant-only safety, no row mutation or rewrite, and brief catalog locks without data scans.
+- The immutable migration harness then failed on the changed digest as intended. Rebound the normalized-LF digest to the reviewed header-bearing migration and restored the focused harness to green.
+- Exact final migration and whole-diff re-review remain required before commit.

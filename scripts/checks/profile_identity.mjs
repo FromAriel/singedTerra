@@ -9,6 +9,12 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const configPath = join(root, 'supabase', 'config.toml');
 const migrationPath = join(root, 'supabase', 'migrations', '012_profiles.sql');
+const gameplayReadMigrationPath = join(
+  root,
+  'supabase',
+  'migrations',
+  '013_authenticated_gameplay_reads.sql',
+);
 const packagePath = join(root, 'package.json');
 
 function fail(message) {
@@ -135,12 +141,45 @@ try {
 } catch {
   fail(`required migration is missing: ${migrationPath}`);
 }
+let gameplayReadMigration;
+try {
+  gameplayReadMigration = await readFile(gameplayReadMigrationPath, 'utf8');
+} catch {
+  fail(`required migration is missing: ${gameplayReadMigrationPath}`);
+}
 
 const normalizedMigration = migration.replace(/\r\n/g, '\n');
 const migrationDigest = createHash('sha256').update(normalizedMigration).digest('hex');
 const expectedMigrationDigest = 'fe714f86c31dcc01a41227d1b273965b20bf50cbe8ccdd76fadeec2f572e6b43';
 if (migrationDigest !== expectedMigrationDigest) {
   fail('012_profiles.sql differs from its reviewed immutable migration digest');
+}
+
+const gameplayReadSql = maskSqlLiterals(stripSqlComments(gameplayReadMigration));
+const normalizedGameplayReadMigration = gameplayReadMigration.replace(/\r\n/g, '\n');
+const gameplayReadMigrationDigest = createHash('sha256')
+  .update(normalizedGameplayReadMigration)
+  .digest('hex');
+const expectedGameplayReadMigrationDigest = 'bea4e72ebf44d9ba3c636a92025e5cd9ac34716d8bc9aff6bb506c4a5d8a6ecb';
+if (gameplayReadMigrationDigest !== expectedGameplayReadMigrationDigest) {
+  fail('013_authenticated_gameplay_reads.sql differs from its reviewed immutable migration digest');
+}
+const gameplayReadStatements = gameplayReadSql
+  .split(';')
+  .map((statement) => normalizeStatement(statement))
+  .filter(Boolean);
+const expectedGameplayReadStatements = [
+  'revoke insert, update, delete on table public.rooms, public.room_actions, public.match_scores from authenticated',
+  'grant select on table public.rooms, public.room_actions, public.match_scores to authenticated',
+  'create policy rooms_select_authenticated on public.rooms for select to authenticated using (true)',
+  'create policy room_actions_select_authenticated on public.room_actions for select to authenticated using (true)',
+  'create policy match_scores_select_authenticated on public.match_scores for select to authenticated using (true)',
+];
+if (
+  gameplayReadStatements.length !== expectedGameplayReadStatements.length
+  || expectedGameplayReadStatements.some((statement) => !gameplayReadStatements.includes(statement))
+) {
+  fail('authenticated gameplay compatibility migration must contain only the reviewed read grants and policies');
 }
 
 const authBlock = config.match(/^\[auth\]\s*$([\s\S]*?)(?=^\[|\Z)/m)?.[1] ?? '';
