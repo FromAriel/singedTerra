@@ -4089,3 +4089,33 @@ pm run check passed the complete chain in 75.8s; state-free staged secret scan r
 - Added the required header, documenting ADR-0011 compatibility, additive policy/grant-only safety, no row mutation or rewrite, and brief catalog locks without data scans.
 - The immutable migration harness then failed on the changed digest as intended. Rebound the normalized-LF digest to the reviewed header-bearing migration and restored the focused harness to green.
 - Exact final migration and whole-diff re-review remain required before commit.
+
+## 2026-08-04 - mvp2.identity.0001 deployment config-push remediation
+
+- Production deployment partially completed: migrations 012 and 013 applied, then Auth config updated. The subsequent full config push attempted to enable vector buckets and stopped with HTTP 402 before function deployment. No upgrade or spend was authorized or attempted.
+- Root cause: `supabase/config.toml` omitted remote-preservation fields. Supabase CLI 2.105 materialized scaffold defaults for omitted settings, producing unrelated diffs: API schemas dropped `graphql_public`, TOTP MFA was disabled, email frequency/OTP length changed, and `[storage.vector]` defaulted enabled. The 402 came from that omitted vector section, not from the password-auth feature.
+- Fix obligations: CONFIG-1 preserve `public` plus `graphql_public`; CONFIG-2 preserve TOTP enrollment/verification and email abuse-control values; CONFIG-3 explicitly disable vector buckets; CONFIG-4 retry deployment without paid-feature activation or unrelated config drift.
+- SMARTS verdict: explicitly pin the linked free-tier posture in tracked config and contract-test it. Securable and Reliable avoid silent auth/API weakening; Available restores the existing remote behavior; Maintainable and Testable prevent future CLI-default drift; Scope remains a four-setting deployment correction. Strength: strong. Confidence: high.
+- TDD RED: the identity config harness failed because `[api].schemas` omitted `graphql_public`. GREEN: added explicit remote-preserving API, TOTP MFA, email frequency/OTP-length, and disabled-vector values; the focused harness passes.
+- Deployment retry remains blocked on governed commit, exact review, hosted CI, and merge of this remediation branch. Database migrations are already applied; function deployment has not yet run.
+
+## 2026-08-04 - mvp2.identity.0001 pinned deployment-tool remediation
+
+- Whole-diff review BLOCKED with one High finding: `deploy:backend` still resolved unpinned `npx supabase` and auto-confirmed `config push --yes`, allowing future CLI defaults to apply unreviewed remote changes. One non-blocking Medium finding noted the plan's stale branch name.
+- The plan now refers to the active governed branch. TDD RED: extended the identity harness to require exact `supabase@2.105.0`, reject `npx supabase`, and reject automatic config confirmation; it failed because the CLI was not pinned.
+- Supply-chain review PASS for exact devDependency `supabase@2.105.0`: official Supabase repository, MIT metadata, registry integrity and SLSA provenance verified, no lifecycle install scripts or runtime dependencies, exact optional platform binaries, no known advisories, and Node 24 compatibility. Low residuals: the selected native binary is large and package tarballs omit a standalone LICENSE file; neither is merge-blocking.
+- Installed `supabase@2.105.0` with exact version and lockfile integrity. `deploy:backend` now resolves the local binary and leaves `config push` interactive so its remote diff can be reviewed before confirmation; database/function operations retain their existing explicit confirmations.
+- The focused harness and dependency audit pass. Exact final security, dependency/deployment, coverage, and whole-diff re-review remain required before commit.
+
+## 2026-08-04 - mvp2.identity.0001 deployment-command documentation reconciliation
+
+- Final whole-diff review confirmed the unpinned CLI High finding resolved, then BLOCKED on one Medium operational mismatch: two governing docs still prescribed `npx supabase` plus auto-confirmed config push.
+- Updated the implementation plan and tech-stack command table to match the executable contract: lockfile-pinned local CLI, migration before config, interactive config-diff confirmation, then function deployment.
+- Exact final whole-diff confirmation remains required; runtime behavior and lockfile content are otherwise unchanged.
+
+## 2026-08-04 - mvp2.identity.0001 deploy-command oracle remediation
+
+- Coverage re-review BLOCKED with one Medium merge blocker: regex-based deploy guards accepted equivalent unpinned or auto-confirmed command forms, including reordered `--yes` flags and piped confirmation.
+- TDD RED: added the four adversarial command variants; the focused harness failed because the existing predicate accepted at least one.
+- GREEN: replaced heuristic command parsing with an exact allowlist for the reviewed lockfile-pinned deployment sequence and retained all adversarial probes. The focused harness passes.
+- Exact final staged re-review remains required before commit.

@@ -34,7 +34,7 @@
 
 - [x] **Step 1: Write the failing migration/config contract harness**
 
-Create a Node harness that reads `supabase/config.toml`, `012_profiles.sql`, and `013_authenticated_gameplay_reads.sql`; requires auth/signup enabled with email confirmation disabled; and requires the additive profile table, `auth.users` foreign key, normalized trigger, RLS, owner-only authenticated profile SELECT, revoked anonymous profile access, and classification comments. Require authenticated SELECT parity for `rooms`, `room_actions`, and `match_scores`, with authenticated INSERT/UPDATE/DELETE explicitly revoked. Assert that neither migration contains credential storage, destructive statements, permissive profile access, or authenticated gameplay writes.
+Create a Node harness that reads `supabase/config.toml`, `012_profiles.sql`, and `013_authenticated_gameplay_reads.sql`; requires auth/signup enabled with email confirmation disabled; preserves the linked API schema, TOTP MFA, and email abuse-control settings; explicitly disables paid vector buckets; and requires the additive profile table, `auth.users` foreign key, normalized trigger, RLS, owner-only authenticated profile SELECT, revoked anonymous profile access, and classification comments. Require authenticated SELECT parity for `rooms`, `room_actions`, and `match_scores`, with authenticated INSERT/UPDATE/DELETE explicitly revoked. Assert that neither migration contains credential storage, destructive statements, permissive profile access, or authenticated gameplay writes.
 
 - [x] **Step 2: Verify RED**
 
@@ -44,7 +44,7 @@ Expected: FAIL because the required migrations are missing and auth is disabled.
 
 - [x] **Step 3: Add the minimal additive migration and auth configuration**
 
-Create `012_profiles.sql` with a constrained profile table; `SECURITY DEFINER SET search_path = ''` trigger function; qualified insert; trigger on `auth.users`; RLS; revoked public/anon access; authenticated owner SELECT; and classification comments. Create `013_authenticated_gameplay_reads.sql` with SELECT-only authenticated grants and policies for the public gameplay tables plus explicit write revokes. Set `[auth].enabled = true`, `[auth].enable_signup = true`, `[auth.email].enable_signup = true`, and `[auth.email].enable_confirmations = false`. Add the harness to `npm run check` and run `npx supabase db push --yes` before `npx supabase config push --yes` in `deploy:backend`, so both migrations precede signup.
+Create `012_profiles.sql` with a constrained profile table; `SECURITY DEFINER SET search_path = ''` trigger function; qualified insert; trigger on `auth.users`; RLS; revoked public/anon access; authenticated owner SELECT; and classification comments. Create `013_authenticated_gameplay_reads.sql` with SELECT-only authenticated grants and policies for the public gameplay tables plus explicit write revokes. Set `[auth].enabled = true`, `[auth].enable_signup = true`, `[auth.email].enable_signup = true`, and `[auth.email].enable_confirmations = false`; explicitly preserve the linked project's `graphql_public`, TOTP MFA, email frequency/OTP-length, and disabled vector settings so a full config push changes only the accepted auth posture. Add the harness to `npm run check` and run the lockfile-pinned `supabase db push --yes` before interactive `supabase config push` in `deploy:backend`, so both migrations precede signup and the config diff is reviewed before confirmation.
 
 - [x] **Step 4: Verify GREEN**
 
@@ -196,11 +196,11 @@ Provide one adversarial subagent the approved spec, this plan, sprint-log additi
 
 - [ ] **Step 5: Commit and publish through codeArbiter gates**
 
-Run the auth/secret scan and migration reviewer, record content-bound pass markers only on genuine PASS, run the commit gate, push `codex/persistent-identity-assessment`, and open a ready PR. Do not stage `.codearbiter/open-tasks.md.lock`.
+Run the auth/secret scan and migration reviewer, record content-bound pass markers only on genuine PASS, run the commit gate, push the active governed branch, and open a ready PR. Do not stage `.codearbiter/open-tasks.md.lock`.
 
 - [ ] **Step 6: Hosted checks, merge, deploy, and production verification**
 
-Wait for every required hosted check on the exact reviewed PR head. When green, merge under standing authority; run `npm run deploy:backend` through the existing linked local Supabase CLI; wait for Pages deployment; verify the production client, auth signup/sign-in surface without creating a paid dependency, profile RLS behavior using a disposable test account only if safe, and anonymous gameplay health.
+Wait for every required hosted check on the exact reviewed PR head. When green, merge under standing authority; run `npm run deploy:backend` through the existing linked local Supabase CLI while preserving unrelated remote config and keeping vector buckets disabled; wait for Pages deployment; verify the production client, auth signup/sign-in surface without creating a paid dependency, profile RLS behavior using a disposable test account only if safe, and anonymous gameplay health.
 
 - [ ] **Step 7: Close and continue**
 

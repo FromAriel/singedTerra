@@ -20,6 +20,7 @@ This slice delivers the identity foundation only:
 - Existing hot-seat and anonymous online play remain available when signed out or when Supabase configuration is absent.
 - Signed-in players retain the same public, read-only visibility of rooms, action logs, Realtime events, and match scores as anonymous players; account JWTs grant no gameplay writes.
 - Deployment pushes the auth configuration and forward-only migration through the already-linked local Supabase CLI.
+- Full config push explicitly preserves the linked project's existing API schema, TOTP MFA, and email abuse-control settings and keeps paid vector buckets disabled.
 
 Explicitly out of scope:
 
@@ -27,7 +28,7 @@ Explicitly out of scope:
 - Associating a room seat or completed match with an account.
 - Google or other OAuth providers.
 - Email verification, password recovery, account deletion, email change, or admin tooling.
-- Any new dependency, custom password storage, custom crypto, service-role exposure, or spending.
+- Any new runtime dependency, custom password storage, custom crypto, service-role exposure, or spending. The exact reviewed Supabase CLI is a development-only deployment tool pinned in the lockfile.
 
 ## Player experience
 
@@ -81,7 +82,7 @@ STRIDE verdict: **PROCEED WITH CONSTRAINTS**.
 6. The account panel is keyboard-operable, labelled, and responsive; it does not gate existing lobby controls.
 7. The migration creates one owner-only profile row per auth user with RLS and no public credential data.
 8. Signed-in and anonymous clients retain public gameplay reads, while direct client writes remain denied and existing seat-token behavior, deterministic checks, client tests, Edge tests, build, and e2e checks remain green.
-9. The exact reviewed PR head passes every required hosted check before merge; merged auth config/migration are deployed through local CLI auth and production health is verified.
+9. The exact reviewed PR head passes every required hosted check before merge; merged auth config/migration are deployed through local CLI auth without unrelated config drift or paid-feature activation, and production health is verified.
 
 ## Reopen triggers
 
