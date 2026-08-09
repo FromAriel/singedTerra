@@ -52,9 +52,16 @@ describe('buildLobbyBrowseView', () => {
       onJoinByCode,
     });
 
-    expect(root.querySelector('.lobby-sub')?.textContent)
-      .toBe('Public rooms looking for players.');
-    expect([...root.children].slice(1, 4)).toEqual([nameColor, garage, status]);
+    expect(root.className).toBe('lobby-operations-board lobby-operations-board--browse');
+    expect(root.querySelector('.lobby-operations-board__title')?.textContent).toBe('Open operations');
+    expect(root.querySelector('.lobby-operations-board__purpose')?.textContent)
+      .toBe('Scan active rooms and join a crew preparing to fire.');
+    expect(root.querySelector('.lobby-operations-board__crew')?.getAttribute('aria-label'))
+      .toBe('Commander preparation');
+    expect([...root.querySelector('.lobby-operations-board__crew')!.children])
+      .toEqual([nameColor, garage, status]);
+    expect(root.querySelector('.lobby-operations-board__section')?.getAttribute('aria-label'))
+      .toBe('Open operations');
     expect(root.querySelector('.online-player-row')?.textContent)
       .toBe('No public rooms right now.');
     expect(root.querySelector('nav')?.getAttribute('aria-label')).toBe('Other ways to play online');
@@ -82,6 +89,8 @@ describe('buildLobbyBrowseView', () => {
     });
 
     const availableRow = root.querySelectorAll('.online-player-row')[0]!;
+    expect(root.querySelector('.lobby-operations-board__section')?.getAttribute('aria-label'))
+      .toBe('Open operations');
     expect(availableRow.textContent).toContain('Atlas');
     expect(availableRow.textContent).toContain('Best of 3');
     expect(availableRow.textContent).toContain('Arms Lv 2');
@@ -91,8 +100,8 @@ describe('buildLobbyBrowseView', () => {
 
     const available = button(root, 'Join (1/4)');
     const full = button(root, 'Join (4/4)');
-    expect(available.classList.contains('secondary')).toBe(true);
-    expect(full.classList.contains('secondary')).toBe(true);
+    expect(available.classList.contains('primary')).toBe(true);
+    expect(full.classList.contains('primary')).toBe(true);
     expect(available.disabled).toBe(false);
     expect(full.disabled).toBe(true);
     available.click();
