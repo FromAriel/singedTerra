@@ -24,11 +24,23 @@ export interface LobbyCreateViewOptions {
 
 export function buildLobbyCreateView(options: LobbyCreateViewOptions): HTMLElement {
   const root = document.createElement('div');
+  root.className = 'lobby-route-brief lobby-route-brief--online';
 
-  const sub = document.createElement('p');
-  sub.className = 'lobby-sub';
-  sub.textContent = 'Create a new online room and invite friends.';
-  root.append(sub, options.nameColor, options.garage);
+  const brief = document.createElement('header');
+  brief.className = 'lobby-route-brief__header';
+  const title = document.createElement('h2');
+  title.className = 'lobby-route-brief__title';
+  title.textContent = 'Open operation';
+  const purpose = document.createElement('p');
+  purpose.className = 'lobby-route-brief__purpose';
+  purpose.textContent = 'Set the battlefield, then issue a room code to your crew.';
+  brief.append(title, purpose);
+
+  const setup = document.createElement('section');
+  setup.className = 'lobby-route-brief__setup';
+  setup.setAttribute('aria-label', 'Open operation setup');
+
+  setup.append(options.nameColor, options.garage);
 
   const playerField = document.createElement('div');
   playerField.className = 'lobby-field';
@@ -46,7 +58,7 @@ export function buildLobbyCreateView(options: LobbyCreateViewOptions): HTMLEleme
     options.onPlayerCountChange(Number(playerSelect.value));
   });
   playerField.append(playerLabel, playerSelect);
-  root.append(playerField);
+  setup.append(playerField);
 
   const botField = document.createElement('div');
   botField.className = 'lobby-field';
@@ -78,7 +90,7 @@ export function buildLobbyCreateView(options: LobbyCreateViewOptions): HTMLEleme
     });
     botField.append(difficultySelect);
   }
-  root.append(botField);
+  setup.append(botField);
 
   const visibilityField = document.createElement('div');
   visibilityField.className = 'lobby-field';
@@ -96,23 +108,23 @@ export function buildLobbyCreateView(options: LobbyCreateViewOptions): HTMLEleme
     options.onVisibilityChange(visibilitySelect.value as 'public' | 'private');
   });
   visibilityField.append(visibilityLabel, visibilitySelect);
-  root.append(visibilityField);
+  setup.append(visibilityField);
 
   const advanced = document.createElement('details');
   advanced.className = 'lobby-advanced';
   const summary = document.createElement('summary');
   summary.textContent = 'Advanced settings';
   advanced.append(summary, ...options.advancedFields);
-  root.append(advanced, options.status);
+  setup.append(advanced, options.status);
 
   const createButton = document.createElement('button');
   createButton.type = 'button';
-  createButton.className = 'lobby-btn';
+  createButton.className = 'lobby-btn primary';
   createButton.textContent = options.busy ? 'Creating...' : 'Create Room';
   createButton.disabled = options.busy;
   createButton.addEventListener('click', options.onCreate);
 
-  root.append(buildOnlineRouteActions(createButton, [
+  root.append(brief, setup, buildOnlineRouteActions(createButton, [
     { id: 'join-code', label: 'Join with a code', onClick: options.onJoin },
     { id: 'browse', label: 'Browse public rooms', onClick: options.onBrowse },
   ]));

@@ -53,8 +53,12 @@ describe('buildLobbyCreateView', () => {
     const status = section('status');
     const root = buildLobbyCreateView(options({ nameColor, garage, advancedFields, status }));
 
-    expect(root.querySelector('.lobby-sub')?.textContent)
-      .toBe('Create a new online room and invite friends.');
+    expect(root.className).toBe('lobby-route-brief lobby-route-brief--online');
+    expect(root.querySelector('.lobby-route-brief__title')?.textContent).toBe('Open operation');
+    expect(root.querySelector('.lobby-route-brief__purpose')?.textContent)
+      .toBe('Set the battlefield, then issue a room code to your crew.');
+    expect(root.querySelector('.lobby-route-brief__setup')?.getAttribute('aria-label'))
+      .toBe('Open operation setup');
     const players = field(root, 'Players');
     const bots = field(root, 'CPU opponents');
     const visibility = field(root, 'Visibility');
@@ -78,8 +82,7 @@ describe('buildLobbyCreateView', () => {
     const advanced = root.querySelector('details.lobby-advanced')!;
     expect(advanced.querySelector('summary')?.textContent).toBe('Advanced settings');
     expect([...advanced.children].slice(1)).toEqual(advancedFields);
-    expect([...root.children]).toEqual([
-      root.querySelector('.lobby-sub'),
+    expect([...root.querySelector('.lobby-route-brief__setup')!.children]).toEqual([
       nameColor,
       garage,
       players,
@@ -87,14 +90,13 @@ describe('buildLobbyCreateView', () => {
       visibility,
       advanced,
       status,
-      root.querySelector('.lobby-online-actions'),
     ]);
     expect([...root.querySelectorAll<HTMLButtonElement>('.lobby-online-actions button')].map((item) => ({
       text: item.textContent,
       className: item.className,
       disabled: item.disabled,
     }))).toEqual([
-      { text: 'Create Room', className: 'lobby-btn lobby-online-primary', disabled: false },
+      { text: 'Create Room', className: 'lobby-btn primary lobby-online-primary', disabled: false },
       { text: 'Join with a code', className: 'lobby-btn secondary', disabled: false },
       { text: 'Browse public rooms', className: 'lobby-btn secondary', disabled: false },
     ]);
@@ -139,7 +141,8 @@ describe('buildLobbyCreateView', () => {
     const root = buildLobbyCreateView(options({ botCount: 0, busy: true, onCreate }));
     expect(field(root, 'CPU opponents').querySelectorAll('select')).toHaveLength(1);
     const create = button(root, 'Creating...');
-    expect(create.className).toBe('lobby-btn lobby-online-primary');
+    expect(create.classList.contains('primary')).toBe(true);
+    expect(create.classList.contains('lobby-online-primary')).toBe(true);
     expect(create.disabled).toBe(true);
     create.click();
     expect(onCreate).not.toHaveBeenCalled();

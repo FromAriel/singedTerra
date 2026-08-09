@@ -1616,6 +1616,57 @@ export class Lobby {
       }
       #app.is-compact #lobby .lobby-command-header__kicker { font-size: 8px; letter-spacing: 1.6px; }
 
+      /* Immediate player commitments use the same field-brief language as the
+         command shell: an operational title, contained setup, and a distinct
+         action boundary rather than an anonymous stack of browser controls. */
+      #lobby .lobby-route-brief {
+        border-left: 2px solid rgba(255, 188, 80, 0.68);
+        background: linear-gradient(90deg, rgba(32, 22, 12, 0.56), rgba(7, 10, 12, 0.22) 72%, transparent);
+        padding: 0 0 0 9px;
+      }
+      #lobby .lobby-route-brief__header {
+        display: flex;
+        align-items: baseline;
+        gap: 9px;
+        min-width: 0;
+      }
+      #lobby .lobby-route-brief__title {
+        margin: 0;
+        color: #ffe0a0;
+        flex: 0 0 auto;
+        font: 700 11px/1 var(--font-display);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+      #lobby .lobby-route-brief__purpose {
+        min-width: 0;
+        margin: 0;
+        color: rgba(225, 214, 191, 0.66);
+        font: 11px/1.2 var(--font-sans);
+      }
+      #lobby .lobby-route-brief__setup {
+        margin-top: 4px;
+      }
+      #lobby .lobby-route-brief__setup > .lobby-field > label {
+        color: rgba(255, 224, 159, 0.74);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.45px;
+        text-transform: uppercase;
+      }
+      #app.is-compact #lobby .lobby-route-brief {
+        padding-left: 5px;
+      }
+      #app.is-compact #lobby .lobby-route-brief__header {
+        gap: 5px;
+      }
+      #app.is-compact #lobby .lobby-route-brief__title { font-size: 10px; }
+      #app.is-compact #lobby .lobby-route-brief__purpose { display: none; }
+      #app.is-compact #lobby .lobby-route-brief__setup {
+        margin-top: 0;
+      }
+      #app.is-compact #lobby .lobby-route-brief__setup > .lobby-field > label { width: 78px; }
+
       /* One route hierarchy, shared by every pre-game screen. The route
          content beneath it keeps its established gameplay and network logic. */
       #lobby .lobby-deployment {
@@ -1738,7 +1789,7 @@ export class Lobby {
       #app.is-compact #lobby .lobby-deployment > .lobby-preview {
         display: block;
         position: absolute;
-        inset: 70px 0 38px auto;
+        inset: 70px 0 30px auto;
         grid-area: auto;
         width: min(520px, 42%);
         min-height: 0;
