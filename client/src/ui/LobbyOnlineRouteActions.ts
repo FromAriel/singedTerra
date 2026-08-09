@@ -24,7 +24,7 @@ export function buildOnlineRouteActions(
 
   const label = document.createElement('p');
   label.className = 'lobby-online-alternatives-label';
-  label.textContent = 'Other ways to play online';
+  label.textContent = 'Other ways:';
 
   const buttons = document.createElement('div');
   buttons.className = 'lobby-online-alternatives-buttons';

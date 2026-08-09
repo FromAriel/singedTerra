@@ -27,7 +27,7 @@ describe('buildOnlineRouteActions', () => {
     const alternatives = root.querySelector<HTMLElement>(
       'nav[aria-label="Other ways to play online"]',
     );
-    expect(alternatives?.querySelector('p')?.textContent).toBe('Other ways to play online');
+    expect(alternatives?.querySelector('p')?.textContent).toBe('Other ways:');
     expect([...alternatives!.querySelectorAll('button')].map((item) => item.textContent))
       .toEqual(['Join with a code', 'Browse public rooms']);
     expect(alternatives!.querySelector('button[data-online-route="join-code"]')?.textContent)

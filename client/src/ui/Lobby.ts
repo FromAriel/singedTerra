@@ -1162,6 +1162,9 @@ export class Lobby {
         #lobby .lobby-mode-context p { font-size: 11px; }
         #lobby .lobby-mode-context + .lobby-hotseat .lobby-sub { display: none; }
       }
+      #app.is-compact #lobby .lobby-mode-panel[aria-labelledby="lobby-mode-online"] .lobby-sub {
+        margin-bottom: 5px;
+      }
 
       /* Online sub-views */
       #lobby .lobby-btn {
@@ -1182,16 +1185,16 @@ export class Lobby {
         display: flex; align-items: center; gap: 16px; margin-top: 4px;
       }
       #lobby .lobby-online-actions {
-        display: grid; gap: 9px; margin-top: 6px;
+        display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px; margin-top: 4px;
       }
       #lobby .lobby-online-primary {
-        justify-self: start;
+        flex: 0 0 auto;
       }
       #lobby .lobby-online-alternatives {
-        display: grid; gap: 2px;
+        display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px;
       }
       #lobby .lobby-online-alternatives-label {
-        margin: 0; color: var(--text-dim); font-size: 12px;
+        margin: 0; color: var(--text-dim); font-size: 12px; white-space: nowrap;
       }
       #lobby .lobby-online-alternatives-buttons {
         display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
