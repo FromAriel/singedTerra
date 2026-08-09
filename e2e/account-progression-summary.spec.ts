@@ -93,7 +93,7 @@ async function installSummaryFixture(page: Page, available: boolean, open = true
     close.className = 'account-panel__secondary account-panel__close';
     close.textContent = 'Close';
     panel.append(close);
-    document.getElementById('lobby')?.append(panel);
+    document.querySelector('.lobby-deployment__masthead')?.append(panel);
   }, { hasSummary: available, isOpen: open });
 }
 
@@ -282,4 +282,33 @@ test.describe('Account progression summary compact readability', () => {
       .toBeGreaterThanOrEqual(8);
     await expectInside(unavailable, panel);
   });
+});
+
+test('opened account panel reflows within the deployment masthead', async ({ page }) => {
+  await gotoLobby(page);
+  await installSummaryFixture(page, true, true);
+
+  const panel = page.locator('[data-summary-fixture="available"]');
+  const masthead = page.locator('.lobby-deployment__masthead');
+  const brief = page.locator('.lobby-deployment__mission-brief');
+  const preview = page.locator('.lobby-preview');
+  await expect(panel).toBeVisible();
+
+  const [panelBox, mastheadBox, briefBox, previewBox] = await Promise.all([
+    panel.boundingBox(),
+    masthead.boundingBox(),
+    brief.boundingBox(),
+    preview.boundingBox(),
+  ]);
+  expect(panelBox).not.toBeNull();
+  expect(mastheadBox).not.toBeNull();
+  expect(briefBox).not.toBeNull();
+  expect(boxesOverlap(panelBox!, mastheadBox!)).toBe(true);
+  expect(boxesOverlap(panelBox!, briefBox!)).toBe(false);
+  if (await isCompact(page)) {
+    await expect(preview).toBeHidden();
+  } else {
+    expect(previewBox).not.toBeNull();
+    expect(boxesOverlap(panelBox!, previewBox!)).toBe(false);
+  }
 });

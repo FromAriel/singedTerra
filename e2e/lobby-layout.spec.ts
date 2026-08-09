@@ -161,7 +161,9 @@ test.describe('Lobby layout guardrails', () => {
     await expect(room).toContainText('1 CPU');
     await expect(room).toContainText('Interest +20%');
     await expect(room).toContainText('Sudden death T15');
-    await expect(room.getByRole('button', { name: 'Join (1/4)', exact: true })).toBeEnabled();
+    const joinRoom = room.getByRole('button', { name: 'Join (1/4)', exact: true });
+    await expect(joinRoom).toBeEnabled();
+    await expect(joinRoom).toHaveClass(/secondary/);
     const alternatives = page.getByRole('navigation', { name: 'Other ways to play online', exact: true });
     await expect(alternatives.getByRole('button', { name: 'Create a room', exact: true })).toBeVisible();
     await expect(alternatives.getByRole('button', { name: 'Join with a code', exact: true })).toBeVisible();
@@ -204,8 +206,12 @@ test.describe('Lobby layout guardrails', () => {
     await expect(roster.getByText('CPU 1', { exact: true })).toBeVisible();
     await expect(page.getByText('0/1 human ready', { exact: false })).toContainText('1 CPU');
     await expect(page.getByText('0/1 human ready', { exact: false })).toContainText('waiting for players to join');
-    await expect(page.getByRole('button', { name: 'Copy invite link', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Ready Up', exact: true })).toBeEnabled();
+    const copyInvite = page.getByRole('button', { name: 'Copy invite link', exact: true });
+    const readyUp = page.getByRole('button', { name: 'Ready Up', exact: true });
+    await expect(copyInvite).toBeVisible();
+    await expect(copyInvite).toHaveClass(/secondary/);
+    await expect(readyUp).toBeEnabled();
+    await expect(readyUp).toHaveClass(/primary/);
     await expect(page.getByRole('button', { name: 'Leave', exact: true })).toBeVisible();
     await assertSameOriginFunctionCall(page, createRoomCalls, 'create_room');
 

@@ -39,18 +39,23 @@ export function buildLobbyShellView(options: LobbyShellViewOptions): HTMLElement
   const card = document.createElement('div');
   card.className = 'lobby-card';
 
+  const deployment = document.createElement('main');
+  deployment.className = 'lobby-deployment';
+  deployment.setAttribute('aria-label', 'Deployment preparation');
+
   const title = document.createElement('h1');
   title.textContent = 'singedTerra';
-  const commandHeader = document.createElement('header');
+  const masthead = document.createElement('header');
+  masthead.className = 'lobby-deployment__masthead';
+  const commandHeader = document.createElement('div');
   commandHeader.className = 'lobby-command-header';
   commandHeader.setAttribute('aria-label', 'Pre-game command preparation');
   const commandKicker = document.createElement('h2');
   commandKicker.className = 'lobby-command-header__kicker';
   commandKicker.textContent = 'COMMAND PREPARATION';
   commandHeader.append(commandKicker);
-  card.append(title, commandHeader);
-  if (options.account) card.append(options.account);
-  card.append(options.vehiclePreview);
+  masthead.append(title, commandHeader);
+  if (options.account) masthead.append(options.account);
 
   if (options.rejoinAvailable) {
     const banner = document.createElement('div');
@@ -66,13 +71,16 @@ export function buildLobbyShellView(options: LobbyShellViewOptions): HTMLElement
     button.textContent = 'Rejoin your game';
     button.addEventListener('click', () => { options.onRejoin(); });
     banner.append(text, button);
-    card.append(banner);
+    masthead.append(banner);
   }
 
   const tabs = document.createElement('div');
   tabs.className = 'lobby-tabs';
   tabs.setAttribute('role', 'tablist');
   tabs.setAttribute('aria-label', 'Choose play mode');
+  const rail = document.createElement('nav');
+  rail.className = 'lobby-deployment__mode-rail';
+  rail.setAttribute('aria-label', 'Choose deployment mode');
 
   const selectTab = (tab: LobbyPrimaryTab): void => {
     options.onTabChange(tab);
@@ -117,8 +125,9 @@ export function buildLobbyShellView(options: LobbyShellViewOptions): HTMLElement
   online.addEventListener('keydown', (event) => { handleTabKey(event, 'online'); });
 
   tabs.append(hotSeat, online);
+  rail.append(tabs);
   const context = document.createElement('section');
-  context.className = 'lobby-mode-context';
+  context.className = 'lobby-mode-context lobby-deployment__mission-brief';
   const contextTitle = document.createElement('h2');
   contextTitle.textContent = MODE_CONTEXT[options.activeTab].title;
   const contextDescription = document.createElement('p');
@@ -129,7 +138,15 @@ export function buildLobbyShellView(options: LobbyShellViewOptions): HTMLElement
   panel.id = MODE_PANEL_ID;
   panel.setAttribute('role', 'tabpanel');
   panel.setAttribute('aria-labelledby', TAB_IDS[options.activeTab]);
-  panel.append(context, options.content);
-  card.append(tabs, panel, options.controls);
+  panel.append(options.content);
+  deployment.append(
+    masthead,
+    rail,
+    context,
+    panel,
+    options.vehiclePreview,
+    options.controls,
+  );
+  card.append(deployment);
   return card;
 }

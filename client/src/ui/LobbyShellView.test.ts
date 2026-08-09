@@ -33,6 +33,32 @@ function button(root: HTMLElement, text: string): HTMLButtonElement {
 }
 
 describe('buildLobbyShellView', () => {
+  it('organizes every route beneath one named deployment command hierarchy', () => {
+    const root = buildLobbyShellView(options());
+
+    const deployment = root.querySelector<HTMLElement>('.lobby-deployment');
+    const masthead = root.querySelector<HTMLElement>('.lobby-deployment__masthead');
+    const rail = root.querySelector<HTMLElement>('.lobby-deployment__mode-rail');
+    const brief = root.querySelector<HTMLElement>('.lobby-deployment__mission-brief');
+    const panel = root.querySelector<HTMLElement>('[role="tabpanel"]');
+    const preview = root.querySelector<HTMLElement>('[data-section="vehicle-preview"]');
+    const controls = root.querySelector<HTMLElement>('[data-section="controls"]');
+
+    expect(deployment?.tagName).toBe('MAIN');
+    expect(deployment?.getAttribute('aria-label')).toBe('Deployment preparation');
+    expect(masthead?.querySelector('h1')?.textContent).toBe('singedTerra');
+    expect(rail?.getAttribute('aria-label')).toBe('Choose deployment mode');
+    expect(brief?.querySelector('h2')?.textContent).toBe('Hot Seat');
+    expect([...deployment!.children]).toEqual([
+      masthead,
+      rail,
+      brief,
+      panel,
+      preview,
+      controls,
+    ]);
+  });
+
   it('renders the exact shell order with the conditional rejoin affordance', () => {
     const vehiclePreview = section('vehicle-preview');
     const account = section('account');
@@ -44,27 +70,36 @@ describe('buildLobbyShellView', () => {
     const title = root.querySelector('h1');
     const commandHeader = root.querySelector<HTMLElement>('.lobby-command-header');
     const rejoin = root.querySelector('.lobby-rejoin-banner');
+    const deployment = root.querySelector<HTMLElement>('.lobby-deployment');
+    const masthead = root.querySelector<HTMLElement>('.lobby-deployment__masthead');
+    const rail = root.querySelector<HTMLElement>('.lobby-deployment__mode-rail');
     const tabs = root.querySelector('.lobby-tabs');
     const panel = root.querySelector('[role="tabpanel"]');
-    const context = panel?.querySelector('.lobby-mode-context');
+    const context = root.querySelector('.lobby-mode-context');
     expect(title?.textContent).toBe('singedTerra');
-    expect(commandHeader?.tagName).toBe('HEADER');
+    expect(commandHeader?.tagName).toBe('DIV');
+    expect(masthead?.querySelectorAll('header')).toHaveLength(0);
     expect(commandHeader?.getAttribute('aria-label')).toBe('Pre-game command preparation');
     expect(commandHeader?.textContent).toBe('COMMAND PREPARATION');
     expect(commandHeader?.querySelector('h2')?.textContent).toBe('COMMAND PREPARATION');
     expect(rejoin?.querySelector('.lobby-rejoin-text')?.textContent)
       .toBe('You have a game in progress.');
-    expect([...root.children]).toEqual([
+    expect([...root.children]).toEqual([deployment]);
+    expect([...masthead!.children]).toEqual([
       title,
       commandHeader,
       account,
-      vehiclePreview,
       rejoin,
-      tabs,
+    ]);
+    expect([...deployment!.children]).toEqual([
+      masthead,
+      rail,
+      context,
       panel,
+      vehiclePreview,
       controls,
     ]);
-    expect([...panel!.children]).toEqual([context, content]);
+    expect([...panel!.children]).toEqual([content]);
     expect(button(root, 'Rejoin your game').type).toBe('button');
   });
 
@@ -112,12 +147,14 @@ describe('buildLobbyShellView', () => {
   ] as const)('states the selected %s journey before setup controls', (activeTab, title, description) => {
     const root = buildLobbyShellView(options({ activeTab }));
     const panel = root.querySelector<HTMLElement>('[role="tabpanel"]')!;
-    const context = panel.querySelector<HTMLElement>('.lobby-mode-context')!;
+    const context = root.querySelector<HTMLElement>('.lobby-mode-context')!;
+    const deployment = root.querySelector<HTMLElement>('.lobby-deployment')!;
 
     expect(context.querySelector('h2')?.textContent).toBe(title);
     expect(context.querySelector('p')?.textContent).toBe(description);
     expect(context.querySelectorAll('button, input, select, a')).toHaveLength(0);
-    expect([...panel.children].indexOf(context)).toBe(0);
+    expect([...deployment.children].indexOf(context))
+      .toBeLessThan([...deployment.children].indexOf(panel));
   });
 
   it('routes cyclic Arrow keys and Home End keys through the existing mode callback', () => {
