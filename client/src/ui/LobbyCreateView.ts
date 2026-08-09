@@ -1,4 +1,5 @@
 import type { AiDifficulty } from '@shared/types/GameState';
+import { buildOnlineRouteActions } from './LobbyOnlineRouteActions';
 
 export interface LobbyCreateViewOptions {
   minPlayers: number;
@@ -104,8 +105,6 @@ export function buildLobbyCreateView(options: LobbyCreateViewOptions): HTMLEleme
   advanced.append(summary, ...options.advancedFields);
   root.append(advanced, options.status);
 
-  const buttonRow = document.createElement('div');
-  buttonRow.className = 'lobby-btn-row';
   const createButton = document.createElement('button');
   createButton.type = 'button';
   createButton.className = 'lobby-btn';
@@ -113,19 +112,9 @@ export function buildLobbyCreateView(options: LobbyCreateViewOptions): HTMLEleme
   createButton.disabled = options.busy;
   createButton.addEventListener('click', options.onCreate);
 
-  const joinButton = document.createElement('button');
-  joinButton.type = 'button';
-  joinButton.className = 'lobby-btn secondary';
-  joinButton.textContent = 'Join Room instead';
-  joinButton.addEventListener('click', options.onJoin);
-
-  const browseButton = document.createElement('button');
-  browseButton.type = 'button';
-  browseButton.className = 'lobby-btn secondary';
-  browseButton.textContent = 'Browse public rooms';
-  browseButton.addEventListener('click', options.onBrowse);
-
-  buttonRow.append(createButton, joinButton, browseButton);
-  root.append(buttonRow);
+  root.append(buildOnlineRouteActions(createButton, [
+    { id: 'join-code', label: 'Join with a code', onClick: options.onJoin },
+    { id: 'browse', label: 'Browse public rooms', onClick: options.onBrowse },
+  ]));
   return root;
 }

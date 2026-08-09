@@ -1181,6 +1181,21 @@ export class Lobby {
       #lobby .lobby-btn-row {
         display: flex; align-items: center; gap: 16px; margin-top: 4px;
       }
+      #lobby .lobby-online-actions {
+        display: grid; gap: 9px; margin-top: 6px;
+      }
+      #lobby .lobby-online-primary {
+        justify-self: start;
+      }
+      #lobby .lobby-online-alternatives {
+        display: grid; gap: 2px;
+      }
+      #lobby .lobby-online-alternatives-label {
+        margin: 0; color: var(--text-dim); font-size: 12px;
+      }
+      #lobby .lobby-online-alternatives-buttons {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+      }
       #lobby .online-code-display {
         display: flex; gap: 8px; justify-content: center; margin: 12px 0;
       }

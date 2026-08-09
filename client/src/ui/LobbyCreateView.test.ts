@@ -87,17 +87,18 @@ describe('buildLobbyCreateView', () => {
       visibility,
       advanced,
       status,
-      root.querySelector('.lobby-btn-row'),
+      root.querySelector('.lobby-online-actions'),
     ]);
-    expect([...root.querySelectorAll<HTMLButtonElement>('.lobby-btn-row button')].map((item) => ({
+    expect([...root.querySelectorAll<HTMLButtonElement>('.lobby-online-actions button')].map((item) => ({
       text: item.textContent,
       className: item.className,
       disabled: item.disabled,
     }))).toEqual([
-      { text: 'Create Room', className: 'lobby-btn', disabled: false },
-      { text: 'Join Room instead', className: 'lobby-btn secondary', disabled: false },
+      { text: 'Create Room', className: 'lobby-btn lobby-online-primary', disabled: false },
+      { text: 'Join with a code', className: 'lobby-btn secondary', disabled: false },
       { text: 'Browse public rooms', className: 'lobby-btn secondary', disabled: false },
     ]);
+    expect(root.querySelector('nav')?.getAttribute('aria-label')).toBe('Other ways to play online');
   });
 
   it('routes selector changes and all three actions', () => {
@@ -126,7 +127,7 @@ describe('buildLobbyCreateView', () => {
     expect(callbacks.onVisibilityChange).toHaveBeenCalledWith('private');
 
     button(root, 'Create Room').click();
-    button(root, 'Join Room instead').click();
+    button(root, 'Join with a code').click();
     button(root, 'Browse public rooms').click();
     expect(callbacks.onCreate).toHaveBeenCalledOnce();
     expect(callbacks.onJoin).toHaveBeenCalledOnce();
@@ -138,7 +139,7 @@ describe('buildLobbyCreateView', () => {
     const root = buildLobbyCreateView(options({ botCount: 0, busy: true, onCreate }));
     expect(field(root, 'CPU opponents').querySelectorAll('select')).toHaveLength(1);
     const create = button(root, 'Creating...');
-    expect(create.className).toBe('lobby-btn');
+    expect(create.className).toBe('lobby-btn lobby-online-primary');
     expect(create.disabled).toBe(true);
     create.click();
     expect(onCreate).not.toHaveBeenCalled();

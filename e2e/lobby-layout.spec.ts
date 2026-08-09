@@ -108,25 +108,32 @@ test.describe('Lobby layout guardrails', () => {
 
     await expect(page.getByText('Create a new online room', { exact: false })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create Room', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Join Room instead', exact: true })).toBeVisible();
+    const alternatives = page.getByRole('navigation', { name: 'Other ways to play online', exact: true });
+    await expect(alternatives).toBeVisible();
+    await expect(alternatives.getByRole('button', { name: 'Join with a code', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Browse public rooms', exact: true })).toBeVisible();
 
     await assertLobbyFrame(page);
-    await assertLobbyControlReachable(page, '#lobby .lobby-btn-row .lobby-btn:not(.secondary)');
+    await assertLobbyControlReachable(page, '#lobby .lobby-online-primary');
+    await assertLobbyControlReachable(page, '#lobby [data-online-route="join-code"]');
+    await assertLobbyControlReachable(page, '#lobby [data-online-route="browse"]');
   });
 
   test('Join by Code stays framed and its primary action is reachable', async ({ page }) => {
     await page.getByRole('tab', { name: 'Play Online', exact: true }).click();
-    await page.getByRole('button', { name: 'Join Room instead', exact: true }).click();
+    await page.getByRole('button', { name: 'Join with a code', exact: true }).click();
 
     await expect(page.getByText('Enter the 4-character room code', { exact: false })).toBeVisible();
     await expect(page.locator('.lobby-code-input')).toHaveAttribute('maxlength', '4');
     await expect(page.getByRole('button', { name: 'Join Room', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Create instead', exact: true })).toBeVisible();
+    const alternatives = page.getByRole('navigation', { name: 'Other ways to play online', exact: true });
+    await expect(alternatives.getByRole('button', { name: 'Create a room', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Browse public rooms', exact: true })).toBeVisible();
 
     await assertLobbyFrame(page);
-    await assertLobbyControlReachable(page, '#lobby .lobby-btn-row .lobby-btn:not(.secondary)');
+    await assertLobbyControlReachable(page, '#lobby .lobby-online-primary');
+    await assertLobbyControlReachable(page, '#lobby [data-online-route="create"]');
+    await assertLobbyControlReachable(page, '#lobby [data-online-route="browse"]');
   });
 
   test('Browse public rooms renders a reachable network fixture without leaving the frame', async ({ page }) => {
@@ -155,10 +162,15 @@ test.describe('Lobby layout guardrails', () => {
     await expect(room).toContainText('Interest +20%');
     await expect(room).toContainText('Sudden death T15');
     await expect(room.getByRole('button', { name: 'Join (1/4)', exact: true })).toBeEnabled();
+    const alternatives = page.getByRole('navigation', { name: 'Other ways to play online', exact: true });
+    await expect(alternatives.getByRole('button', { name: 'Create a room', exact: true })).toBeVisible();
+    await expect(alternatives.getByRole('button', { name: 'Join with a code', exact: true })).toBeVisible();
     await assertSameOriginFunctionCall(page, listRoomsCalls, 'list_rooms');
 
     await assertLobbyFrame(page);
     await assertLobbyControlReachable(page, '#lobby .online-player-row .lobby-btn');
+    await assertLobbyControlReachable(page, '#lobby [data-online-route="create"]');
+    await assertLobbyControlReachable(page, '#lobby [data-online-route="join-code"]');
   });
 
   test('Create Room renders a reachable waiting-room fixture without leaving the frame', async ({ page }) => {
