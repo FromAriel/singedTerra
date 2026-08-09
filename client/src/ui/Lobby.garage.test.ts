@@ -279,6 +279,34 @@ describe('Lobby tank Garage', () => {
       .toBe('Howitzer');
   });
 
+  it('names the editing Vehicle Bay and summarizes uniform and mixed loadouts', () => {
+    const lobby = new Lobby(root, onReady);
+    lobby.show();
+
+    root.querySelector<HTMLButtonElement>(
+      '.lobby-garage[data-owner="player-1"] .lobby-garage__open',
+    )!.click();
+
+    let garage = root.querySelector<HTMLElement>('.lobby-garage[data-owner="player-1"]')!;
+    expect(garage.getAttribute('role')).toBe('dialog');
+    expect(garage.getAttribute('aria-label')).toBe('Vehicle Bay: Player 1');
+    expect(garage.querySelector('.lobby-garage__editor-header')?.textContent)
+      .toBe('Vehicle Bay: Player 1');
+    expect(garage.querySelector('.lobby-garage__build-summary')?.textContent)
+      .toBe('Foundry loadout');
+    expect(garage.querySelector('.lobby-garage__preset-group')?.getAttribute('aria-label'))
+      .toBe('Preset loadouts');
+    expect(garage.querySelector('.lobby-garage__component-group')?.getAttribute('aria-label'))
+      .toBe('Component bay');
+
+    garage.querySelector<HTMLButtonElement>('[data-slot="turret"]')!.click();
+    garage = root.querySelector<HTMLElement>('.lobby-garage[data-owner="player-1"]')!;
+    expect(garage.querySelector('.lobby-garage__build-summary')?.textContent)
+      .toContain('Mixed assembly');
+    expect(garage.querySelector('.lobby-garage__build-summary')?.textContent)
+      .toContain('Sensor Pod');
+  });
+
   it('previews the joiner color in join mode instead of the host color', () => {
     const lobby = new Lobby(root, onReady);
     lobby.show();

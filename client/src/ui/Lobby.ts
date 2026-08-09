@@ -992,25 +992,44 @@ export class Lobby {
         inset: 28px;
         z-index: 100;
         display: grid;
-        grid-template-columns: minmax(90px, 0.5fr) minmax(240px, 1fr);
-        grid-template-rows: auto 1fr auto;
-        align-content: center;
-        gap: 18px;
-        padding: 28px;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr);
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
+        align-content: stretch;
+        gap: 8px;
+        padding: 16px;
         overflow: hidden;
         border: 2px solid rgba(255, 210, 63, 0.66);
-        border-radius: 12px;
+        border-radius: 0;
         background:
           radial-gradient(circle at 80% 20%, rgba(142, 47, 83, 0.24), transparent 38%),
           linear-gradient(145deg, #160d2e, #0c0716 72%);
         box-shadow: 0 24px 90px rgba(0, 0, 0, 0.78);
       }
-      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__heading {
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__editor-header {
         display: block;
         grid-column: 1 / -1;
         color: var(--gold);
-        font-size: 18px;
-        letter-spacing: 2px;
+        font-size: 14px;
+        letter-spacing: 1.5px;
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__build-summary {
+        grid-column: 1 / -1;
+        margin: 0;
+        color: var(--text-dim);
+        font: 11px/1.25 var(--font-sans);
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__preset-group,
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__component-group {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 5px;
+        min-width: 0;
+      }
+      #app.is-compact #lobby .lobby-garage.editing .lobby-garage__group-label {
+        color: rgba(255, 233, 168, 0.56);
+        font: 700 9px/1 var(--font-display);
+        letter-spacing: 1px;
+        text-transform: uppercase;
       }
       #app.is-compact #lobby .lobby-garage.editing .lobby-garage__open {
         display: none;
@@ -1021,7 +1040,7 @@ export class Lobby {
         gap: 10px;
       }
       #app.is-compact #lobby .lobby-garage.editing .lobby-garage__presets {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       #app.is-compact #lobby .lobby-garage.editing .lobby-garage__slots {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2170,19 +2189,31 @@ export class Lobby {
     onChange: (next: TankLoadout) => void,
   ): HTMLElement {
     const loadout = normalizeTankLoadout(value);
+    const editing = this.openGarageOwner === owner;
     const garage = document.createElement('section');
     garage.className = 'lobby-garage';
-    garage.classList.toggle('editing', this.openGarageOwner === owner);
+    garage.classList.toggle('editing', editing);
     garage.dataset.owner = owner;
-    garage.setAttribute('aria-label', `${ownerLabel} tank Garage`);
-    if (this.openGarageOwner === owner) {
+    garage.setAttribute('aria-label', editing ? `Vehicle Bay: ${ownerLabel}` : `${ownerLabel} tank Garage`);
+    if (editing) {
       garage.setAttribute('role', 'dialog');
       garage.setAttribute('aria-modal', 'true');
     }
 
     const heading = document.createElement('span');
-    heading.className = 'lobby-garage__heading';
-    heading.textContent = 'Garage';
+    heading.className = `lobby-garage__heading${editing ? ' lobby-garage__editor-header' : ''}`;
+    heading.textContent = editing ? `Vehicle Bay: ${ownerLabel}` : 'Garage';
+
+    const uniformKit = TANK_KIT_IDS.find((kit) =>
+      TANK_PART_SLOTS.every((slot) => loadout[slot] === kit),
+    );
+    const summary = document.createElement('p');
+    summary.className = 'lobby-garage__build-summary';
+    summary.textContent = uniformKit
+      ? `${TANK_KIT_LABELS[uniformKit]} loadout`
+      : `Mixed assembly: ${TANK_PART_SLOTS.map((slot) =>
+        `${TANK_SLOT_LABELS[slot]} ${TANK_PART_VARIANT_LABELS[slot][loadout[slot]]}`,
+      ).join(', ')}`;
 
     const open = document.createElement('button');
     open.type = 'button';
@@ -2255,6 +2286,22 @@ export class Lobby {
       slots.append(button);
     }
 
+    const presetGroup = document.createElement('section');
+    presetGroup.className = 'lobby-garage__preset-group';
+    presetGroup.setAttribute('aria-label', 'Preset loadouts');
+    const presetLabel = document.createElement('span');
+    presetLabel.className = 'lobby-garage__group-label';
+    presetLabel.textContent = 'Preset loadouts';
+    presetGroup.append(presetLabel, presets);
+
+    const componentGroup = document.createElement('section');
+    componentGroup.className = 'lobby-garage__component-group';
+    componentGroup.setAttribute('aria-label', 'Component bay');
+    const componentLabel = document.createElement('span');
+    componentLabel.className = 'lobby-garage__group-label';
+    componentLabel.textContent = 'Component bay';
+    componentGroup.append(componentLabel, slots);
+
     garage.addEventListener('keydown', (event) => {
       if (this.openGarageOwner !== owner) return;
       if (event.key === 'Escape') {
@@ -2279,7 +2326,11 @@ export class Lobby {
       }
     });
 
-    garage.append(heading, open, presets, slots, close);
+    if (editing) {
+      garage.append(heading, summary, presetGroup, componentGroup, close);
+    } else {
+      garage.append(heading, open, presets, slots, close);
+    }
     return garage;
   }
 

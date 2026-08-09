@@ -146,7 +146,7 @@ async function openPlayerGarage(page: Page, player: 1 | 2): Promise<void> {
       name: `Customize Player ${player} tank`,
     }).click();
     await expect(page.getByRole('dialog', {
-      name: `Player ${player} tank Garage`,
+      name: `Vehicle Bay: Player ${player}`,
     })).toBeVisible();
   }
 }
