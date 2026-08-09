@@ -49,6 +49,24 @@ async function assertOperationsBoardFlow(page: Page, selector: string): Promise<
   expect(geometry.primary.height, 'primary action must retain a visible target').toBeGreaterThan(4);
 }
 
+async function assertOperationRowsClear(page: Page, selector: string): Promise<void> {
+  const rows = await page.locator(selector).evaluate((board) => Array.from(
+    board.querySelectorAll<HTMLElement>('.online-player-row'),
+    (row) => {
+      const rect = row.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, height: rect.height };
+    },
+  ));
+  expect(rows.length, 'browse fixture must render multiple operation rows').toBeGreaterThanOrEqual(2);
+  for (let index = 0; index < rows.length - 1; index += 1) {
+    expect(rows[index]!.height, 'operation row must retain visible height').toBeGreaterThan(4);
+    expect(
+      rows[index]!.bottom,
+      'each operation row must clear the next row',
+    ).toBeLessThanOrEqual(rows[index + 1]!.top + 1);
+  }
+}
+
 async function fulfillFunction(
   page: Page,
   name: string,
@@ -193,6 +211,17 @@ test.describe('Lobby layout guardrails', () => {
         botCount: 1,
         interestRate: 0.2,
         suddenDeathTurn: 15,
+      }, {
+        roomId: 'room-browser-vanguard',
+        code: 'VANG',
+        hostName: 'Vanguard',
+        playerCount: 3,
+        maxPlayers: 4,
+        rounds: 1,
+        armsLevel: 4,
+        botCount: 0,
+        interestRate: 0,
+        suddenDeathTurn: null,
       }],
     });
 
@@ -221,8 +250,9 @@ test.describe('Lobby layout guardrails', () => {
     await assertSameOriginFunctionCall(page, listRoomsCalls, 'list_rooms');
 
     await assertOperationsBoardFlow(page, '#lobby .lobby-operations-board--browse');
+    await assertOperationRowsClear(page, '#lobby .lobby-operations-board--browse');
     await assertLobbyFrame(page);
-    await assertLobbyControlReachable(page, '#lobby .online-player-row .lobby-btn');
+    await assertLobbyControlReachable(page, '#lobby .online-player-row:first-child .lobby-btn');
     await assertLobbyControlReachable(page, '#lobby [data-online-route="create"]');
     await assertLobbyControlReachable(page, '#lobby [data-online-route="join-code"]');
   });
