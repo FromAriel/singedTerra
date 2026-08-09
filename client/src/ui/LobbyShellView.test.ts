@@ -42,15 +42,21 @@ describe('buildLobbyShellView', () => {
 
     expect(root.className).toBe('lobby-card');
     const title = root.querySelector('h1');
+    const commandHeader = root.querySelector<HTMLElement>('.lobby-command-header');
     const rejoin = root.querySelector('.lobby-rejoin-banner');
     const tabs = root.querySelector('.lobby-tabs');
     const panel = root.querySelector('[role="tabpanel"]');
     const context = panel?.querySelector('.lobby-mode-context');
     expect(title?.textContent).toBe('singedTerra');
+    expect(commandHeader?.tagName).toBe('HEADER');
+    expect(commandHeader?.getAttribute('aria-label')).toBe('Pre-game command preparation');
+    expect(commandHeader?.textContent).toBe('COMMAND PREPARATION');
+    expect(commandHeader?.querySelector('h2')?.textContent).toBe('COMMAND PREPARATION');
     expect(rejoin?.querySelector('.lobby-rejoin-text')?.textContent)
       .toBe('You have a game in progress.');
     expect([...root.children]).toEqual([
       title,
+      commandHeader,
       account,
       vehiclePreview,
       rejoin,

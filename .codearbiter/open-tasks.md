@@ -161,6 +161,8 @@ Decision forks split to `open-questions.md` (CONFIRM-04 rate-limiting, CONFIRM-0
 
 - (Possible-later, from room-browser-enrichment spec 2026-06-22) Surface `interestRate` / `suddenDeathTurn` on the public browse row too, now that `StoredOptions` declares them. Pure read-path addition mirroring the rounds/armsLevel/botCount work. [L/S]
 ## In-flight
+- [x] ux.menu.0005 - Overhaul the complete pre-game menu system into a cohesive polished game experience across entry, account, mode, room, loadout, and store flows.  (from user-menu-overhaul-clarification)  (done 2026-08-09)
+  - Boundaries: client, ui
 - [x] ux.menu.0004 - Give Play Online a primary room-start route and clearly grouped alternatives without changing room behavior  (from user-menu-overhaul)  (done 2026-08-09)
   - Boundaries: client, ui
 - [x] ux.menu.0003 - Clarify the selected lobby play mode and its immediate next action without changing room, match, or account behavior.  (from user-menu-overhaul)  (done 2026-08-09)
