@@ -1498,7 +1498,8 @@ export class Lobby {
         background: linear-gradient(180deg, rgba(169, 97, 27, 0.28), rgba(24, 18, 11, 0.86));
       }
       #lobby .lobby-start,
-      #lobby .lobby-btn:not(.secondary),
+      #lobby .lobby-online-primary,
+      #lobby .lobby-btn.primary,
       #lobby .account-panel button.active,
       #lobby .account-panel__submit {
         border: 1px solid rgba(255, 211, 119, 0.74);
@@ -1508,7 +1509,8 @@ export class Lobby {
         box-shadow: inset 3px 0 0 rgba(255, 188, 80, 0.56), inset 0 1px 0 rgba(255, 239, 187, 0.16);
       }
       #lobby .lobby-start:hover:not(:disabled),
-      #lobby .lobby-btn:not(.secondary):hover:not(:disabled),
+      #lobby .lobby-online-primary:hover:not(:disabled),
+      #lobby .lobby-btn.primary:hover:not(:disabled),
       #lobby .account-panel button.active:hover:not(:disabled),
       #lobby .account-panel__submit:hover:not(:disabled) {
         background: linear-gradient(180deg, #5d3d16, #2f210e 64%, #191109);
@@ -1613,6 +1615,158 @@ export class Lobby {
         padding-bottom: 0;
       }
       #app.is-compact #lobby .lobby-command-header__kicker { font-size: 8px; letter-spacing: 1.6px; }
+
+      /* One route hierarchy, shared by every pre-game screen. The route
+         content beneath it keeps its established gameplay and network logic. */
+      #lobby .lobby-deployment {
+        position: relative;
+        z-index: 3;
+        width: 100%;
+        min-height: calc(100% - 32px);
+        display: grid;
+        grid-template-columns: minmax(0, 1.12fr) minmax(420px, 0.88fr);
+        grid-template-areas:
+          'masthead masthead'
+          'rail preview'
+          'brief preview'
+          'panel preview'
+          'controls preview';
+        grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+        column-gap: 32px;
+        row-gap: 9px;
+        align-content: center;
+      }
+      #lobby .lobby-card > .lobby-deployment {
+        width: calc(100% - 104px);
+        max-width: none;
+        margin-left: 52px;
+        margin-right: 52px;
+      }
+      #lobby .lobby-deployment__masthead {
+        grid-area: masthead;
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+      }
+      #lobby .lobby-deployment__masthead > h1,
+      #lobby .lobby-deployment__masthead > .lobby-command-header {
+        grid-column: 1;
+      }
+      #lobby .lobby-deployment__masthead > .account-panel {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+        position: relative;
+        top: auto;
+        right: auto;
+        z-index: 4;
+        margin: 0;
+      }
+      #lobby .lobby-deployment__masthead > .account-panel--open {
+        grid-column: 1 / -1;
+        grid-row: 3;
+        justify-self: end;
+        margin-top: 8px;
+      }
+      #lobby .lobby-deployment__masthead > .lobby-rejoin-banner {
+        grid-column: 1 / -1;
+        margin: 8px 0 0;
+      }
+      #lobby .lobby-deployment__mode-rail { grid-area: rail; min-width: 0; }
+      #lobby .lobby-deployment .lobby-tabs {
+        margin: 0;
+        padding: 0;
+        border-width: 1px 0;
+        border-radius: 0;
+        background: transparent;
+      }
+      #lobby .lobby-deployment .lobby-tab {
+        min-height: 46px;
+        border-radius: 0;
+        letter-spacing: 0.9px;
+        text-transform: uppercase;
+      }
+      #lobby .lobby-deployment .lobby-tab.active {
+        border-color: rgba(255, 210, 63, 0.62);
+        background: linear-gradient(90deg, rgba(255, 210, 63, 0.15), transparent);
+      }
+      #lobby .lobby-deployment__mission-brief {
+        grid-area: brief;
+        margin: 0;
+        padding: 12px 0 14px;
+        border-top: 1px solid rgba(255, 210, 63, 0.34);
+        border-bottom: 1px solid rgba(255, 210, 63, 0.16);
+      }
+      #lobby .lobby-deployment > .lobby-mode-panel {
+        grid-area: panel;
+        min-width: 0;
+        align-self: start;
+      }
+      #lobby .lobby-deployment > .lobby-preview {
+        position: relative;
+        inset: auto;
+        grid-area: preview;
+        width: auto;
+        min-width: 0;
+        min-height: 362px;
+        height: 100%;
+        margin: 0;
+      }
+      #lobby .lobby-deployment > .lobby-controls {
+        position: absolute;
+        right: 20px;
+        bottom: 18px;
+        z-index: 4;
+        margin: 0;
+      }
+      #app.is-compact #lobby .lobby-deployment {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+          'masthead'
+          'rail'
+          'brief'
+          'panel';
+        grid-template-rows: auto auto auto minmax(0, 1fr);
+        row-gap: 5px;
+      }
+      #app.is-compact #lobby .lobby-deployment__mode-rail,
+      #app.is-compact #lobby .lobby-deployment__mission-brief,
+      #app.is-compact #lobby .lobby-deployment > .lobby-mode-panel {
+        width: min(600px, 52%);
+      }
+      #app.is-compact #lobby .lobby-deployment > .lobby-preview {
+        display: block;
+        position: absolute;
+        inset: 70px 0 38px auto;
+        grid-area: auto;
+        width: min(520px, 42%);
+        min-height: 0;
+        height: auto;
+      }
+      #app.is-compact #lobby .lobby-deployment > .lobby-controls { bottom: 56px; }
+      #app.is-compact #lobby .lobby-deployment__masthead { min-height: 0; }
+      #app.is-compact #lobby .lobby-deployment__masthead > .account-panel,
+      #app.is-compact #lobby .lobby-deployment__masthead > .account-panel--open {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: auto;
+        grid-column: auto;
+        grid-row: auto;
+        justify-self: auto;
+        margin: 0;
+      }
+      #app.is-compact #lobby .lobby-deployment__masthead:has(.account-panel--open)
+        ~ .lobby-preview,
+      #app.is-compact #lobby .lobby-deployment__masthead:has(.account-panel--open)
+        ~ .lobby-controls {
+        visibility: hidden;
+      }
+      #app.is-compact #lobby .lobby-deployment__mission-brief {
+        display: block;
+        padding: 5px 0;
+      }
     `;
     document.head.append(style);
   }

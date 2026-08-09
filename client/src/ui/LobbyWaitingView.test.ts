@@ -72,6 +72,9 @@ describe('buildLobbyWaitingView', () => {
     expect([...root.children].indexOf(selfEdit)).toBeLessThan([...root.children].indexOf(status));
 
     const copy = button(root, 'Copy invite link');
+    const ready = button(root, 'Ready Up');
+    expect(copy.classList.contains('secondary')).toBe(true);
+    expect(ready.classList.contains('primary')).toBe(true);
     copy.click();
     expect(onCopyInvite).toHaveBeenCalledOnce();
     expect(onCopyInvite).toHaveBeenCalledWith(copy, root.querySelector('.online-invite-status'));

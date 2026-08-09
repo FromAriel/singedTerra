@@ -91,6 +91,8 @@ describe('buildLobbyBrowseView', () => {
 
     const available = button(root, 'Join (1/4)');
     const full = button(root, 'Join (4/4)');
+    expect(available.classList.contains('secondary')).toBe(true);
+    expect(full.classList.contains('secondary')).toBe(true);
     expect(available.disabled).toBe(false);
     expect(full.disabled).toBe(true);
     available.click();

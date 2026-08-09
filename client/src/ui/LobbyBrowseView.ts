@@ -55,7 +55,7 @@ export function buildLobbyBrowseView(options: LobbyBrowseViewOptions): HTMLEleme
 
       const join = document.createElement('button');
       join.type = 'button';
-      join.className = 'lobby-btn';
+      join.className = 'lobby-btn secondary';
       join.style.cssText = 'margin-left:auto;padding:4px 12px;font-size:13px;';
       const full = room.playerCount >= room.maxPlayers;
       join.textContent = `Join (${room.playerCount}/${room.maxPlayers})`;

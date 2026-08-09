@@ -53,4 +53,34 @@ test.describe('Pre-game command shell', () => {
     await assertLobbyControlReachable(page, '#lobby [data-online-route="browse"]');
   });
 
+  test('uses one deployment grid with a dominant route action at every supported size', async ({
+    page,
+  }, testInfo) => {
+    const shell = page.locator('#lobby .lobby-deployment');
+    const hotSeatPrimary = page.locator('#lobby .lobby-start');
+    const initialLayout = await shell.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const lobby = document.querySelector<HTMLElement>('#lobby')!;
+      return {
+        display: style.display,
+        columns: style.gridTemplateColumns.split(' ').filter(Boolean),
+        width: element.getBoundingClientRect().width,
+        lobbyWidth: lobby.getBoundingClientRect().width,
+      };
+    });
+    expect(initialLayout.display).toBe('grid');
+    expect(initialLayout.columns).toHaveLength(
+      testInfo.project.name === 'desktop-fine' ? 2 : 1,
+    );
+    expect(initialLayout.width / initialLayout.lobbyWidth).toBeGreaterThan(0.82);
+    await assertLobbyFrame(page);
+    await assertLobbyControlReachable(page, '#lobby .lobby-start');
+
+    await page.getByRole('tab', { name: 'Play Online', exact: true }).click();
+    await expect(page.locator('#lobby .lobby-deployment__mission-brief'))
+      .toHaveText(/Play Online/);
+    await assertLobbyControlReachable(page, '#lobby .lobby-online-primary');
+    await expect(hotSeatPrimary).toBeHidden();
+  });
+
 });

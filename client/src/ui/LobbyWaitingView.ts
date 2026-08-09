@@ -52,7 +52,7 @@ export function buildLobbyWaitingView(options: LobbyWaitingViewOptions): HTMLEle
   invite.className = 'online-invite';
   const copyInvite = document.createElement('button');
   copyInvite.type = 'button';
-  copyInvite.className = 'lobby-btn online-invite-copy';
+  copyInvite.className = 'lobby-btn secondary online-invite-copy';
   copyInvite.textContent = 'Copy invite link';
   const inviteStatus = document.createElement('p');
   inviteStatus.className = 'online-invite-status';
@@ -127,7 +127,7 @@ export function buildLobbyWaitingView(options: LobbyWaitingViewOptions): HTMLEle
 
   const ready = document.createElement('button');
   ready.type = 'button';
-  ready.className = 'lobby-btn';
+  ready.className = 'lobby-btn primary';
   if (options.thisPlayerReady) {
     ready.textContent = 'Waiting for others...';
     ready.disabled = true;
