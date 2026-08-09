@@ -19,23 +19,38 @@ export interface LobbyWaitingViewOptions {
 
 export function buildLobbyWaitingView(options: LobbyWaitingViewOptions): HTMLElement {
   const root = document.createElement('div');
+  root.className = 'lobby-operations-board lobby-operations-board--waiting';
+
+  const header = document.createElement('header');
+  header.className = 'lobby-operations-board__header';
+  const title = document.createElement('h2');
+  title.className = 'lobby-operations-board__title';
+  title.textContent = 'Staging operation';
+  const purpose = document.createElement('p');
+  purpose.className = 'lobby-operations-board__purpose';
+  purpose.textContent = 'Confirm the crew, share the signal, and ready the battery.';
+  header.append(title, purpose);
 
   const humans = options.players.filter((player) => !player.ai);
   const humansReady = humans.filter((player) => player.ready).length;
   const cpuCount = options.players.length - humans.length;
   const seatsOpen = options.players.length < options.maxPlayers;
-  const sub = document.createElement('p');
-  sub.className = 'lobby-sub';
-  sub.textContent =
+  const roster = document.createElement('section');
+  roster.className = 'lobby-operations-board__roster';
+  roster.setAttribute('aria-label', 'Operation roster');
+  const readiness = document.createElement('p');
+  readiness.className = 'lobby-operations-board__readiness';
+  readiness.textContent =
     `${humansReady}/${humans.length} human${humans.length === 1 ? '' : 's'} ready`
     + (cpuCount > 0 ? ` · ${cpuCount} CPU` : '')
     + (seatsOpen ? ' · waiting for players to join' : '');
-  root.append(sub);
+  const mission = document.createElement('section');
+  mission.className = 'lobby-operations-board__mission';
+  mission.setAttribute('aria-label', 'Room access');
 
   const codeLabel = document.createElement('p');
-  codeLabel.style.cssText = 'color:var(--text-dim);font-size:13px;margin:0 0 6px;';
+  codeLabel.className = 'lobby-operations-board__section-label';
   codeLabel.textContent = 'Share this code:';
-  root.append(codeLabel);
 
   const codeDisplay = document.createElement('div');
   codeDisplay.className = 'online-code-display';
@@ -46,7 +61,6 @@ export function buildLobbyWaitingView(options: LobbyWaitingViewOptions): HTMLEle
     charBox.textContent = character.trim() || ' ';
     codeDisplay.append(charBox);
   }
-  root.append(codeDisplay);
 
   const invite = document.createElement('div');
   invite.className = 'online-invite';
@@ -62,10 +76,10 @@ export function buildLobbyWaitingView(options: LobbyWaitingViewOptions): HTMLEle
     options.onCopyInvite(copyInvite, inviteStatus);
   });
   invite.append(copyInvite, inviteStatus);
-  root.append(invite);
+  mission.append(codeLabel, codeDisplay, invite);
 
   const listHeader = document.createElement('p');
-  listHeader.style.cssText = 'color:var(--text-dim);font-size:13px;margin:0 0 8px;';
+  listHeader.className = 'lobby-operations-board__roster-label';
   listHeader.textContent = `Players (${options.players.length}/${options.maxPlayers}):`;
   root.append(listHeader);
 
@@ -89,7 +103,6 @@ export function buildLobbyWaitingView(options: LobbyWaitingViewOptions): HTMLEle
       tag.className = 'online-clash-tag';
       const shared = sharesColor && sharesName ? 'color + name' : sharesColor ? 'color' : 'name';
       tag.textContent = `⚠ shared ${shared}`;
-      tag.style.cssText = 'color:var(--tank-red,#e8554d);font-size:11px;margin-left:6px;white-space:nowrap;';
       name.append(tag);
     }
 
@@ -106,7 +119,7 @@ export function buildLobbyWaitingView(options: LobbyWaitingViewOptions): HTMLEle
     row.append(dot, name, badge);
     playerList.append(row);
   }
-  root.append(playerList, options.selfEdit);
+  roster.append(readiness, listHeader, playerList, options.selfEdit);
 
   const myClash = options.colorClash || options.nameClash;
   if (myClash) {
@@ -117,13 +130,13 @@ export function buildLobbyWaitingView(options: LobbyWaitingViewOptions): HTMLEle
     if (options.nameClash) parts.push('name');
     warning.textContent =
       `Another player already has your ${parts.join(' and ')}. Change it above to start.`;
-    root.append(warning);
+    roster.append(warning);
   }
 
-  root.append(options.status);
+  roster.append(options.status);
 
   const actions = document.createElement('div');
-  actions.className = 'lobby-btn-row';
+  actions.className = 'lobby-operations-board__actions lobby-btn-row';
 
   const ready = document.createElement('button');
   ready.type = 'button';
@@ -147,7 +160,7 @@ export function buildLobbyWaitingView(options: LobbyWaitingViewOptions): HTMLEle
   leave.addEventListener('click', options.onLeave);
 
   actions.append(ready, leave);
-  root.append(actions);
+  root.append(header, mission, roster, actions);
 
   return root;
 }

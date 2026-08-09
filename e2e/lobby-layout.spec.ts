@@ -5,6 +5,68 @@ import {
   gotoLobby,
 } from './support';
 
+async function assertOperationsBoardFlow(page: Page, selector: string): Promise<void> {
+  const geometry = await page.locator(selector).evaluate((board) => {
+    const root = board.getBoundingClientRect();
+    const header = board.querySelector<HTMLElement>(':scope > .lobby-operations-board__header');
+    const sections = Array.from(board.querySelectorAll<HTMLElement>(
+      ':scope > .lobby-operations-board__crew, :scope > .lobby-operations-board__section, :scope > .lobby-operations-board__mission, :scope > .lobby-operations-board__roster, :scope > .lobby-operations-board__actions',
+    ));
+    const primary = board.querySelector<HTMLElement>('.lobby-btn.primary');
+    if (!header || sections.length === 0 || !primary) {
+      throw new Error('Expected a board header, operational sections, and primary action');
+    }
+    const serialize = (rect: DOMRect) => ({
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+    });
+    return {
+      root: serialize(root),
+      header: serialize(header.getBoundingClientRect()),
+      sections: sections.map((section) => serialize(section.getBoundingClientRect())),
+      primary: serialize(primary.getBoundingClientRect()),
+    };
+  });
+
+  expect(geometry.header.height, 'operations-board heading must render').toBeGreaterThan(4);
+  expect(geometry.header.bottom, 'heading must clear the first operational section')
+    .toBeLessThanOrEqual(geometry.sections[0]!.top + 1);
+  for (let index = 0; index < geometry.sections.length - 1; index += 1) {
+    expect(
+      geometry.sections[index]!.bottom,
+      'each operational section must clear the section that follows it',
+    ).toBeLessThanOrEqual(geometry.sections[index + 1]!.top + 1);
+  }
+  for (const rect of [...geometry.sections, geometry.primary]) {
+    expect(rect.left, 'board content must stay within the board left edge').toBeGreaterThanOrEqual(geometry.root.left - 1);
+    expect(rect.right, 'board content must stay within the board right edge').toBeLessThanOrEqual(geometry.root.right + 1);
+  }
+  expect(geometry.primary.width, 'primary action must retain a visible target').toBeGreaterThan(4);
+  expect(geometry.primary.height, 'primary action must retain a visible target').toBeGreaterThan(4);
+}
+
+async function assertOperationRowsClear(page: Page, selector: string): Promise<void> {
+  const rows = await page.locator(selector).evaluate((board) => Array.from(
+    board.querySelectorAll<HTMLElement>('.online-player-row'),
+    (row) => {
+      const rect = row.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, height: rect.height };
+    },
+  ));
+  expect(rows.length, 'browse fixture must render multiple operation rows').toBeGreaterThanOrEqual(2);
+  for (let index = 0; index < rows.length - 1; index += 1) {
+    expect(rows[index]!.height, 'operation row must retain visible height').toBeGreaterThan(4);
+    expect(
+      rows[index]!.bottom,
+      'each operation row must clear the next row',
+    ).toBeLessThanOrEqual(rows[index + 1]!.top + 1);
+  }
+}
+
 async function fulfillFunction(
   page: Page,
   name: string,
@@ -149,28 +211,48 @@ test.describe('Lobby layout guardrails', () => {
         botCount: 1,
         interestRate: 0.2,
         suddenDeathTurn: 15,
+      }, {
+        roomId: 'room-browser-vanguard',
+        code: 'VANG',
+        hostName: 'Vanguard',
+        playerCount: 3,
+        maxPlayers: 4,
+        rounds: 1,
+        armsLevel: 4,
+        botCount: 0,
+        interestRate: 0,
+        suddenDeathTurn: null,
       }],
     });
 
     await page.getByRole('tab', { name: 'Play Online', exact: true }).click();
     await page.getByRole('button', { name: 'Browse public rooms', exact: true }).click();
 
+    const board = page.locator('#lobby .lobby-operations-board--browse');
+    await expect(board.getByRole('heading', { name: 'Open operations', exact: true })).toBeVisible();
+    await expect(board.locator('.lobby-operations-board__section')).toHaveAttribute(
+      'aria-label',
+      'Open operations',
+    );
     const room = page.locator('.online-player-row').filter({ hasText: 'Atlas' });
     await expect(room).toContainText('Best of 3');
     await expect(room).toContainText('Arms Lv 2');
     await expect(room).toContainText('1 CPU');
     await expect(room).toContainText('Interest +20%');
     await expect(room).toContainText('Sudden death T15');
+    expect(await board.evaluate((element) => getComputedStyle(element).borderLeftStyle)).toBe('solid');
     const joinRoom = room.getByRole('button', { name: 'Join (1/4)', exact: true });
     await expect(joinRoom).toBeEnabled();
-    await expect(joinRoom).toHaveClass(/secondary/);
+    await expect(joinRoom).toHaveClass(/primary/);
     const alternatives = page.getByRole('navigation', { name: 'Other ways to play online', exact: true });
     await expect(alternatives.getByRole('button', { name: 'Create a room', exact: true })).toBeVisible();
     await expect(alternatives.getByRole('button', { name: 'Join with a code', exact: true })).toBeVisible();
     await assertSameOriginFunctionCall(page, listRoomsCalls, 'list_rooms');
 
+    await assertOperationsBoardFlow(page, '#lobby .lobby-operations-board--browse');
+    await assertOperationRowsClear(page, '#lobby .lobby-operations-board--browse');
     await assertLobbyFrame(page);
-    await assertLobbyControlReachable(page, '#lobby .online-player-row .lobby-btn');
+    await assertLobbyControlReachable(page, '#lobby .online-player-row:first-child .lobby-btn');
     await assertLobbyControlReachable(page, '#lobby [data-online-route="create"]');
     await assertLobbyControlReachable(page, '#lobby [data-online-route="join-code"]');
   });
@@ -199,6 +281,17 @@ test.describe('Lobby layout guardrails', () => {
     await page.locator('#lobby .lobby-name').fill('Oracle Host');
     await page.getByRole('button', { name: 'Create Room', exact: true }).click();
 
+    const board = page.locator('#lobby .lobby-operations-board--waiting');
+    await expect(board.getByRole('heading', { name: 'Staging operation', exact: true })).toBeVisible();
+    await expect(board.locator('.lobby-operations-board__mission')).toHaveAttribute(
+      'aria-label',
+      'Room access',
+    );
+    await expect(board.locator('.lobby-operations-board__roster')).toHaveAttribute(
+      'aria-label',
+      'Operation roster',
+    );
+    expect(await board.evaluate((element) => getComputedStyle(element).borderLeftStyle)).toBe('solid');
     await expect(page.getByText('Share this code:', { exact: true })).toBeVisible();
     await expect(page.locator('.online-code-char')).toHaveText(['W', 'A', 'I', 'T']);
     const roster = page.locator('.online-player-list');
@@ -215,6 +308,7 @@ test.describe('Lobby layout guardrails', () => {
     await expect(page.getByRole('button', { name: 'Leave', exact: true })).toBeVisible();
     await assertSameOriginFunctionCall(page, createRoomCalls, 'create_room');
 
+    await assertOperationsBoardFlow(page, '#lobby .lobby-operations-board--waiting');
     await assertLobbyFrame(page);
     await assertLobbyControlReachable(
       page,

@@ -1616,6 +1616,94 @@ export class Lobby {
       }
       #app.is-compact #lobby .lobby-command-header__kicker { font-size: 8px; letter-spacing: 1.6px; }
 
+      /* The online follow-through is an operations board, not a detached
+         stack of setup controls. Discovery and staging share one field-report
+         hierarchy while their transport actions remain local to each view. */
+      #lobby .lobby-operations-board {
+        border-left: 2px solid rgba(255, 188, 80, 0.68);
+        background: linear-gradient(90deg, rgba(32, 22, 12, 0.56), rgba(7, 10, 12, 0.22) 72%, transparent);
+        padding: 0 0 0 9px;
+      }
+      #lobby .lobby-operations-board__header {
+        display: flex;
+        align-items: baseline;
+        gap: 9px;
+        min-width: 0;
+      }
+      #lobby .lobby-operations-board__title {
+        flex: 0 0 auto;
+        margin: 0;
+        color: #ffe0a0;
+        font: 700 11px/1 var(--font-display);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+      #lobby .lobby-operations-board__purpose {
+        min-width: 0;
+        margin: 0;
+        color: rgba(225, 214, 191, 0.66);
+        font: 11px/1.2 var(--font-sans);
+      }
+      #lobby .lobby-operations-board__crew,
+      #lobby .lobby-operations-board__section,
+      #lobby .lobby-operations-board__mission,
+      #lobby .lobby-operations-board__roster {
+        margin-top: 6px;
+        padding-top: 5px;
+        border-top: 1px solid rgba(229, 161, 65, 0.18);
+      }
+      #lobby .lobby-operations-board__section-label,
+      #lobby .lobby-operations-board__roster-label,
+      #lobby .lobby-operations-board__readiness {
+        margin: 0 0 6px;
+        color: rgba(255, 224, 159, 0.72);
+        font: 11px/1.2 var(--font-mono);
+        letter-spacing: 0.35px;
+        text-transform: uppercase;
+      }
+      #lobby .lobby-operations-board__mission .online-code-display {
+        justify-content: flex-start;
+        margin: 6px 0;
+      }
+      #lobby .lobby-operations-board__mission .online-invite {
+        justify-content: flex-start;
+        margin-bottom: 4px;
+      }
+      #lobby .lobby-operations-board .online-player-list { margin-bottom: 8px; }
+      #lobby .lobby-operations-board__empty { color: var(--text-dim); }
+      #lobby .lobby-operations-board__room-meta {
+        margin-left: 8px;
+        color: var(--text-dim);
+        font-size: 12px;
+      }
+      #lobby .lobby-operations-board__room-join {
+        margin-left: auto;
+        padding: 4px 12px;
+        font-size: 13px;
+      }
+      #lobby .online-clash-tag {
+        margin-left: 6px;
+        color: var(--tank-red, #e8554d);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      #lobby .lobby-operations-board__actions {
+        margin-top: 7px;
+        padding-top: 5px;
+        border-top: 1px solid rgba(229, 161, 65, 0.18);
+      }
+      #app.is-compact #lobby .lobby-operations-board { padding-left: 5px; }
+      #app.is-compact #lobby .lobby-operations-board__header { gap: 5px; }
+      #app.is-compact #lobby .lobby-operations-board__title { font-size: 10px; }
+      #app.is-compact #lobby .lobby-operations-board__purpose { display: none; }
+      #app.is-compact #lobby .lobby-operations-board__crew,
+      #app.is-compact #lobby .lobby-operations-board__section,
+      #app.is-compact #lobby .lobby-operations-board__mission,
+      #app.is-compact #lobby .lobby-operations-board__roster {
+        margin-top: 4px;
+        padding-top: 3px;
+      }
+
       /* Immediate player commitments use the same field-brief language as the
          command shell: an operational title, contained setup, and a distinct
          action boundary rather than an anonymous stack of browser controls. */

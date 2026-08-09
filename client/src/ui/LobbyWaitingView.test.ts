@@ -63,13 +63,22 @@ describe('buildLobbyWaitingView', () => {
       onCopyInvite,
     }));
 
-    expect(root.querySelector('.lobby-sub')?.textContent)
+    expect(root.className).toBe('lobby-operations-board lobby-operations-board--waiting');
+    expect(root.querySelector('.lobby-operations-board__title')?.textContent).toBe('Staging operation');
+    expect(root.querySelector('.lobby-operations-board__purpose')?.textContent)
+      .toBe('Confirm the crew, share the signal, and ready the battery.');
+    expect(root.querySelector('.lobby-operations-board__mission')?.getAttribute('aria-label'))
+      .toBe('Room access');
+    expect(root.querySelector('.lobby-operations-board__roster')?.getAttribute('aria-label'))
+      .toBe('Operation roster');
+    expect(root.querySelector('.lobby-operations-board__readiness')?.textContent)
       .toBe('0/1 human ready · 1 CPU · waiting for players to join');
     expect([...root.querySelectorAll('.online-code-char')].map((cell) => cell.textContent))
       .toEqual(['W', 'X', 'Y', 'Z']);
     expect(root.querySelector('.online-invite-status')?.getAttribute('role')).toBe('status');
     expect(root.querySelector('.online-invite-status')?.getAttribute('aria-live')).toBe('polite');
-    expect([...root.children].indexOf(selfEdit)).toBeLessThan([...root.children].indexOf(status));
+    const roster = root.querySelector('.lobby-operations-board__roster')!;
+    expect([...roster.children].indexOf(selfEdit)).toBeLessThan([...roster.children].indexOf(status));
 
     const copy = button(root, 'Copy invite link');
     const ready = button(root, 'Ready Up');
@@ -92,8 +101,8 @@ describe('buildLobbyWaitingView', () => {
       clashNames: new Set(['alice']),
     }));
 
-    expect(root.querySelector('.lobby-sub')?.textContent).toBe('1/2 humans ready · 1 CPU');
-    expect(root.querySelector('p:nth-of-type(3)')?.textContent).toBe('Players (3/3):');
+    expect(root.querySelector('.lobby-operations-board__readiness')?.textContent).toBe('1/2 humans ready · 1 CPU');
+    expect(root.querySelector('.lobby-operations-board__roster-label')?.textContent).toBe('Players (3/3):');
     const rows = [...root.querySelectorAll('.online-player-row')];
     expect(rows[0]?.textContent).toContain('⚠ shared color + name');
     expect(rows[0]?.querySelector('.online-player-dot')?.classList.contains('clash')).toBe(true);
