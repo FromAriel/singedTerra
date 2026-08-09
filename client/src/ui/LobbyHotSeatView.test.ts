@@ -33,9 +33,12 @@ describe('buildLobbyHotSeatView', () => {
     const advanced = section('advanced');
     const root = buildLobbyHotSeatView(options({ playerCount: 3, playerRows, advanced }));
 
-    expect(root.className).toBe('lobby-hotseat crowded');
-    expect(root.querySelector('.lobby-sub')?.textContent)
-      .toBe('Hot-seat setup — choose 2-4 players, name them, pick a color.');
+    expect(root.className).toBe('lobby-route-brief lobby-hotseat crowded');
+    expect(root.querySelector('.lobby-route-brief__title')?.textContent).toBe('Local battery');
+    expect(root.querySelector('.lobby-route-brief__purpose')?.textContent)
+      .toBe('Configure the crew sharing this battlefield.');
+    expect(root.querySelector('.lobby-route-brief__setup')?.getAttribute('aria-label'))
+      .toBe('Local battery setup');
     const select = root.querySelector('select');
     expect(select).toBeInstanceOf(HTMLSelectElement);
     expect([...select!.options].map((option) => option.value)).toEqual(['2', '3', '4']);
@@ -44,7 +47,8 @@ describe('buildLobbyHotSeatView', () => {
     const rows = root.querySelector('.lobby-rows');
     expect(rows?.classList.contains('crowded')).toBe(true);
     expect([...rows!.children]).toEqual(playerRows);
-    expect([...root.children].indexOf(rows!)).toBeLessThan([...root.children].indexOf(advanced));
+    const setup = root.querySelector('.lobby-route-brief__setup')!;
+    expect([...setup.children].indexOf(rows!)).toBeLessThan([...setup.children].indexOf(advanced));
   });
 
   it('routes player-count changes and an enabled Start action', () => {
@@ -60,6 +64,7 @@ describe('buildLobbyHotSeatView', () => {
 
     const start = startButton(root);
     expect(start.textContent).toBe('Start Game');
+    expect(start.className).toBe('lobby-start lobby-btn primary');
     expect(start.disabled).toBe(false);
     start.click();
     expect(onStart).toHaveBeenCalledOnce();
@@ -72,7 +77,7 @@ describe('buildLobbyHotSeatView', () => {
       onStart,
     }));
 
-    expect(root.className).toBe('lobby-hotseat');
+    expect(root.className).toBe('lobby-route-brief lobby-hotseat');
     expect(root.querySelector('.lobby-rows')?.classList.contains('crowded')).toBe(false);
     expect(root.querySelector('.lobby-error')?.textContent)
       .toBe('Each player must pick a unique color.');

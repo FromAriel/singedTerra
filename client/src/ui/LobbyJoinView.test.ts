@@ -36,9 +36,12 @@ describe('buildLobbyJoinView', () => {
     const status = section('status');
     const root = buildLobbyJoinView(options({ nameColor, garage, status }));
 
-    expect(root.className).toBe('');
-    expect(root.querySelector('.lobby-sub')?.textContent)
-      .toBe('Enter the 4-character room code to join.');
+    expect(root.className).toBe('lobby-route-brief lobby-route-brief--online');
+    expect(root.querySelector('.lobby-route-brief__title')?.textContent).toBe('Rally to a signal');
+    expect(root.querySelector('.lobby-route-brief__purpose')?.textContent)
+      .toBe('Enter a room code and join the operation already in motion.');
+    expect(root.querySelector('.lobby-route-brief__setup')?.getAttribute('aria-label'))
+      .toBe('Rally setup');
     const field = root.querySelector('.lobby-field');
     expect(field?.querySelector('label')?.textContent).toBe('Room code');
     const input = field?.querySelector('input');
@@ -50,13 +53,11 @@ describe('buildLobbyJoinView', () => {
       value: 'AB12',
       placeholder: 'XXXX',
     });
-    expect([...root.children]).toEqual([
-      root.querySelector('.lobby-sub'),
+    expect([...root.querySelector('.lobby-route-brief__setup')!.children]).toEqual([
       field,
       nameColor,
       garage,
       status,
-      root.querySelector('.lobby-online-actions'),
     ]);
     expect([...root.querySelectorAll('.lobby-online-actions button')].map((item) => item.textContent))
       .toEqual(['Join Room', 'Create a room', 'Browse public rooms']);
@@ -90,7 +91,8 @@ describe('buildLobbyJoinView', () => {
     expect(onBrowse).toHaveBeenCalledOnce();
 
     const busyJoin = button(buildLobbyJoinView(options({ busy: true, onJoin })), 'Joining...');
-    expect(busyJoin.className).toBe('lobby-btn lobby-online-primary');
+    expect(busyJoin.classList.contains('primary')).toBe(true);
+    expect(busyJoin.classList.contains('lobby-online-primary')).toBe(true);
     expect(busyJoin.disabled).toBe(true);
     busyJoin.click();
     expect(onJoin).toHaveBeenCalledOnce();

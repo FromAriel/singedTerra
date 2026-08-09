@@ -73,7 +73,7 @@ test.describe('Lobby layout guardrails', () => {
     await expect(page.locator('.lobby-mode-context')).toContainText(
       'Create a room, join by code, or browse public games.',
     );
-    await expect(page.getByText('Create a new online room', { exact: false })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Open operation', exact: true })).toBeVisible();
 
     await page.keyboard.press('ArrowRight');
     await expect(hotSeat).toHaveAttribute('aria-selected', 'true');
@@ -106,7 +106,7 @@ test.describe('Lobby layout guardrails', () => {
   test('Online Create stays framed and its primary action is reachable', async ({ page }) => {
     await page.getByRole('tab', { name: 'Play Online', exact: true }).click();
 
-    await expect(page.getByText('Create a new online room', { exact: false })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Open operation', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create Room', exact: true })).toBeVisible();
     const alternatives = page.getByRole('navigation', { name: 'Other ways to play online', exact: true });
     await expect(alternatives).toBeVisible();
@@ -123,7 +123,7 @@ test.describe('Lobby layout guardrails', () => {
     await page.getByRole('tab', { name: 'Play Online', exact: true }).click();
     await page.getByRole('button', { name: 'Join with a code', exact: true }).click();
 
-    await expect(page.getByText('Enter the 4-character room code', { exact: false })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Rally to a signal', exact: true })).toBeVisible();
     await expect(page.locator('.lobby-code-input')).toHaveAttribute('maxlength', '4');
     await expect(page.getByRole('button', { name: 'Join Room', exact: true })).toBeVisible();
     const alternatives = page.getByRole('navigation', { name: 'Other ways to play online', exact: true });

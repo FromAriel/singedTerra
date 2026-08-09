@@ -14,11 +14,21 @@ export interface LobbyJoinViewOptions {
 
 export function buildLobbyJoinView(options: LobbyJoinViewOptions): HTMLElement {
   const root = document.createElement('div');
+  root.className = 'lobby-route-brief lobby-route-brief--online';
 
-  const sub = document.createElement('p');
-  sub.className = 'lobby-sub';
-  sub.textContent = 'Enter the 4-character room code to join.';
-  root.append(sub);
+  const brief = document.createElement('header');
+  brief.className = 'lobby-route-brief__header';
+  const title = document.createElement('h2');
+  title.className = 'lobby-route-brief__title';
+  title.textContent = 'Rally to a signal';
+  const purpose = document.createElement('p');
+  purpose.className = 'lobby-route-brief__purpose';
+  purpose.textContent = 'Enter a room code and join the operation already in motion.';
+  brief.append(title, purpose);
+
+  const setup = document.createElement('section');
+  setup.className = 'lobby-route-brief__setup';
+  setup.setAttribute('aria-label', 'Rally setup');
 
   const codeField = document.createElement('div');
   codeField.className = 'lobby-field';
@@ -34,16 +44,16 @@ export function buildLobbyJoinView(options: LobbyJoinViewOptions): HTMLElement {
     codeInput.value = options.onCodeInput(codeInput.value);
   });
   codeField.append(codeLabel, codeInput);
-  root.append(codeField, options.nameColor, options.garage, options.status);
+  setup.append(codeField, options.nameColor, options.garage, options.status);
 
   const joinButton = document.createElement('button');
   joinButton.type = 'button';
-  joinButton.className = 'lobby-btn';
+  joinButton.className = 'lobby-btn primary';
   joinButton.textContent = options.busy ? 'Joining...' : 'Join Room';
   joinButton.disabled = options.busy;
   joinButton.addEventListener('click', options.onJoin);
 
-  root.append(buildOnlineRouteActions(joinButton, [
+  root.append(brief, setup, buildOnlineRouteActions(joinButton, [
     { id: 'create', label: 'Create a room', onClick: options.onCreate },
     { id: 'browse', label: 'Browse public rooms', onClick: options.onBrowse },
   ]));

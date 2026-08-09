@@ -12,13 +12,21 @@ export interface LobbyHotSeatViewOptions {
 export function buildLobbyHotSeatView(options: LobbyHotSeatViewOptions): HTMLElement {
   const wrapper = document.createElement('div');
   const crowded = options.playerCount >= 3;
-  wrapper.className = `lobby-hotseat${crowded ? ' crowded' : ''}`;
+  wrapper.className = `lobby-route-brief lobby-hotseat${crowded ? ' crowded' : ''}`;
 
-  const sub = document.createElement('p');
-  sub.className = 'lobby-sub';
-  sub.textContent =
-    `Hot-seat setup — choose ${options.minPlayers}-${options.maxPlayers} players, name them, pick a color.`;
-  wrapper.append(sub);
+  const brief = document.createElement('header');
+  brief.className = 'lobby-route-brief__header';
+  const title = document.createElement('h2');
+  title.className = 'lobby-route-brief__title';
+  title.textContent = 'Local battery';
+  const purpose = document.createElement('p');
+  purpose.className = 'lobby-route-brief__purpose';
+  purpose.textContent = 'Configure the crew sharing this battlefield.';
+  brief.append(title, purpose);
+
+  const setup = document.createElement('section');
+  setup.className = 'lobby-route-brief__setup';
+  setup.setAttribute('aria-label', 'Local battery setup');
 
   const countField = document.createElement('div');
   countField.className = 'lobby-field';
@@ -36,26 +44,26 @@ export function buildLobbyHotSeatView(options: LobbyHotSeatViewOptions): HTMLEle
     options.onPlayerCountChange(Number(countSelect.value));
   });
   countField.append(countLabel, countSelect);
-  wrapper.append(countField);
+  setup.append(countField);
 
   const rows = document.createElement('div');
   rows.className = 'lobby-rows';
   rows.classList.toggle('crowded', crowded);
   rows.append(...options.playerRows);
-  wrapper.append(rows, options.advanced);
+  setup.append(rows, options.advanced);
 
   const error = document.createElement('div');
   error.className = 'lobby-error';
   error.textContent = options.validationMessage ?? '';
-  wrapper.append(error);
+  setup.append(error);
 
   const start = document.createElement('button');
   start.type = 'button';
-  start.className = 'lobby-start';
+  start.className = 'lobby-start lobby-btn primary';
   start.textContent = 'Start Game';
   start.disabled = options.validationMessage !== null;
   start.addEventListener('click', options.onStart);
-  wrapper.append(start);
+  wrapper.append(brief, setup, start);
 
   return wrapper;
 }
