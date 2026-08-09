@@ -159,7 +159,7 @@ async function startGarageMatch(page: Page, kit: Kit): Promise<void> {
 
   if (await page.locator('#app').evaluate((element) => element.classList.contains('is-compact'))) {
     await page.getByRole('button', { name: 'Customize Player 1 tank' }).click();
-    await expect(page.getByRole('dialog', { name: 'Player 1 tank Garage' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Vehicle Bay: Player 1' })).toBeVisible();
   }
   const preset = page.getByRole('button', { name: `Apply ${kit.label} preset to Player 1` });
   await preset.click();

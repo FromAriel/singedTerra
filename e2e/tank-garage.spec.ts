@@ -31,6 +31,36 @@ async function expectTouchSized(locator: ReturnType<Page['locator']>): Promise<v
   }
 }
 
+async function assertVehicleBayGeometry(page: Page): Promise<void> {
+  const geometry = await page.getByRole('dialog', { name: 'Vehicle Bay: Player 1' }).evaluate((dialog) => {
+    const serialize = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, height: rect.height };
+    };
+    const regions = [
+      dialog.querySelector('.lobby-garage__editor-header'),
+      dialog.querySelector('.lobby-garage__build-summary'),
+      dialog.querySelector('.lobby-garage__preset-group'),
+      dialog.querySelector('.lobby-garage__component-group'),
+      dialog.querySelector('.lobby-garage__close'),
+    ];
+    if (regions.some((region) => region === null)) throw new Error('Vehicle Bay regions are missing');
+    return { dialog: serialize(dialog), regions: regions.map((region) => serialize(region!)) };
+  });
+  for (const region of geometry.regions) {
+    expect(region.height, 'Vehicle Bay region must remain visible').toBeGreaterThan(4);
+    expect(region.left, 'Vehicle Bay region must stay within the dialog').toBeGreaterThanOrEqual(geometry.dialog.left - 1);
+    expect(region.right, 'Vehicle Bay region must stay within the dialog').toBeLessThanOrEqual(geometry.dialog.right + 1);
+  }
+  const [header, summary, presets, components, done] = geometry.regions;
+  expect(header!.bottom, 'Vehicle Bay header must clear the build summary')
+    .toBeLessThanOrEqual(summary!.top + 1);
+  expect(summary!.bottom, 'Vehicle Bay summary must clear both control bays')
+    .toBeLessThanOrEqual(Math.min(presets!.top, components!.top) + 1);
+  expect(Math.max(presets!.bottom, components!.bottom), 'Vehicle Bay control bays must clear Done')
+    .toBeLessThanOrEqual(done!.top + 1);
+}
+
 async function openCompactGarage(page: Page, ownerLabel: string): Promise<void> {
   if (await page.locator('#app').evaluate((app) => app.classList.contains('is-compact'))) {
     await page.getByRole('button', {
@@ -328,8 +358,9 @@ test.describe('tank Garage', () => {
         name: 'Done customizing tank',
       });
       await expect(page.getByRole('dialog', {
-        name: 'Player 1 tank Garage',
+        name: 'Vehicle Bay: Player 1',
       })).toBeVisible();
+      await assertVehicleBayGeometry(page);
       await expect(firstPreset).toBeFocused();
       await page.keyboard.press('Shift+Tab');
       await expect(done).toBeFocused();
@@ -352,6 +383,15 @@ test.describe('tank Garage', () => {
       await expect(page.getByRole('button', {
         name: 'Customize Player 1 tank',
       })).toBeFocused();
+    }
+
+    if (testInfo.project.name === 'small-window') {
+      await openCompactGarage(page, 'Player 1');
+      await expect(page.getByRole('dialog', {
+        name: 'Vehicle Bay: Player 1',
+      })).toBeVisible();
+      await assertVehicleBayGeometry(page);
+      await closeCompactGarage(page);
     }
 
     await page.locator('.lobby-field select:not([id])').selectOption('4');
