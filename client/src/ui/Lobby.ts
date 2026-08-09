@@ -1401,6 +1401,7 @@ export class Lobby {
       /* Command preparation system: pre-game surfaces inherit the same
          austere field-console language as the battlefield HUD. */
       #lobby .lobby-card {
+        padding-block: 16px;
         background:
           linear-gradient(90deg, rgba(6, 8, 10, 0.98), rgba(12, 13, 14, 0.95) 49%, rgba(27, 20, 15, 0.92)),
           repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 5px);
@@ -1419,9 +1420,9 @@ export class Lobby {
       #lobby .lobby-command-header {
         display: flex;
         align-items: center;
-        min-height: 18px;
-        margin: 0 0 12px;
-        padding: 0 0 7px;
+        min-height: 10px;
+        margin: 0 0 4px;
+        padding: 0 0 2px;
         border-bottom: 1px solid rgba(229, 161, 65, 0.58);
       }
       #lobby .lobby-command-header__kicker {
@@ -1560,9 +1561,9 @@ export class Lobby {
       }
       #lobby .account-panel__xp-meter { accent-color: #d79a38; }
       #app.is-compact #lobby .lobby-command-header {
-        min-height: 14px;
-        margin-bottom: 6px;
-        padding-bottom: 4px;
+        min-height: 8px;
+        margin-bottom: 0;
+        padding-bottom: 0;
       }
       #app.is-compact #lobby .lobby-command-header__kicker { font-size: 8px; letter-spacing: 1.6px; }
     `;
