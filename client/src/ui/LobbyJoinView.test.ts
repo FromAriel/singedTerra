@@ -56,10 +56,11 @@ describe('buildLobbyJoinView', () => {
       nameColor,
       garage,
       status,
-      root.querySelector('.lobby-btn-row'),
+      root.querySelector('.lobby-online-actions'),
     ]);
-    expect([...root.querySelectorAll('.lobby-btn-row button')].map((item) => item.textContent))
-      .toEqual(['Join Room', 'Create instead', 'Browse public rooms']);
+    expect([...root.querySelectorAll('.lobby-online-actions button')].map((item) => item.textContent))
+      .toEqual(['Join Room', 'Create a room', 'Browse public rooms']);
+    expect(root.querySelector('nav')?.getAttribute('aria-label')).toBe('Other ways to play online');
   });
 
   it('routes raw code input through the canonicalizing callback', () => {
@@ -82,14 +83,14 @@ describe('buildLobbyJoinView', () => {
     const root = buildLobbyJoinView(options({ onJoin, onCreate, onBrowse }));
 
     button(root, 'Join Room').click();
-    button(root, 'Create instead').click();
+    button(root, 'Create a room').click();
     button(root, 'Browse public rooms').click();
     expect(onJoin).toHaveBeenCalledOnce();
     expect(onCreate).toHaveBeenCalledOnce();
     expect(onBrowse).toHaveBeenCalledOnce();
 
     const busyJoin = button(buildLobbyJoinView(options({ busy: true, onJoin })), 'Joining...');
-    expect(busyJoin.className).toBe('lobby-btn');
+    expect(busyJoin.className).toBe('lobby-btn lobby-online-primary');
     expect(busyJoin.disabled).toBe(true);
     busyJoin.click();
     expect(onJoin).toHaveBeenCalledOnce();

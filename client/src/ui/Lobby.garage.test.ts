@@ -286,7 +286,7 @@ describe('Lobby tank Garage', () => {
       .find((button) => button.textContent === 'Play Online')!
       .click();
     Array.from(root.querySelectorAll('button'))
-      .find((button) => button.textContent === 'Join Room instead')!
+      .find((button) => button.textContent === 'Join with a code')!
       .click();
 
     expect(

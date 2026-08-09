@@ -6,6 +6,7 @@ import {
   roundsLabel,
   suddenDeathLabel,
 } from './browseLabels';
+import { buildOnlineRouteActions } from './LobbyOnlineRouteActions';
 
 export interface LobbyBrowseViewOptions {
   nameColor: HTMLElement;
@@ -70,23 +71,10 @@ export function buildLobbyBrowseView(options: LobbyBrowseViewOptions): HTMLEleme
   }
   root.append(list);
 
-  const actions = document.createElement('div');
-  actions.className = 'lobby-btn-row';
-
-  const create = document.createElement('button');
-  create.type = 'button';
-  create.className = 'lobby-btn secondary';
-  create.textContent = 'Create instead';
-  create.addEventListener('click', options.onCreate);
-
-  const joinByCode = document.createElement('button');
-  joinByCode.type = 'button';
-  joinByCode.className = 'lobby-btn secondary';
-  joinByCode.textContent = 'Join by code';
-  joinByCode.addEventListener('click', options.onJoinByCode);
-
-  actions.append(create, joinByCode);
-  root.append(actions);
+  root.append(buildOnlineRouteActions(null, [
+    { id: 'create', label: 'Create a room', onClick: options.onCreate },
+    { id: 'join-code', label: 'Join with a code', onClick: options.onJoinByCode },
+  ]));
 
   return root;
 }

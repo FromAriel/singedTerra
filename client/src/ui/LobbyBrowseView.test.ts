@@ -57,9 +57,10 @@ describe('buildLobbyBrowseView', () => {
     expect([...root.children].slice(1, 4)).toEqual([nameColor, garage, status]);
     expect(root.querySelector('.online-player-row')?.textContent)
       .toBe('No public rooms right now.');
+    expect(root.querySelector('nav')?.getAttribute('aria-label')).toBe('Other ways to play online');
 
-    button(root, 'Create instead').click();
-    button(root, 'Join by code').click();
+    button(root, 'Create a room').click();
+    button(root, 'Join with a code').click();
     expect(onCreate).toHaveBeenCalledOnce();
     expect(onJoinByCode).toHaveBeenCalledOnce();
   });
