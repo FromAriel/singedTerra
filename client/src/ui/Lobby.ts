@@ -1326,7 +1326,7 @@ export class Lobby {
         display: grid; grid-template-columns: minmax(0, 1fr) max-content max-content;
         align-items: center; gap: 8px 14px;
       }
-      #lobby .account-panel--authenticated:not(.account-panel--open) > :not(.account-panel__account-trigger) {
+      #lobby .account-panel--authenticated:not(.account-panel--open) > :not(.account-panel__account-trigger):not(.account-panel__record) {
         display: none;
       }
       #lobby .account-panel__progress {
@@ -1558,6 +1558,53 @@ export class Lobby {
       #lobby .account-panel__account-trigger {
         color: #ffe0a0;
         border-left: 2px solid rgba(255, 188, 80, 0.70);
+      }
+      #lobby .account-panel__record {
+        display: grid;
+        width: min(264px, calc(100vw - 36px));
+        gap: 4px;
+        padding: 7px 9px 8px;
+        box-sizing: border-box;
+        border: 1px solid rgba(229, 161, 65, 0.46);
+        border-left: 3px solid rgba(255, 188, 80, 0.72);
+        background: linear-gradient(100deg, rgba(20, 16, 10, 0.98), rgba(5, 8, 10, 0.94));
+      }
+      #lobby .account-panel__record h2 {
+        margin: 0;
+        color: rgba(255, 224, 159, 0.72);
+        font: 700 8px/1 var(--font-mono);
+        letter-spacing: 1.6px;
+      }
+      #lobby .account-panel__record .account-panel__account-trigger {
+        max-width: 100%;
+        min-height: 24px;
+        padding: 0;
+        text-align: left;
+        border: 0;
+        border-left: 0;
+        background: transparent;
+      }
+      #lobby .account-panel__record-xp {
+        display: block;
+        width: 100%;
+        height: 5px;
+        accent-color: #d79a38;
+      }
+      #app.is-compact #lobby .account-panel__record {
+        gap: 1px;
+        padding: 2px 3px;
+      }
+      #app.is-compact #lobby .account-panel { top: 0; }
+      #app.is-compact #lobby .account-panel__record h2 {
+        font-size: calc(var(--st-store-buy-target) * 0.19);
+        letter-spacing: 1px;
+      }
+      #app.is-compact #lobby .account-panel__record .account-panel__account-trigger {
+        min-height: calc(var(--st-store-buy-target) * 0.55);
+        font-size: calc(var(--st-store-buy-target) * 0.19);
+      }
+      #app.is-compact #lobby .account-panel__record-xp {
+        height: calc(var(--st-store-buy-target) * 0.1);
       }
       #lobby .account-panel__xp-meter { accent-color: #d79a38; }
       #app.is-compact #lobby .lobby-command-header {

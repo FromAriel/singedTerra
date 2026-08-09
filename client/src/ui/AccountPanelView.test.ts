@@ -121,7 +121,7 @@ describe('buildAccountPanelView', () => {
     expect(root.querySelector('img')).toBeNull()
   })
 
-  it('collapses authenticated details behind a self-identifying trigger by default', () => {
+  it('keeps an accessible Player Record visible while authenticated details are collapsed', () => {
     const onOpen = vi.fn()
     const state: AccountState = {
       status: 'authenticated',
@@ -132,9 +132,16 @@ describe('buildAccountPanelView', () => {
     const root = buildAccountPanelView(options({ state, onOpen }))
     if (!root) throw new Error('Expected authenticated account panel')
 
+    const record = root.querySelector<HTMLElement>('section.account-panel__record')
     const trigger = button(root, 'Commander Ranger - Level 3')
+    const meter = record?.querySelector<HTMLProgressElement>('progress')
     expect(trigger.classList.contains('account-panel__account-trigger')).toBe(true)
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(record?.getAttribute('aria-label')).toBe('Player record')
+    expect(record?.querySelector('h2')?.textContent).toBe('PLAYER RECORD')
+    expect(meter?.value).toBe(200)
+    expect(meter?.max).toBe(500)
+    expect(meter?.getAttribute('aria-label')).toBe('Commander Ranger Level 3 XP progress')
     expect(root.classList.contains('account-panel--open')).toBe(false)
     expect(root.querySelector('.account-panel__progress')).toBeNull()
     expect([...root.querySelectorAll('button')].some((candidate) => candidate.textContent === 'Sign out')).toBe(false)

@@ -161,6 +161,9 @@ Decision forks split to `open-questions.md` (CONFIRM-04 rate-limiting, CONFIRM-0
 
 - (Possible-later, from room-browser-enrichment spec 2026-06-22) Surface `interestRate` / `suddenDeathTurn` on the public browse row too, now that `StoredOptions` declares them. Pure read-path addition mirroring the rounds/armsLevel/botCount work. [L/S]
 ## In-flight
+- [x] ux.menu.0006 - Make persistent player identity and earned progression a first-class, coherent part of every pre-game route.  (from user-menu-overhaul-clarification)  (done 2026-08-09)
+  - Desc: Unify player state, progression context, and account actions with the tactical pre-game shell without changing auth or persistence.
+  - Boundaries: client, ui
 - [x] ux.menu.0005 - Overhaul the complete pre-game menu system into a cohesive polished game experience across entry, account, mode, room, loadout, and store flows.  (from user-menu-overhaul-clarification)  (done 2026-08-09)
   - Boundaries: client, ui
 - [x] ux.menu.0004 - Give Play Online a primary room-start route and clearly grouped alternatives without changing room behavior  (from user-menu-overhaul)  (done 2026-08-09)

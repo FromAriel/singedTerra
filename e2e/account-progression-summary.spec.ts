@@ -15,7 +15,22 @@ async function installSummaryFixture(page: Page, available: boolean, open = true
       ? 'Commander ABCDEFGHIJKLMNOPQRSTUVWX - Level 3'
       : 'Commander ABCDEFGHIJKLMNOPQRSTUVWX';
     trigger.setAttribute('aria-expanded', String(isOpen));
-    panel.append(trigger);
+    if (hasSummary && !isOpen) {
+      const record = document.createElement('section');
+      record.className = 'account-panel__record';
+      record.setAttribute('aria-label', 'Player record');
+      const heading = document.createElement('h2');
+      heading.textContent = 'PLAYER RECORD';
+      const meter = document.createElement('progress');
+      meter.className = 'account-panel__record-xp';
+      meter.value = 200;
+      meter.max = 500;
+      meter.setAttribute('aria-label', 'Commander ABCDEFGHIJKLMNOPQRSTUVWX Level 3 XP progress');
+      record.append(heading, trigger, meter);
+      panel.append(record);
+    } else {
+      panel.append(trigger);
+    }
 
     const identity = document.createElement('span');
     identity.className = 'account-panel__identity';
@@ -231,6 +246,20 @@ test.describe('Account progression summary compact readability', () => {
 
     await expect(trigger).toBeVisible();
     await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    const record = panel.locator('.account-panel__record');
+    await expect(record).toBeVisible();
+    await expect(record).toHaveAttribute('aria-label', 'Player record');
+    await expect(record.getByRole('heading', { name: 'PLAYER RECORD', exact: true })).toBeVisible();
+    await expect(record.locator('progress')).toHaveAttribute('aria-label', 'Commander ABCDEFGHIJKLMNOPQRSTUVWX Level 3 XP progress');
+    const headingBox = await record.getByRole('heading', { name: 'PLAYER RECORD', exact: true }).boundingBox();
+    const triggerBox = await trigger.boundingBox();
+    const meterBox = await record.locator('progress').boundingBox();
+    expect(headingBox, 'Player Record heading should render').not.toBeNull();
+    expect(triggerBox, 'Player Record disclosure should render').not.toBeNull();
+    expect(meterBox, 'Player Record meter should render').not.toBeNull();
+    expect(headingBox!.height, 'Player Record heading should remain legible after stage zoom').toBeGreaterThanOrEqual(8);
+    expect(triggerBox!.height, 'Player Record disclosure should meet the rendered touch floor').toBeGreaterThanOrEqual(24);
+    expect(meterBox!.height, 'Player Record meter should remain visible after stage zoom').toBeGreaterThanOrEqual(4);
     await expect(summary).toBeHidden();
     await expect(xp).toBeHidden();
     const panelBox = await panel.boundingBox();
