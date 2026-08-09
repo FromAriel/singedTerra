@@ -1397,6 +1397,174 @@ export class Lobby {
         #lobby .account-panel--authenticated.account-panel--open { width: calc(100% - 20px); }
         #lobby .account-panel__account-trigger { max-width: calc(100vw - 20px); }
       }
+
+      /* Command preparation system: pre-game surfaces inherit the same
+         austere field-console language as the battlefield HUD. */
+      #lobby .lobby-card {
+        background:
+          linear-gradient(90deg, rgba(6, 8, 10, 0.98), rgba(12, 13, 14, 0.95) 49%, rgba(27, 20, 15, 0.92)),
+          repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 5px);
+      }
+      #lobby .lobby-card::before,
+      #lobby .lobby-preview,
+      #lobby .lobby-garage,
+      #lobby .lobby-rows.crowded .lobby-row,
+      #lobby .lobby-rejoin-banner,
+      #lobby .lobby-tabs,
+      #lobby .lobby-controls,
+      #lobby .account-panel--open,
+      #app.is-compact #lobby .lobby-garage.editing {
+        border-radius: 0;
+      }
+      #lobby .lobby-command-header {
+        display: flex;
+        align-items: center;
+        min-height: 18px;
+        margin: 0 0 12px;
+        padding: 0 0 7px;
+        border-bottom: 1px solid rgba(229, 161, 65, 0.58);
+      }
+      #lobby .lobby-command-header__kicker {
+        margin: 0;
+        color: rgba(255, 224, 159, 0.78);
+        font: 700 10px/1 var(--font-mono);
+        letter-spacing: 2.2px;
+      }
+      #lobby h1 {
+        color: #ffd477;
+        letter-spacing: 1.8px;
+        text-shadow: 0 2px 0 rgba(0, 0, 0, 0.9), 0 0 18px rgba(214, 111, 29, 0.24);
+      }
+      #lobby .lobby-sub,
+      #lobby .lobby-mode-context p,
+      #lobby .online-status,
+      #lobby .lobby-controls,
+      #lobby .account-panel__xp-label,
+      #lobby .account-panel__xp-remaining {
+        color: rgba(225, 214, 191, 0.68);
+      }
+      #lobby .lobby-mode-context,
+      #lobby .lobby-advanced {
+        border-color: rgba(229, 161, 65, 0.30);
+      }
+      #lobby .lobby-mode-context h2,
+      #lobby .lobby-preview__spotlight-identity,
+      #lobby .lobby-garage__heading,
+      #lobby .lobby-controls .lobby-controls__title {
+        color: #ffd477;
+      }
+      #lobby select,
+      #lobby input[type="text"],
+      #lobby .lobby-code-input,
+      #lobby .lobby-advanced input[type="number"],
+      #lobby .account-panel input {
+        border-color: rgba(229, 161, 65, 0.34);
+        border-radius: 0;
+        background: rgba(4, 7, 9, 0.84);
+      }
+      #lobby .lobby-control,
+      #lobby .lobby-garage button,
+      #lobby .lobby-tab,
+      #lobby .online-code-char,
+      #lobby .online-badge,
+      #lobby .lobby-controls kbd,
+      #lobby .account-panel button {
+        border-radius: 0;
+      }
+      #lobby .lobby-control,
+      #lobby .lobby-garage button,
+      #lobby .lobby-tab,
+      #lobby .lobby-controls kbd,
+      #lobby .account-panel button,
+      #lobby .account-panel input {
+        border-color: rgba(229, 161, 65, 0.34);
+        background: rgba(7, 10, 12, 0.78);
+      }
+      #lobby .lobby-tabs {
+        gap: 0;
+        padding: 0;
+        background: rgba(4, 7, 9, 0.72);
+        border-color: rgba(229, 161, 65, 0.38);
+      }
+      #lobby .lobby-tab {
+        color: rgba(225, 214, 191, 0.64);
+        border-color: transparent;
+      }
+      #lobby .lobby-tab + .lobby-tab { border-left-color: rgba(229, 161, 65, 0.24); }
+      #lobby .lobby-tab.active {
+        color: #ffe0a0;
+        border-color: rgba(229, 161, 65, 0.58);
+        background: linear-gradient(180deg, rgba(169, 97, 27, 0.28), rgba(24, 18, 11, 0.86));
+      }
+      #lobby .lobby-start,
+      #lobby .lobby-btn:not(.secondary),
+      #lobby .account-panel button.active,
+      #lobby .account-panel__submit {
+        border: 1px solid rgba(255, 211, 119, 0.74);
+        border-radius: 0;
+        color: #fff0c9;
+        background: linear-gradient(180deg, #3d2a12, #20160b 64%, #130e08);
+        box-shadow: inset 3px 0 0 rgba(255, 188, 80, 0.56), inset 0 1px 0 rgba(255, 239, 187, 0.16);
+      }
+      #lobby .lobby-start:hover:not(:disabled),
+      #lobby .lobby-btn:not(.secondary):hover:not(:disabled),
+      #lobby .account-panel button.active:hover:not(:disabled),
+      #lobby .account-panel__submit:hover:not(:disabled) {
+        background: linear-gradient(180deg, #5d3d16, #2f210e 64%, #191109);
+        box-shadow: inset 3px 0 0 #ffbc50, 0 0 0 1px rgba(255, 211, 119, 0.24);
+      }
+      #lobby .lobby-btn.secondary,
+      #lobby .account-panel__secondary {
+        color: rgba(225, 214, 191, 0.72);
+        text-decoration: none;
+        border-bottom: 1px solid rgba(229, 161, 65, 0.42);
+      }
+      #lobby .lobby-btn.secondary:hover,
+      #lobby .account-panel__secondary:hover {
+        color: #ffe0a0;
+        border-bottom-color: #ffd477;
+      }
+      #lobby .lobby-online-actions {
+        gap: 14px;
+        padding-top: 5px;
+        border-top: 1px solid rgba(229, 161, 65, 0.18);
+      }
+      #lobby .lobby-online-alternatives-label {
+        color: rgba(225, 214, 191, 0.52);
+        font-family: var(--font-mono);
+        letter-spacing: 0.35px;
+      }
+      #lobby .online-code-char,
+      #lobby .online-badge {
+        border: 1px solid rgba(229, 161, 65, 0.32);
+        background: rgba(7, 10, 12, 0.84);
+      }
+      #lobby .online-player-row {
+        padding: 5px 7px;
+        border-left: 2px solid rgba(229, 161, 65, 0.28);
+        background: rgba(7, 10, 12, 0.36);
+      }
+      #lobby .online-player-list { gap: 4px; }
+      #lobby .lobby-controls {
+        background: rgba(4, 7, 9, 0.90);
+        border-color: rgba(229, 161, 65, 0.36);
+      }
+      #lobby .account-panel--open {
+        background: linear-gradient(155deg, rgba(19, 15, 10, 0.99), rgba(4, 7, 9, 0.99));
+        border-color: rgba(229, 161, 65, 0.54);
+        box-shadow: 12px 14px 0 rgba(0, 0, 0, 0.28), 0 18px 42px rgba(0, 0, 0, 0.58);
+      }
+      #lobby .account-panel__account-trigger {
+        color: #ffe0a0;
+        border-left: 2px solid rgba(255, 188, 80, 0.70);
+      }
+      #lobby .account-panel__xp-meter { accent-color: #d79a38; }
+      #app.is-compact #lobby .lobby-command-header {
+        min-height: 14px;
+        margin-bottom: 6px;
+        padding-bottom: 4px;
+      }
+      #app.is-compact #lobby .lobby-command-header__kicker { font-size: 8px; letter-spacing: 1.6px; }
     `;
     document.head.append(style);
   }

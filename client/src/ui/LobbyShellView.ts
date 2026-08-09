@@ -41,7 +41,14 @@ export function buildLobbyShellView(options: LobbyShellViewOptions): HTMLElement
 
   const title = document.createElement('h1');
   title.textContent = 'singedTerra';
-  card.append(title);
+  const commandHeader = document.createElement('header');
+  commandHeader.className = 'lobby-command-header';
+  commandHeader.setAttribute('aria-label', 'Pre-game command preparation');
+  const commandKicker = document.createElement('h2');
+  commandKicker.className = 'lobby-command-header__kicker';
+  commandKicker.textContent = 'COMMAND PREPARATION';
+  commandHeader.append(commandKicker);
+  card.append(title, commandHeader);
   if (options.account) card.append(options.account);
   card.append(options.vehiclePreview);
 
