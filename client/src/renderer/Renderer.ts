@@ -646,7 +646,16 @@ export class Renderer {
     if (this.bursts.length === 0) return;
     const focus = selectImpactMonitorFocus(this.bursts);
     if (focus === null) return;
-    const geometry = getImpactMonitorGeometry(focus, worldOffset);
+    const canvas = this.ctx.canvas;
+    const screen = canvas?.getBoundingClientRect?.();
+    const viewportScale = canvas && screen
+      && Number.isFinite(screen.width)
+      && Number.isFinite(screen.height)
+      && canvas.width > 0
+      && canvas.height > 0
+      ? Math.min(screen.width / canvas.width, screen.height / canvas.height)
+      : 1;
+    const geometry = getImpactMonitorGeometry(focus, worldOffset, viewportScale);
     if (geometry === null) return;
     this.impactMonitor?.draw(this.ctx, geometry, false);
   }

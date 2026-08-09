@@ -74,6 +74,35 @@ describe('Renderer impact monitor', () => {
     );
   });
 
+  it('counteracts compact stage zoom so the impact window remains physically readable', () => {
+    const renderer = monitorSeam();
+    const compactScale = 0.48;
+    renderer.ctx = {
+      canvas: {
+        width: 1200,
+        height: 600,
+        getBoundingClientRect: () => ({
+          width: 1200 * compactScale,
+          height: 600 * compactScale,
+        }),
+      },
+    } as unknown as CanvasRenderingContext2D;
+    renderer.bursts = [burst(600, 72, 0)];
+
+    renderer.drawImpactMonitor({ x: 0, y: 0 });
+
+    const geometry = renderer.impactMonitor.draw.mock.calls[0]?.[1];
+    expect(geometry).toBeDefined();
+    expect(
+      geometry!.frame.width * compactScale,
+      'compact impact monitor width in physical CSS pixels',
+    ).toBeGreaterThanOrEqual(180);
+    expect(
+      geometry!.frame.height * compactScale,
+      'compact impact monitor height in physical CSS pixels',
+    ).toBeGreaterThanOrEqual(110);
+  });
+
   it('keeps the impact monitor visible for reduced-motion users', () => {
     const renderer = monitorSeam(true);
     renderer.bursts = [burst(600, 72, 0)];

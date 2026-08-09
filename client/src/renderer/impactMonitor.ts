@@ -7,10 +7,11 @@ export const IMPACT_MONITOR_CONTENT_HEIGHT = 121;
 export const IMPACT_MONITOR_FRAME_WIDTH = 220;
 export const IMPACT_MONITOR_FRAME_HEIGHT = 136;
 export const IMPACT_MONITOR_TOP = 18;
+export const IMPACT_MONITOR_COMPACT_SCALE_THRESHOLD = 0.8;
+export const IMPACT_MONITOR_MAX_COMPACT_SCALE = 1.8;
 
-const FRAME_X = (CANVAS_WIDTH - IMPACT_MONITOR_FRAME_WIDTH) / 2;
-const CONTENT_X = FRAME_X + 11;
-const CONTENT_Y = IMPACT_MONITOR_TOP + 7;
+const FRAME_INSET_X = 11;
+const FRAME_INSET_Y = 7;
 
 export interface ImpactMonitorFocus {
   readonly cx: number;
@@ -93,9 +94,21 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function presentationMonitorScale(viewportScale: number): number {
+  if (
+    !Number.isFinite(viewportScale)
+    || viewportScale <= 0
+    || viewportScale >= IMPACT_MONITOR_COMPACT_SCALE_THRESHOLD
+  ) {
+    return 1;
+  }
+  return Math.min(1 / viewportScale, IMPACT_MONITOR_MAX_COMPACT_SCALE);
+}
+
 export function getImpactMonitorGeometry(
   focus: ImpactMonitorFocus,
   worldOffset: Readonly<ImpactMonitorOffset>,
+  viewportScale = 1,
 ): ImpactMonitorGeometry | null {
   if (
     !isLiveFocus(focus)
@@ -109,33 +122,41 @@ export function getImpactMonitorGeometry(
   const focusY = focus.cy + worldOffset.y;
   if (!Number.isFinite(focusX) || !Number.isFinite(focusY)) return null;
 
+  const monitorScale = presentationMonitorScale(viewportScale);
+  const sourceWidth = IMPACT_MONITOR_SOURCE_WIDTH * monitorScale;
+  const sourceHeight = IMPACT_MONITOR_SOURCE_HEIGHT * monitorScale;
+  const frameWidth = IMPACT_MONITOR_FRAME_WIDTH * monitorScale;
+  const frameHeight = IMPACT_MONITOR_FRAME_HEIGHT * monitorScale;
+  const frameTop = IMPACT_MONITOR_TOP * monitorScale;
+  const frameX = (CANVAS_WIDTH - frameWidth) / 2;
+
   return {
     focus: { x: focusX, y: focusY },
     source: {
       x: clamp(
-        focusX - IMPACT_MONITOR_SOURCE_WIDTH / 2,
+        focusX - sourceWidth / 2,
         0,
-        CANVAS_WIDTH - IMPACT_MONITOR_SOURCE_WIDTH,
+        CANVAS_WIDTH - sourceWidth,
       ),
       y: clamp(
-        focusY - IMPACT_MONITOR_SOURCE_HEIGHT / 2,
+        focusY - sourceHeight / 2,
         0,
-        CANVAS_HEIGHT - IMPACT_MONITOR_SOURCE_HEIGHT,
+        CANVAS_HEIGHT - sourceHeight,
       ),
-      width: IMPACT_MONITOR_SOURCE_WIDTH,
-      height: IMPACT_MONITOR_SOURCE_HEIGHT,
+      width: sourceWidth,
+      height: sourceHeight,
     },
     content: {
-      x: CONTENT_X,
-      y: CONTENT_Y,
-      width: IMPACT_MONITOR_CONTENT_WIDTH,
-      height: IMPACT_MONITOR_CONTENT_HEIGHT,
+      x: frameX + FRAME_INSET_X * monitorScale,
+      y: frameTop + FRAME_INSET_Y * monitorScale,
+      width: IMPACT_MONITOR_CONTENT_WIDTH * monitorScale,
+      height: IMPACT_MONITOR_CONTENT_HEIGHT * monitorScale,
     },
     frame: {
-      x: FRAME_X,
-      y: IMPACT_MONITOR_TOP,
-      width: IMPACT_MONITOR_FRAME_WIDTH,
-      height: IMPACT_MONITOR_FRAME_HEIGHT,
+      x: frameX,
+      y: frameTop,
+      width: frameWidth,
+      height: frameHeight,
     },
   };
 }

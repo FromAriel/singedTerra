@@ -38,6 +38,12 @@ export class ImpactMonitorPainter {
     if (reduceMotion || geometry === null || !canvas || !ctx) return false;
 
     const { content, frame, source } = geometry;
+    const scale = frame.width / IMPACT_MONITOR_FRAME_WIDTH;
+    if (!Number.isFinite(scale) || scale <= 0) return false;
+    const bufferWidth = Math.ceil(frame.width);
+    const bufferHeight = Math.ceil(frame.height);
+    if (canvas.width !== bufferWidth) canvas.width = bufferWidth;
+    if (canvas.height !== bufferHeight) canvas.height = bufferHeight;
     const contentX = content.x - frame.x;
     const contentY = content.y - frame.y;
     let savedDepth = 0;
@@ -51,9 +57,9 @@ export class ImpactMonitorPainter {
       // Keep the shadow inside the atomic composite so a failed target paint
       // cannot leave any monitor fragment behind on the battlefield.
       ctx.fillStyle = 'rgba(12, 7, 22, 0.72)';
-      ctx.fillRect(3, 4, frame.width - 3, frame.height - 4);
+      ctx.fillRect(3 * scale, 4 * scale, frame.width - 3 * scale, frame.height - 4 * scale);
       ctx.fillStyle = BACKDROP;
-      ctx.fillRect(0, 0, frame.width - 3, frame.height - 3);
+      ctx.fillRect(0, 0, frame.width - 3 * scale, frame.height - 3 * scale);
 
       ctx.save();
       savedDepth += 1;
@@ -63,7 +69,7 @@ export class ImpactMonitorPainter {
         contentY,
         content.width,
         content.height,
-        7,
+        7 * scale,
       );
       ctx.clip();
       ctx.drawImage(
@@ -80,18 +86,18 @@ export class ImpactMonitorPainter {
       ctx.restore();
       savedDepth -= 1;
 
-      ctx.lineWidth = 1;
+      ctx.lineWidth = scale;
       ctx.strokeStyle = ACCENT.gold;
-      ctx.strokeRect(0.5, 0.5, frame.width - 1, frame.height - 1);
+      ctx.strokeRect(0.5 * scale, 0.5 * scale, frame.width - scale, frame.height - scale);
       ctx.strokeStyle = 'rgba(255, 210, 63, 0.34)';
-      ctx.strokeRect(4.5, 4.5, frame.width - 9, frame.height - 9);
+      ctx.strokeRect(4.5 * scale, 4.5 * scale, frame.width - 9 * scale, frame.height - 9 * scale);
 
       ctx.fillStyle = BACKDROP;
-      ctx.fillRect(12, 7, 111, 19);
+      ctx.fillRect(12 * scale, 7 * scale, 111 * scale, 19 * scale);
       ctx.fillStyle = TEXT.gold;
-      ctx.font = `700 11px ${FONT.mono}`;
+      ctx.font = `700 ${11 * scale}px ${FONT.mono}`;
       ctx.textBaseline = 'middle';
-      ctx.fillText('IMPACT MONITOR', 18, 21);
+      ctx.fillText('IMPACT MONITOR', 18 * scale, 21 * scale);
       composed = true;
     } catch {
       composed = false;
