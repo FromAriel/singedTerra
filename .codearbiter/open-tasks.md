@@ -161,6 +161,11 @@ Decision forks split to `open-questions.md` (CONFIRM-04 rate-limiting, CONFIRM-0
 
 - (Possible-later, from room-browser-enrichment spec 2026-06-22) Surface `interestRate` / `suddenDeathTurn` on the public browse row too, now that `StoredOptions` declares them. Pure read-path addition mirroring the rounds/armsLevel/botCount work. [L/S]
 ## In-flight
+- [ ] ux.pregame.0001 - Redesign the entire pre-game player journey as one coherent polished game experience: landing, identity, mode selection, room/lobby, loadout, store, and transitions into a match; replace cheerful generic UI language with a deliberate visual system that belongs to the battlefield.  (from user-menu-overhaul-scope-correction)
+  - Boundaries: client, pre-game-ux
+- [x] ux.impact.0001 - Restore the cinematic impact-window camera feedback on mobile without weakening reduced-motion or battlefield input behavior.  (from user-mobile-impact-window)  (done 2026-08-09)
+  - Desc: Recover the player's favorite shot-impact framing across compact touch layouts.
+  - Boundaries: client, renderer
 - [x] ux.menu.0006 - Make persistent player identity and earned progression a first-class, coherent part of every pre-game route.  (from user-menu-overhaul-clarification)  (done 2026-08-09)
   - Desc: Unify player state, progression context, and account actions with the tactical pre-game shell without changing auth or persistence.
   - Boundaries: client, ui

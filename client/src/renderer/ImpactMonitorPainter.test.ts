@@ -13,6 +13,13 @@ const geometry: ImpactMonitorGeometry = {
   frame: { x: 490, y: 18, width: 220, height: 136 },
 };
 
+const compactGeometry: ImpactMonitorGeometry = {
+  focus: { x: 600, y: 300 },
+  source: { x: 470.4, y: 220.8, width: 259.2, height: 158.4 },
+  content: { x: 421.8, y: 45, width: 356.4, height: 217.8 },
+  frame: { x: 402, y: 32.4, width: 396, height: 244.8 },
+};
+
 interface PainterHarness {
   factory: ImpactMonitorCanvasFactory;
   target: CanvasRenderingContext2D;
@@ -127,6 +134,33 @@ describe('ImpactMonitorPainter', () => {
     expect(probe.factory).toHaveBeenCalledOnce();
     expect(probe.scratchCanvas.width).toBe(220);
     expect(probe.scratchCanvas.height).toBe(136);
+  });
+
+  it('resizes and scales the complete frame for a compact readable viewport', () => {
+    const probe = harness();
+    const monitor = new ImpactMonitorPainter(probe.factory);
+
+    expect(monitor.draw(probe.target, compactGeometry, false)).toBe(true);
+
+    expect(probe.scratchCanvas.width).toBe(396);
+    expect(probe.scratchCanvas.height).toBe(245);
+    const [contentX, contentY, contentWidth, contentHeight, radius] =
+      probe.scratchRoundRect.mock.calls[0]!;
+    expect(contentX).toBeCloseTo(19.8);
+    expect(contentY).toBeCloseTo(12.6);
+    expect(contentWidth).toBeCloseTo(356.4);
+    expect(contentHeight).toBeCloseTo(217.8);
+    expect(radius).toBeCloseTo(12.6);
+    const [, labelX, labelY] = probe.scratchFillText.mock.calls[0]!;
+    expect(labelX).toBeCloseTo(32.4);
+    expect(labelY).toBeCloseTo(37.8);
+    expect(probe.targetDrawImage).toHaveBeenCalledWith(
+      probe.scratchCanvas,
+      402,
+      32.4,
+      396,
+      244.8,
+    );
   });
 
   it.each([
