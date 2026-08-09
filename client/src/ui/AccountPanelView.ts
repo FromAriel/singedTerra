@@ -71,12 +71,31 @@ export function buildAccountPanelView(
     )
     disclosure.className = 'account-panel__account-trigger'
     disclosure.setAttribute('aria-expanded', String(options.open))
-    root.append(disclosure)
 
     if (!options.open) {
+      if (options.state.profile.summary) {
+        const record = document.createElement('section')
+        record.className = 'account-panel__record'
+        record.setAttribute('aria-label', 'Player record')
+        const heading = document.createElement('h2')
+        heading.textContent = 'PLAYER RECORD'
+        const xp = document.createElement('progress')
+        xp.className = 'account-panel__record-xp'
+        xp.value = options.state.profile.summary.levelXp
+        xp.max = options.state.profile.summary.nextLevelXp
+        xp.setAttribute(
+          'aria-label',
+          `Commander ${options.state.profile.displayName} Level ${options.state.profile.summary.level} XP progress`,
+        )
+        record.append(heading, disclosure, xp)
+        root.append(record)
+      } else {
+        root.append(disclosure)
+      }
       return root
     }
 
+    root.append(disclosure)
     root.classList.add('account-panel--open')
     let summary: HTMLElement
     let xp: HTMLElement | null = null
