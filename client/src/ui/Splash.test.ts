@@ -20,6 +20,34 @@ describe('Splash (jsdom DOM behavior)', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('leaves the authored orientation bay as the only initial phone-portrait handoff', async () => {
+    const matchMedia = vi.fn((query: string) => ({
+      matches: query === '(orientation: portrait) and (max-width: 480px)',
+    } as MediaQueryList));
+    vi.stubGlobal('matchMedia', matchMedia);
+
+    const { mountSplash } = await import('./Splash');
+    mountSplash();
+
+    expect(matchMedia).toHaveBeenCalledWith(
+      '(orientation: portrait) and (max-width: 480px)',
+    );
+    expect(document.getElementById('st-splash')).toBeNull();
+    expect(document.getElementById('st-splash-style')).toBeNull();
+  });
+
+  it('keeps the title splash when the initial viewport is not phone portrait', async () => {
+    const matchMedia = vi.fn(() => ({ matches: false } as MediaQueryList));
+    vi.stubGlobal('matchMedia', matchMedia);
+
+    const { mountSplash } = await import('./Splash');
+    mountSplash();
+
+    expect(document.getElementById('st-splash')).not.toBeNull();
+    expect(document.getElementById('st-splash-style')).not.toBeNull();
   });
 
   it('auto-mounts a fully-formed overlay on import, with style, art, title, prompt and hint', async () => {

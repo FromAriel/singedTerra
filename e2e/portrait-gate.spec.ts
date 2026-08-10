@@ -1,17 +1,20 @@
 import { test, expect, type Browser } from '@playwright/test';
 
-async function portraitWarningDisplay(
+async function initialLayerState(
   browser: Browser,
   viewport: { width: number; height: number },
   hasTouch: boolean,
-): Promise<string> {
+): Promise<{ warningDisplay: string; splashCount: number }> {
   const context = await browser.newContext({ viewport, hasTouch });
   try {
     const page = await context.newPage();
     await page.goto('/');
-    return await page.locator('#portrait-warn').evaluate((element) =>
-      getComputedStyle(element).display,
-    );
+    return {
+      warningDisplay: await page.locator('#portrait-warn').evaluate((element) =>
+        getComputedStyle(element).display,
+      ),
+      splashCount: await page.locator('#st-splash').count(),
+    };
   } finally {
     await context.close();
   }
@@ -19,27 +22,27 @@ async function portraitWarningDisplay(
 
 test.describe('portrait phone gate', () => {
   test('warns at phone width independently of pointer type', async ({ browser }) => {
-    await expect(portraitWarningDisplay(browser, { width: 393, height: 851 }, true))
-      .resolves.toBe('flex');
-    await expect(portraitWarningDisplay(browser, { width: 393, height: 851 }, false))
-      .resolves.toBe('flex');
+    await expect(initialLayerState(browser, { width: 393, height: 851 }, true))
+      .resolves.toEqual({ warningDisplay: 'flex', splashCount: 0 });
+    await expect(initialLayerState(browser, { width: 393, height: 851 }, false))
+      .resolves.toEqual({ warningDisplay: 'flex', splashCount: 0 });
   });
 
   test('does not block a coarse-pointer laptop-sized portrait viewport', async ({ browser }) => {
-    await expect(portraitWarningDisplay(browser, { width: 700, height: 900 }, true))
-      .resolves.toBe('none');
+    await expect(initialLayerState(browser, { width: 700, height: 900 }, true))
+      .resolves.toEqual({ warningDisplay: 'none', splashCount: 1 });
   });
 
   test('uses an inclusive 480px boundary', async ({ browser }) => {
-    await expect(portraitWarningDisplay(browser, { width: 480, height: 900 }, true))
-      .resolves.toBe('flex');
-    await expect(portraitWarningDisplay(browser, { width: 481, height: 900 }, true))
-      .resolves.toBe('none');
+    await expect(initialLayerState(browser, { width: 480, height: 900 }, true))
+      .resolves.toEqual({ warningDisplay: 'flex', splashCount: 0 });
+    await expect(initialLayerState(browser, { width: 481, height: 900 }, true))
+      .resolves.toEqual({ warningDisplay: 'none', splashCount: 1 });
   });
 
   test('never warns in landscape', async ({ browser }) => {
-    await expect(portraitWarningDisplay(browser, { width: 851, height: 393 }, true))
-      .resolves.toBe('none');
+    await expect(initialLayerState(browser, { width: 851, height: 393 }, true))
+      .resolves.toEqual({ warningDisplay: 'none', splashCount: 1 });
   });
 
   test('presents one fitted authored launch bay and requests the supported browser path', async ({ browser }) => {
@@ -69,9 +72,7 @@ test.describe('portrait phone gate', () => {
     try {
       const page = await context.newPage();
       await page.goto('/');
-      await page.getByRole('button', {
-        name: 'singedTerra - press any key or click to start',
-      }).click();
+      await expect(page.locator('#st-splash')).toHaveCount(0);
 
       const gate = page.locator('#portrait-warn');
       const app = page.locator('#app');
@@ -117,10 +118,86 @@ test.describe('portrait phone gate', () => {
 
       await page.setViewportSize({ width: 851, height: 393 });
       await expect(gate).toBeHidden();
+      await expect(page.locator('#st-splash')).toHaveCount(0);
+      await expect(page.locator('#lobby')).toBeVisible();
       await expect(app).not.toHaveAttribute('inert', '');
       await expect(app).not.toHaveAttribute('aria-hidden', 'true');
       await expect.poll(() => page.evaluate(() => document.querySelector('#app')?.contains(document.activeElement)))
         .toBe(true);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('manual rotation reaches the lobby without pressing the launch action', async ({ browser }) => {
+    const context = await browser.newContext({
+      viewport: { width: 393, height: 851 },
+      hasTouch: true,
+    });
+    try {
+      const page = await context.newPage();
+      await page.goto('/');
+
+      const gate = page.locator('#portrait-warn');
+      const app = page.locator('#app');
+      const action = gate.getByRole('button', { name: 'Enter fullscreen landscape' });
+      await expect(page.locator('#st-splash')).toHaveCount(0);
+      await expect(gate).toBeVisible();
+      await expect(action).toBeFocused();
+      await expect(app).toHaveAttribute('inert', '');
+      await expect(app).toHaveAttribute('aria-hidden', 'true');
+
+      await page.setViewportSize({ width: 851, height: 393 });
+
+      await expect(gate).toBeHidden();
+      await expect(page.locator('#st-splash')).toHaveCount(0);
+      await expect(page.locator('#lobby')).toBeVisible();
+      await expect(app).not.toHaveAttribute('inert', '');
+      await expect(app).not.toHaveAttribute('aria-hidden', 'true');
+      await expect.poll(() => page.evaluate(() => document.querySelector('#app')?.contains(document.activeElement)))
+        .toBe(true);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('a landscape splash keeps ownership when the viewport later becomes phone portrait', async ({ browser }) => {
+    const context = await browser.newContext({
+      viewport: { width: 851, height: 393 },
+      hasTouch: true,
+    });
+    try {
+      const page = await context.newPage();
+      await page.goto('/');
+
+      const splash = page.getByRole('button', {
+        name: 'singedTerra - press any key or click to start',
+      });
+      const gate = page.locator('#portrait-warn');
+      const app = page.locator('#app');
+      const action = gate.getByRole('button', { name: 'Enter fullscreen landscape' });
+      await expect(splash).toBeVisible();
+      await expect(splash).toBeFocused();
+      await expect(gate).toBeHidden();
+      await expect(page.locator('#lobby')).toBeVisible();
+      await expect(app).not.toHaveAttribute('inert', '');
+
+      await page.setViewportSize({ width: 393, height: 851 });
+
+      await expect(splash).toBeVisible();
+      await expect(splash).toBeFocused();
+      await expect(gate).toBeVisible();
+      await expect(gate).toHaveAttribute('inert', '');
+      await expect(gate).toHaveAttribute('aria-hidden', 'true');
+      await expect(app).toHaveAttribute('inert', '');
+      await expect(app).toHaveAttribute('aria-hidden', 'true');
+      await expect(page.locator('#lobby')).toBeVisible();
+
+      await splash.click();
+      await expect(splash).toBeHidden();
+      await expect(gate).not.toHaveAttribute('inert', '');
+      await expect(gate).toHaveAttribute('aria-hidden', 'false');
+      await expect(action).toBeFocused();
     } finally {
       await context.close();
     }
