@@ -11,6 +11,7 @@
 
 const SPLASH_ID = 'st-splash';
 const STYLE_ID = 'st-splash-style';
+export const PHONE_PORTRAIT_QUERY = '(orientation: portrait) and (max-width: 480px)';
 /** Match the hero art's signature ember/gold so the splash reads as one piece. */
 const FADE_MS = 420;
 
@@ -196,12 +197,20 @@ function injectStyle(): void {
   document.head.appendChild(style);
 }
 
+export function shouldSkipSplashForInitialViewport(
+  view: Window | undefined = typeof window === 'undefined' ? undefined : window,
+): boolean {
+  return typeof view?.matchMedia === 'function' &&
+    view.matchMedia(PHONE_PORTRAIT_QUERY).matches;
+}
+
 /**
  * Mount the splash overlay. Idempotent: a second call while one is showing is a
  * no-op. Resolves immediately; dismissal is handled by its own listeners.
  */
 export function mountSplash(): void {
   if (document.getElementById(SPLASH_ID)) return;
+  if (shouldSkipSplashForInitialViewport()) return;
   injectStyle();
 
   const overlay = document.createElement('div');
