@@ -4822,7 +4822,7 @@ export class HUD {
 .st-hud__active-row--handoff {
   animation: st-hud-turn-handoff 560ms ease-out;
 }
-.st-hud__active-row--hidden { display: none; }
+#app .st-hud__active-row--hidden { display: none; }
 /* Shot progress replaces the owner row during submit, flight, and resolution. */
 .st-hud__aim--hidden { display: none; }
 /* Gauges are reduced-motion-safe by construction: needle/marker/fill are driven by

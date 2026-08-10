@@ -110,7 +110,11 @@ describe('HUD turn handoff beacon', () => {
 
   it('announces pending, flight, and resolving states from their authoritative signals', () => {
     const { root, hud, state } = mount();
+    const row = root.querySelector<HTMLElement>('.st-hud__active-row')!;
     const progress = root.querySelector<HTMLElement>('.st-hud__aim')!;
+
+    expect(row.classList.contains('st-hud__active-row--hidden')).toBe(false);
+    expect(progress.classList.contains('st-hud__aim--hidden')).toBe(true);
 
     hud.update(state, true);
     expect(root.querySelector('.st-hud__aim-text')?.textContent)
@@ -119,6 +123,8 @@ describe('HUD turn handoff beacon', () => {
     expect(progress.getAttribute('aria-live')).toBe('polite');
     expect(progress.getAttribute('aria-atomic')).toBe('true');
     expect(progress.getAttribute('aria-label')).toBe('Alice is sending a shot.');
+    expect(row.classList.contains('st-hud__active-row--hidden')).toBe(true);
+    expect(progress.classList.contains('st-hud__aim--hidden')).toBe(false);
 
     state.phase = 'FIRING';
     hud.update(state);
@@ -127,6 +133,8 @@ describe('HUD turn handoff beacon', () => {
     expect(progress.getAttribute('aria-label')).toBe(
       "Alice's shot is in flight.",
     );
+    expect(row.classList.contains('st-hud__active-row--hidden')).toBe(true);
+    expect(progress.classList.contains('st-hud__aim--hidden')).toBe(false);
 
     state.phase = 'RESOLVING';
     hud.update(state);
@@ -135,6 +143,8 @@ describe('HUD turn handoff beacon', () => {
     expect(progress.getAttribute('aria-label')).toBe(
       "Alice's shot is resolving.",
     );
+    expect(row.classList.contains('st-hud__active-row--hidden')).toBe(true);
+    expect(progress.classList.contains('st-hud__aim--hidden')).toBe(false);
 
     state.tanks[0]!.alive = false;
     hud.update(state);
@@ -143,6 +153,21 @@ describe('HUD turn handoff beacon', () => {
     expect(progress.getAttribute('aria-label')).toBe(
       "Alice's shot is resolving.",
     );
+
+    state.phase = 'ROUND_OVER';
+    hud.update(state);
+    expect(row.classList.contains('st-hud__active-row--hidden')).toBe(true);
+    expect(progress.classList.contains('st-hud__aim--hidden')).toBe(true);
+
+    state.tanks[0]!.alive = true;
+    state.phase = 'FIRING';
+    hud.update(state);
+    expect(progress.classList.contains('st-hud__aim--hidden')).toBe(false);
+
+    state.phase = 'GAME_OVER';
+    hud.update(state);
+    expect(row.classList.contains('st-hud__active-row--hidden')).toBe(true);
+    expect(progress.classList.contains('st-hud__aim--hidden')).toBe(true);
   });
 
   it('clears stale identity for terminal, dead-active, and missing-active states', () => {
