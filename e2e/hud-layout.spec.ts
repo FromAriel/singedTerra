@@ -56,6 +56,83 @@ test.describe('HUD layout guardrails', () => {
     ).toEqual([]);
   });
 
+  test('keeps the decision rail ordered across shot progress and terminal states', async ({
+    page,
+  }) => {
+    const readGeometry = async (
+      state: 'player-turn' | 'pending' | 'firing' | 'resolving' | 'round-over' | 'game-over',
+    ) => page.evaluate((fixtureState) => {
+      const identity = document.querySelector<HTMLElement>('.st-hud__active-row')!;
+      const progress = document.querySelector<HTMLElement>('.st-hud__aim')!;
+      const progressText = document.querySelector<HTMLElement>('.st-hud__aim-text')!;
+      const progressCopy = {
+        pending: 'Player 1 · Sending shot...',
+        firing: 'Player 1 · Shot in flight...',
+        resolving: 'Player 1 · Terrain settling...',
+      } as const;
+      const showsIdentity = fixtureState === 'player-turn';
+      const showsProgress = fixtureState === 'pending'
+        || fixtureState === 'firing'
+        || fixtureState === 'resolving';
+      identity.classList.toggle('st-hud__active-row--hidden', !showsIdentity);
+      progress.classList.toggle('st-hud__aim--hidden', !showsProgress);
+      progressText.textContent = showsProgress ? progressCopy[fixtureState] : '';
+      const rect = (selector: string) =>
+        document.querySelector<HTMLElement>(selector)!.getBoundingClientRect().toJSON();
+      const consoleEl = document.querySelector<HTMLElement>('.st-hud__command-console')!;
+      const instruments = document.querySelector<HTMLElement>('.st-hud__instruments')!;
+      const actions = document.querySelector<HTMLElement>('.st-hud__turn-actions')!;
+      const roster = document.querySelector<HTMLElement>('.st-hud__players')!;
+      const arsenal = document.querySelector<HTMLElement>('.st-hud__strip')!;
+      return {
+        identity: rect('.st-hud__active-row'),
+        instruments: rect('.st-hud__instruments'),
+        progress: rect('.st-hud__aim'),
+        actions: rect('.st-hud__turn-actions'),
+        console: rect('.st-hud__command-console'),
+        roster: rect('.st-hud__players'),
+        arsenal: rect('.st-hud__strip'),
+        instrumentsOwned: instruments.parentElement === consoleEl,
+        progressOwned: progress.parentElement === consoleEl,
+        actionsOwned: actions.parentElement === consoleEl,
+        rosterAfterConsole: consoleEl.compareDocumentPosition(roster)
+          === Node.DOCUMENT_POSITION_FOLLOWING,
+        arsenalAfterRoster: roster.compareDocumentPosition(arsenal)
+          === Node.DOCUMENT_POSITION_FOLLOWING,
+      };
+    }, state);
+
+    for (const state of ['player-turn', 'pending', 'firing', 'resolving', 'round-over', 'game-over'] as const) {
+      const geometry = await readGeometry(state);
+      const showsProgress = state === 'pending' || state === 'firing' || state === 'resolving';
+      const showsIdentity = state === 'player-turn';
+
+      expect(geometry.instrumentsOwned).toBe(true);
+      expect(geometry.progressOwned).toBe(true);
+      expect(geometry.actionsOwned).toBe(true);
+      expect(geometry.rosterAfterConsole).toBe(true);
+      expect(geometry.arsenalAfterRoster).toBe(true);
+      expect(geometry.identity.height > 0, `${state} identity visibility`).toBe(showsIdentity);
+      expect(geometry.progress.height > 0, `${state} progress visibility`).toBe(showsProgress);
+      expect(geometry.instruments.top).toBeGreaterThanOrEqual(geometry.console.top);
+      if (showsIdentity) {
+        expect(geometry.identity.top).toBeGreaterThanOrEqual(geometry.console.top);
+        expect(geometry.identity.bottom).toBeLessThanOrEqual(geometry.instruments.top + 1);
+      }
+      if (showsProgress) {
+        expect(geometry.instruments.bottom).toBeLessThanOrEqual(geometry.progress.top + 1);
+        expect(geometry.progress.bottom).toBeLessThanOrEqual(geometry.actions.top + 1);
+        expect(geometry.progress.left).toBeGreaterThanOrEqual(geometry.console.left - 1);
+        expect(geometry.progress.right).toBeLessThanOrEqual(geometry.console.right + 1);
+      } else {
+        expect(geometry.instruments.bottom).toBeLessThanOrEqual(geometry.actions.top + 1);
+      }
+      expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.console.bottom + 1);
+      expect(geometry.console.bottom).toBeLessThanOrEqual(geometry.roster.top + 1);
+      expect(geometry.roster.bottom).toBeLessThanOrEqual(geometry.arsenal.top + 1);
+    }
+  });
+
   test('keeps Space bound to fire after a gameplay control takes focus', async ({
     page,
   }, testInfo) => {
