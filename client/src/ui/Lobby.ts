@@ -2012,13 +2012,56 @@ export class Lobby {
         grid-column: 1 / -1;
         margin: 8px 0 0;
       }
-      #lobby .lobby-deployment__mode-rail { grid-area: rail; min-width: 0; }
+      #lobby .lobby-deployment__mode-rail {
+        grid-area: rail;
+        min-width: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1.08fr) minmax(250px, 0.92fr);
+        align-items: center;
+        gap: 9px;
+      }
+      #lobby .lobby-deployment__mode-rail > .lobby-quick-duel {
+        width: 100%;
+        height: 46px;
+        min-width: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) max-content;
+        align-items: center;
+        gap: 8px;
+        overflow: hidden;
+        box-sizing: border-box;
+        padding-left: 8px;
+        border-left: 2px solid rgba(255, 188, 80, 0.68);
+        background: linear-gradient(90deg, rgba(32, 22, 12, 0.56), transparent);
+        justify-self: stretch;
+      }
+      #lobby .lobby-quick-duel__briefing { min-width: 0; }
+      #lobby .lobby-quick-duel__title {
+        margin: 0;
+        color: #ffe0a0;
+        font: 700 11px/1 var(--font-display);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+      #lobby .lobby-quick-duel__description {
+        margin: 3px 0 0;
+        color: rgba(225, 214, 191, 0.68);
+        font: 11px/1.2 var(--font-sans);
+      }
+      #lobby .lobby-quick-duel__action {
+        min-height: 46px;
+        letter-spacing: 0.9px;
+        text-transform: uppercase;
+      }
       #lobby .lobby-deployment .lobby-tabs {
         margin: 0;
         padding: 0;
-        border-width: 1px 0;
+        border-width: 0;
         border-radius: 0;
         background: transparent;
+        box-shadow:
+          inset 0 1px rgba(229, 161, 65, 0.38),
+          inset 0 -1px rgba(229, 161, 65, 0.38);
       }
       #lobby .lobby-deployment .lobby-tab {
         min-height: 46px;
@@ -2170,6 +2213,7 @@ export class Lobby {
         this.activeTab = tab;
         this.render();
       },
+      onQuickDuel: () => { this.startQuickDuel(); },
       onRejoin: () => { void this.handleRejoin(); },
     });
 
@@ -2648,6 +2692,27 @@ export class Lobby {
   }
 
   // ---- Hot Seat tab ----
+
+  private startQuickDuel(): void {
+    const human = this.players[0] ?? defaultRow(0);
+    const humanPlayer = {
+      name: human.name.trim() || 'Player 1',
+      color: human.color,
+      loadout: normalizeTankLoadout(human.loadout),
+    };
+    const cpuColor = (PALETTE.find((color) => color.value !== humanPlayer.color) ?? PALETTE[0]).value;
+    const cpuPlayer = {
+      name: 'CPU 1',
+      color: cpuColor,
+      ai: 'medium' as const,
+      loadout: normalizeTankLoadout(seatPresetLoadout(1)),
+    };
+    this.onReady({
+      mode: 'hotseat',
+      players: [humanPlayer, cpuPlayer],
+      playerNames: [humanPlayer.name, cpuPlayer.name],
+    });
+  }
 
   private renderHotSeatTab(): HTMLElement {
     return buildLobbyHotSeatView({
