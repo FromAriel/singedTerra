@@ -167,9 +167,10 @@ async function startGarageMatch(page: Page, kit: Kit): Promise<void> {
   const done = page.getByRole('button', { name: 'Done customizing tank' });
   if (await done.isVisible()) await done.click();
 
-  const advanced = page.locator('.lobby-advanced');
-  await advanced.locator('summary').click();
+  await page.getByRole('button', { name: 'Advanced settings', exact: true }).click();
+  const advanced = page.locator('.lobby-overlay');
   await advanced.locator('.lobby-field').filter({ hasText: 'Seed' }).locator('input').fill('1337');
+  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Deploy local battle' }).click();
   await expect(page.locator('#game')).toBeVisible();
   await expect(page.locator('.st-hud__fuel-value')).toHaveText('100');

@@ -7,6 +7,7 @@ import type {
 export interface AccountPanelViewOptions {
   state: AccountState
   open: boolean
+  triggerOnly?: boolean
   mode: AccountMode
   onOpen: () => void
   onClose: () => void
@@ -42,6 +43,24 @@ function field(
   return { wrapper, input }
 }
 
+/**
+ * Builds the established account detail/form surface for placement in a modal
+ * layer. The masthead trigger remains independently available from
+ * buildAccountPanelView.
+ */
+export function buildAccountPanelOverlayContent(
+  options: AccountPanelViewOptions,
+): HTMLElement | null {
+  const content = buildAccountPanelView({ ...options, open: true })
+  if (!content) return null
+
+  content.querySelector('.account-panel__account-trigger')?.remove()
+  for (const button of content.querySelectorAll('button')) {
+    if (button.textContent === 'Close') button.remove()
+  }
+  return content
+}
+
 export function buildAccountPanelView(
   options: AccountPanelViewOptions,
 ): HTMLElement | null {
@@ -67,12 +86,12 @@ export function buildAccountPanelView(
       : `Commander ${options.state.profile.displayName}`
     const disclosure = actionButton(
       triggerLabel,
-      options.open ? options.onClose : options.onOpen,
+      options.open && !options.triggerOnly ? options.onClose : options.onOpen,
     )
     disclosure.className = 'account-panel__account-trigger'
     disclosure.setAttribute('aria-expanded', String(options.open))
 
-    if (!options.open) {
+    if (!options.open || options.triggerOnly) {
       if (options.state.profile.summary) {
         const record = document.createElement('section')
         record.className = 'account-panel__record'
@@ -170,7 +189,7 @@ export function buildAccountPanelView(
     return root
   }
 
-  if (!options.open) {
+  if (!options.open || options.triggerOnly) {
     const open = actionButton('Account', options.onOpen)
     open.className = 'account-panel__summary'
     root.append(open)
