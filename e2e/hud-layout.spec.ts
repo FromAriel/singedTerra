@@ -56,6 +56,39 @@ test.describe('HUD layout guardrails', () => {
     ).toEqual([]);
   });
 
+  test('presents identity, fire control, and commitment before secondary battle status', async ({
+    page,
+  }) => {
+    const geometry = await page.evaluate(() => {
+      const rect = (selector: string) =>
+        document.querySelector<HTMLElement>(selector)!.getBoundingClientRect().toJSON();
+      const consoleEl = document.querySelector<HTMLElement>('.st-hud__command-console')!;
+      const instruments = document.querySelector<HTMLElement>('.st-hud__instruments')!;
+      const actions = document.querySelector<HTMLElement>('.st-hud__turn-actions')!;
+      const roster = document.querySelector<HTMLElement>('.st-hud__players')!;
+      return {
+        identity: rect('.st-hud__active-row'),
+        instruments: rect('.st-hud__instruments'),
+        actions: rect('.st-hud__turn-actions'),
+        console: rect('.st-hud__command-console'),
+        roster: rect('.st-hud__players'),
+        instrumentsOwned: instruments.parentElement === consoleEl,
+        actionsOwned: actions.parentElement === consoleEl,
+        rosterAfterConsole: consoleEl.compareDocumentPosition(roster)
+          === Node.DOCUMENT_POSITION_FOLLOWING,
+      };
+    });
+
+    expect(geometry.instrumentsOwned).toBe(true);
+    expect(geometry.actionsOwned).toBe(true);
+    expect(geometry.rosterAfterConsole).toBe(true);
+    expect(geometry.identity.top).toBeGreaterThanOrEqual(geometry.console.top);
+    expect(geometry.identity.bottom).toBeLessThanOrEqual(geometry.instruments.top + 1);
+    expect(geometry.instruments.bottom).toBeLessThanOrEqual(geometry.actions.top + 1);
+    expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.console.bottom + 1);
+    expect(geometry.console.bottom).toBeLessThanOrEqual(geometry.roster.top + 1);
+  });
+
   test('keeps Space bound to fire after a gameplay control takes focus', async ({
     page,
   }, testInfo) => {

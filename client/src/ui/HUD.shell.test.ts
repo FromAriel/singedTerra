@@ -60,6 +60,36 @@ describe('HUD single-screen combat shell', () => {
     expect(root.querySelector('.st-hud__strip')?.classList.contains('st-ui-section')).toBe(true);
   });
 
+  it('orders one current-turn decision console before secondary battle status', () => {
+    const root = mount();
+    const commandConsole = root.querySelector<HTMLElement>('.st-hud__command-console')!;
+    const instruments = root.querySelector<HTMLElement>('.st-hud__instruments')!;
+    const active = root.querySelector<HTMLElement>('.st-hud__active-row')!;
+    const progress = root.querySelector<HTMLElement>('.st-hud__aim')!;
+    const actions = root.querySelector<HTMLElement>('.st-hud__turn-actions')!;
+    const roster = root.querySelector<HTMLElement>('.st-hud__players')!;
+
+    expect([...commandConsole.children]).toEqual([
+      active,
+      instruments,
+      progress,
+      actions,
+    ]);
+    expect(instruments.parentElement).toBe(commandConsole);
+    const persistentCombatRegions = [...root.children].filter(
+      (child) => !child.classList.contains('st-hud__quick-chat'),
+    );
+    expect(persistentCombatRegions).toEqual([
+      root.querySelector('.st-hud__menu'),
+      root.querySelector('.st-hud__round'),
+      commandConsole,
+      roster,
+      root.querySelector('.st-hud__strip'),
+    ]);
+    expect(commandConsole.compareDocumentPosition(roster) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .not.toBe(0);
+  });
+
   it('keeps the selected weapon glyph synchronized inside a stable tactical tile', () => {
     const { root, hud, state } = mountHarness();
     const tile = root.querySelector<HTMLElement>('.st-hud__weapon')!;

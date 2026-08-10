@@ -440,7 +440,7 @@ export class HUD {
     this.buildArsenal();
     this.buildStore();
     this.buildTurnActions();
-    this.buildCommandConsole();
+    this.buildCommandConsole(instruments);
     this.buildEndScreens();
     this.buildRoundShop();
     const menu = this.buildMenu();
@@ -451,9 +451,8 @@ export class HUD {
     this.root.append(
       menu,
       this.roundEl,
-      this.playersEl,
-      instruments,
       this.commandConsoleEl,
+      this.playersEl,
       this.stripEl,
     );
     // buildArsenal resolves the persisted state before the rail children exist;
@@ -1237,7 +1236,7 @@ export class HUD {
   }
 
   /** One semantic surface for identity, progress, tactics, economy, and Fire. */
-  private buildCommandConsole(): void {
+  private buildCommandConsole(instruments: HTMLElement): void {
     this.commandConsoleEl = document.createElement('section');
     this.commandConsoleEl.className =
       'st-hud__command-console st-ui-section st-ui-section--active';
@@ -1245,6 +1244,7 @@ export class HUD {
     this.commandConsoleEl.setAttribute('aria-label', 'Turn command console');
     this.commandConsoleEl.append(
       this.activePlayerEl,
+      instruments,
       this.aimEl,
       this.turnActionsEl,
     );
@@ -4518,15 +4518,11 @@ export class HUD {
     padding: 1px 6px;
   }
 }
-/* On touch devices, lift the touch controls up to sit right after the players
- * list (before the instruments) instead of being pinned to the bottom of the
- * fitted panel. Every child from instruments onward gets order:1; the touch
- * strip keeps the default order:0, so (being the last DOM child of #hud) it
- * renders at the end of the order:0 group: after menu/round/players. */
+/* On touch devices the interactive dock lives in overlayRoot, outside #hud.
+ * Keep only the Arsenal drawer in the rail's trailing order group so the
+ * decision console and roster retain their DOM hierarchy. */
 @media (pointer: coarse) {
   .st-hud__touch-strip { margin-top: 0; }
-  .st-hud__instruments,
-  .st-hud__command-console,
   .st-hud__strip { order: 1; }
 }
 /* One command surface: identity first, tactics second, commitment last. */
@@ -4538,6 +4534,24 @@ export class HUD {
   min-width: 0;
   flex-shrink: 0;
   overflow: hidden;
+}
+.st-hud__command-console > .st-hud__instruments {
+  width: auto;
+  margin: 0 6px 6px;
+  padding: 6px 8px;
+  border-width: 1px;
+  border-radius: 4px;
+  background:
+    linear-gradient(135deg, rgba(255, 210, 63, 0.055), transparent 30%),
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 122, 31, 0.09), transparent 62%),
+    linear-gradient(180deg, rgba(30, 17, 46, 0.92), rgba(11, 7, 18, 0.96));
+  box-shadow:
+    inset 0 0 0 1px rgba(8, 4, 13, 0.82),
+    inset 0 0 18px rgba(255, 122, 31, 0.07);
+}
+#app.is-compact .st-hud__command-console > .st-hud__instruments {
+  margin: 0 4px 3px;
+  padding-block: 4px;
 }
 .st-hud__active-row {
   position: relative;
