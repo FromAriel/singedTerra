@@ -38,16 +38,34 @@ describe('Lobby Quick Duel', () => {
   });
 
   it.each([
-    { humanColor: '#4d8ce8', cpuColor: '#e84d4d' },
-    { humanColor: '#e84d4d', cpuColor: '#4d8ce8' },
+    {
+      humanName: '   ',
+      expectedHumanName: 'Player 1',
+      humanColor: '#4d8ce8',
+      cpuColor: '#e84d4d',
+    },
+    {
+      humanName: '   ',
+      expectedHumanName: 'Player 1',
+      humanColor: '#e84d4d',
+      cpuColor: '#4d8ce8',
+    },
+    {
+      humanName: '  Commander SUaDtL  ',
+      expectedHumanName: 'Commander SUaDtL',
+      humanColor: '#4d8ce8',
+      cpuColor: '#e84d4d',
+    },
   ])('starts an exact two-seat CPU duel for human $humanColor after switching to Play Online', ({
+    humanName,
+    expectedHumanName,
     humanColor,
     cpuColor,
   }) => {
     const lobby = new Lobby(root, onReady);
     internals(lobby).players = [
       {
-        name: '   ',
+        name: humanName,
         color: humanColor,
         ai: 'hard',
         loadout: {
@@ -79,7 +97,7 @@ describe('Lobby Quick Duel', () => {
       mode: 'hotseat',
       players: [
         {
-          name: 'Player 1',
+          name: expectedHumanName,
           color: humanColor,
           loadout: {
             treads: 'foundry',
@@ -100,7 +118,7 @@ describe('Lobby Quick Duel', () => {
           },
         },
       ],
-      playerNames: ['Player 1', 'CPU 1'],
+      playerNames: [expectedHumanName, 'CPU 1'],
     });
     expect(emitted.players[0]).not.toHaveProperty('ai');
     expect(emitted).not.toHaveProperty('settings');
