@@ -8,7 +8,7 @@ function state(phase: GameState['phase'], winner: string | null): GameState {
 
 describe('createHotSeatProgressionReporter', () => {
   it('reports the injected match id once on the first terminal observation', () => {
-    const report = vi.fn(async () => true)
+    const report = vi.fn(async () => null)
     const reporter = createHotSeatProgressionReporter({
       mode: 'hotseat',
       e2eMode: null,
@@ -31,8 +31,15 @@ describe('createHotSeatProgressionReporter', () => {
   })
 
   it('emits one receipt only after the existing server-confirmed report succeeds', async () => {
-    let complete!: (recorded: boolean) => void
-    const report = vi.fn(() => new Promise<boolean>((resolve) => { complete = resolve }))
+    const summary = {
+      progressionVersion: 1 as const,
+      totalXp: 200,
+      level: 1,
+      levelXp: 200,
+      nextLevelXp: 500,
+    }
+    let complete!: (recorded: typeof summary | null) => void
+    const report = vi.fn(() => new Promise<typeof summary | null>((resolve) => { complete = resolve }))
     const onRecorded = vi.fn()
     const reporter = createHotSeatProgressionReporter({
       mode: 'hotseat',
@@ -47,17 +54,20 @@ describe('createHotSeatProgressionReporter', () => {
     reporter.observe(state('GAME_OVER', 'p1'))
     expect(onRecorded).not.toHaveBeenCalled()
 
-    complete(true)
-    await vi.waitFor(() => expect(onRecorded).toHaveBeenCalledWith({
-      matchId: '00000000-0000-4000-8000-000000000074',
-      won: true,
-    }))
+    complete(summary)
+    await vi.waitFor(() => expect(onRecorded).toHaveBeenCalledWith(
+      {
+        matchId: '00000000-0000-4000-8000-000000000074',
+        won: true,
+      },
+      summary,
+    ))
     reporter.observe(state('GAME_OVER', 'p1'))
     expect(onRecorded).toHaveBeenCalledOnce()
   })
 
   it.each([
-    ['a declined record', () => Promise.resolve(false)],
+    ['a declined record', () => Promise.resolve(null)],
     ['a failed record', () => Promise.reject(new Error('unavailable'))],
   ])('does not emit a receipt after %s', async (_label, reportMatch) => {
     const report = vi.fn(reportMatch)
@@ -80,7 +90,7 @@ describe('createHotSeatProgressionReporter', () => {
     ['another tank wins', 'p2'],
     ['the match draws', null],
   ])('records a non-win when %s', (_label, winner) => {
-    const report = vi.fn(async () => true)
+    const report = vi.fn(async () => null)
     const reporter = createHotSeatProgressionReporter({
       mode: 'hotseat',
       e2eMode: null,
@@ -97,7 +107,7 @@ describe('createHotSeatProgressionReporter', () => {
 
   it('creates a fresh id once per reporter instead of once per state frame', () => {
     const createMatchId = vi.fn(() => '00000000-0000-4000-8000-000000000073')
-    const report = vi.fn(async () => true)
+    const report = vi.fn(async () => null)
     const reporter = createHotSeatProgressionReporter({
       mode: 'hotseat',
       e2eMode: null,
@@ -116,7 +126,7 @@ describe('createHotSeatProgressionReporter', () => {
     ['victory fixture', { mode: 'hotseat' as const, e2eMode: 'victory', accountTankId: 'p1' }],
     ['missing account tank', { mode: 'hotseat' as const, e2eMode: null, accountTankId: null }],
   ])('omits reporting for %s', (_label, options) => {
-    const report = vi.fn(async () => true)
+    const report = vi.fn(async () => null)
     expect(createHotSeatProgressionReporter({ ...options, report })).toBeNull()
     expect(report).not.toHaveBeenCalled()
   })

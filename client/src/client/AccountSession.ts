@@ -1,6 +1,10 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { hasSupabaseConfig } from '../lib/supabaseConfig'
-import type { HotSeatMatchResult } from './hotSeatProgression'
+import {
+  earnedHotSeatMatchXp,
+  type HotSeatMatchResult,
+  type HotSeatProgressionSummary,
+} from './hotSeatProgression'
 import { postOnceWithRetry } from './retry'
 
 export type AccountMode = 'sign-in' | 'create'
@@ -43,7 +47,7 @@ export interface AccountBackend {
   signIn(credentials: Pick<AccountCredentials, 'email' | 'password'>): Promise<AccountUser>
   signOut(): Promise<void>
   loadProfile(userId: string): Promise<AccountProfile>
-  recordHotSeatMatch(result: HotSeatMatchResult): Promise<void>
+  recordHotSeatMatch(result: HotSeatMatchResult): Promise<boolean>
 }
 
 export interface AccountSessionOptions {
@@ -185,6 +189,7 @@ export function createSupabaseAccountBackend(client: SupabaseClient): AccountBac
       ) {
         throw new Error('Hot-seat result was not accepted.')
       }
+      return response.recorded
     },
 
     async loadProfile(userId) {
@@ -374,27 +379,36 @@ export class AccountSession {
     }
   }
 
-  async recordHotSeatMatch(result: HotSeatMatchResult): Promise<boolean> {
+  async recordHotSeatMatch(
+    result: HotSeatMatchResult,
+  ): Promise<HotSeatProgressionSummary | null> {
     await this.initialize()
     if (
       !this.backend
       || this.disposed
       || this.current.status !== 'authenticated'
       || this.current.busy
-    ) return false
+    ) return null
     const backend = this.backend
+    const priorSummary = this.current.profile.summary
     try {
       const delivery = await postOnceWithRetry(
         () => backend.recordHotSeatMatch(result),
         2,
       )
-      if (!delivery.ok) return false
+      if (!delivery.ok) return null
       await this.refresh()
-      return true
+      if (!delivery.value) return null
+      if (this.current.status !== 'authenticated') return null
+      const summary = this.current.profile.summary
+      if (!priorSummary || !summary) return null
+      const expectedXp = earnedHotSeatMatchXp(result.won)
+      if (summary.totalXp !== priorSummary.totalXp + expectedXp) return null
+      return summary
     } catch {
       // Match reporting is opportunistic. Preserve gameplay and the last trusted
       // account state when delivery or the follow-up summary refresh cannot complete.
-      return false
+      return null
     }
   }
 

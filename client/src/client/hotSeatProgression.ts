@@ -5,6 +5,21 @@ export interface HotSeatMatchResult {
   won: boolean
 }
 
+export interface HotSeatProgressionSummary {
+  progressionVersion: 1
+  totalXp: number
+  level: number
+  levelXp: number
+  nextLevelXp: number
+}
+
+export const MATCH_PARTICIPATION_XP = 100
+export const MATCH_WIN_BONUS_XP = 100
+
+export function earnedHotSeatMatchXp(won: boolean): number {
+  return MATCH_PARTICIPATION_XP + (won ? MATCH_WIN_BONUS_XP : 0)
+}
+
 export interface HotSeatProgressionReporter {
   observe(state: Pick<GameState, 'phase' | 'winner'>): void
 }
@@ -13,8 +28,8 @@ interface HotSeatProgressionReporterOptions {
   mode: 'hotseat' | 'network'
   e2eMode: string | null
   accountTankId: string | null
-  report(result: HotSeatMatchResult): Promise<boolean>
-  onRecorded?(result: HotSeatMatchResult): void
+  report(result: HotSeatMatchResult): Promise<HotSeatProgressionSummary | null>
+  onRecorded?(result: HotSeatMatchResult, summary: HotSeatProgressionSummary): void
   matchId?: string
   createMatchId?: () => string
 }
@@ -39,8 +54,8 @@ export function createHotSeatProgressionReporter(
         won: state.winner === options.accountTankId,
       }
       void options.report(result)
-        .then((recorded) => {
-          if (recorded) options.onRecorded?.(result)
+        .then((summary) => {
+          if (summary) options.onRecorded?.(result, summary)
         })
         .catch(() => undefined)
     },

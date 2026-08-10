@@ -6,8 +6,14 @@ const seams = vi.hoisted(() => ({
   onLobbyReady: null as null | ((config: Record<string, unknown>) => void),
   onQuit: null as null | (() => void),
   recorded: [] as Array<{ matchId: string; won: boolean }>,
-  progressionReceipts: 0,
-  record: (_result: { matchId: string; won: boolean }) => Promise.resolve(true) as Promise<boolean>,
+  progressionReceipts: [] as Array<Record<string, unknown>>,
+  record: (_result: { matchId: string; won: boolean }) => Promise.resolve({
+    progressionVersion: 1 as const,
+    totalXp: 200,
+    level: 1,
+    levelXp: 200,
+    nextLevelXp: 500,
+  }),
 }))
 
 vi.mock('@shared/engine/GameEngine', () => ({ GameEngine: class {} }))
@@ -106,7 +112,9 @@ vi.mock('./ui/HUD', () => ({
     onTouchPower() {}
     onTouchWeapon() {}
     onWeaponSelect() {}
-    setProgressionReceipt() { seams.progressionReceipts += 1 }
+    setProgressionReceipt(receipt: Record<string, unknown>) {
+      seams.progressionReceipts.push(receipt)
+    }
     setArmsLevel() {}
     setConnection() {}
     setFirstSalvoStep() {}
@@ -197,8 +205,14 @@ describe('production hot-seat progression composition', () => {
     seams.onLobbyReady = null
     seams.onQuit = null
     seams.recorded.length = 0
-    seams.progressionReceipts = 0
-    seams.record = () => Promise.resolve(true)
+    seams.progressionReceipts.length = 0
+    seams.record = () => Promise.resolve({
+      progressionVersion: 1 as const,
+      totalXp: 200,
+      level: 1,
+      levelXp: 200,
+      nextLevelXp: 500,
+    })
     window.history.replaceState({}, '', '/')
     mountDom()
   })
@@ -213,14 +227,32 @@ describe('production hot-seat progression composition', () => {
     await vi.waitFor(() => expect(first.start).toHaveBeenCalledOnce())
     first.emit(gameState())
     first.emit(gameState())
-    await vi.waitFor(() => expect(seams.progressionReceipts).toBe(1))
+    await vi.waitFor(() => expect(seams.progressionReceipts).toEqual([{
+      won: true,
+      summary: {
+        progressionVersion: 1,
+        totalXp: 200,
+        level: 1,
+        levelXp: 200,
+        nextLevelXp: 500,
+      },
+    }]))
 
     const second = fakeClient(gameState({ winner: 'p2' }))
     seams.clients.push(second)
     seams.onLobbyReady({ mode: 'hotseat', players: [] })
     await vi.waitFor(() => expect(second.start).toHaveBeenCalledOnce())
     second.emit(gameState({ winner: 'p2' }))
-    await vi.waitFor(() => expect(seams.progressionReceipts).toBe(2))
+    await vi.waitFor(() => expect(seams.progressionReceipts[1]).toEqual({
+      won: false,
+      summary: {
+        progressionVersion: 1,
+        totalXp: 200,
+        level: 1,
+        levelXp: 200,
+        nextLevelXp: 500,
+      },
+    }))
 
     const ai = fakeClient(gameState({ firstAi: true }))
     seams.clients.push(ai)
@@ -242,8 +274,9 @@ describe('production hot-seat progression composition', () => {
   })
 
   it('does not surface a resolved receipt after its game has been replaced', async () => {
-    let resolveRecord!: (recorded: boolean) => void
-    seams.record = () => new Promise<boolean>((resolve) => { resolveRecord = resolve })
+    type Summary = Awaited<ReturnType<typeof seams.record>>
+    let resolveRecord!: (recorded: Summary) => void
+    seams.record = () => new Promise<Summary>((resolve) => { resolveRecord = resolve })
     await import('./main')
     if (!seams.onLobbyReady) throw new Error('Lobby start callback was not registered')
 
@@ -258,15 +291,22 @@ describe('production hot-seat progression composition', () => {
     seams.clients.push(second)
     seams.onLobbyReady({ mode: 'hotseat', players: [] })
     await vi.waitFor(() => expect(second.start).toHaveBeenCalledOnce())
-    resolveRecord(true)
+    resolveRecord({
+      progressionVersion: 1,
+      totalXp: 200,
+      level: 1,
+      levelXp: 200,
+      nextLevelXp: 500,
+    })
     await Promise.resolve()
 
-    expect(seams.progressionReceipts).toBe(0)
+    expect(seams.progressionReceipts).toHaveLength(0)
   })
 
   it('does not surface a resolved receipt after returning to the lobby', async () => {
-    let resolveRecord!: (recorded: boolean) => void
-    seams.record = () => new Promise<boolean>((resolve) => { resolveRecord = resolve })
+    type Summary = Awaited<ReturnType<typeof seams.record>>
+    let resolveRecord!: (recorded: Summary) => void
+    seams.record = () => new Promise<Summary>((resolve) => { resolveRecord = resolve })
     await import('./main')
     if (!seams.onLobbyReady || !seams.onQuit) throw new Error('Expected lobby wiring')
 
@@ -278,10 +318,16 @@ describe('production hot-seat progression composition', () => {
     await vi.waitFor(() => expect(seams.recorded).toHaveLength(1))
 
     seams.onQuit()
-    resolveRecord(true)
+    resolveRecord({
+      progressionVersion: 1,
+      totalXp: 200,
+      level: 1,
+      levelXp: 200,
+      nextLevelXp: 500,
+    })
     await Promise.resolve()
 
-    expect(seams.progressionReceipts).toBe(0)
+    expect(seams.progressionReceipts).toHaveLength(0)
   })
 
   it('keeps the deterministic browser fixture out of progression reporting', async () => {
