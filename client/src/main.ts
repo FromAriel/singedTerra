@@ -339,13 +339,13 @@ function bootstrap(): void {
       e2eMode: E2E_MODE,
       accountTankId: accountTank && !accountTank.ai ? accountTank.id : null,
       report: (result) => lobby.recordHotSeatMatch(result),
-      onRecorded: () => {
+      onRecorded: (result, summary) => {
         if (
           gameGeneration !== currentGameGeneration
           || client !== newClient
           || newClient.getState()?.phase !== 'GAME_OVER'
         ) return;
-        hud.setProgressionReceipt();
+        hud.setProgressionReceipt({ won: result.won, summary });
       },
     });
     lastActiveId = initial?.activePlayerId ?? null;

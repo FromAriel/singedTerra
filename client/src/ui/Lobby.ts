@@ -42,7 +42,10 @@ import {
   type AccountMode,
   type AccountState,
 } from '../client/AccountSession';
-import type { HotSeatMatchResult } from '../client/hotSeatProgression';
+import type {
+  HotSeatMatchResult,
+  HotSeatProgressionSummary,
+} from '../client/hotSeatProgression';
 import {
   CURRENT_NETWORK_RULESET_VERSION,
   normalizeNetworkRulesetVersion,
@@ -236,7 +239,7 @@ export interface AccountSessionPort {
   submit(mode: AccountMode, credentials: AccountCredentials): Promise<void>;
   signOut(): Promise<void>;
   refresh(): Promise<void>;
-  recordHotSeatMatch(result: HotSeatMatchResult): Promise<boolean>;
+  recordHotSeatMatch(result: HotSeatMatchResult): Promise<HotSeatProgressionSummary | null>;
 }
 
 type AccountSessionFactory = (
@@ -490,7 +493,7 @@ export class Lobby {
     return this.accountSession.refresh();
   }
 
-  recordHotSeatMatch(result: HotSeatMatchResult): Promise<boolean> {
+  recordHotSeatMatch(result: HotSeatMatchResult): Promise<HotSeatProgressionSummary | null> {
     return this.accountSession.recordHotSeatMatch(result);
   }
 

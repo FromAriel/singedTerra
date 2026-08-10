@@ -128,7 +128,7 @@ describe('HUD Victory After-Action Report', () => {
     expect(tank.dataset['tankPreviewSignature']).toBeUndefined();
   });
 
-  it('acknowledges a confirmed progression record without adding a third action', () => {
+  it('names earned victory XP and the next visible level milestone without adding a third action', () => {
     const { modal, hud, state } = mount();
     hud.update(state);
     const report = modal.querySelector<HTMLElement>('.st-hud__overlay--victory')!;
@@ -137,10 +137,19 @@ describe('HUD Victory After-Action Report', () => {
     const mainMenu = report.querySelector<HTMLButtonElement>('.st-hud__restart--ghost')!;
 
     expect(receipt.hidden).toBe(true);
-    hud.setProgressionReceipt();
+    hud.setProgressionReceipt({
+      won: true,
+      summary: {
+        progressionVersion: 1,
+        totalXp: 1_200,
+        level: 3,
+        levelXp: 200,
+        nextLevelXp: 500,
+      },
+    });
 
     expect(receipt.hidden).toBe(false);
-    expect(receipt.textContent).toBe('Progression recorded');
+    expect(receipt.textContent).toBe('Victory · +200 XP · 300 XP to Level 4');
     expect(receipt.getAttribute('role')).toBe('status');
     expect(receipt.getAttribute('aria-live')).toBe('polite');
     expect(report.querySelectorAll('button')).toHaveLength(2);
@@ -153,6 +162,25 @@ describe('HUD Victory After-Action Report', () => {
     hud.update(state);
     expect(receipt.hidden).toBe(true);
     expect(receipt.textContent).toBe('');
+  });
+
+  it('names participation XP and the next level after a recorded non-win', () => {
+    const { modal, hud, state } = mount();
+    hud.update(state);
+    const receipt = modal.querySelector<HTMLElement>('.st-hud__victory-progression-receipt')!;
+
+    hud.setProgressionReceipt({
+      won: false,
+      summary: {
+        progressionVersion: 1,
+        totalXp: 100,
+        level: 1,
+        levelXp: 100,
+        nextLevelXp: 500,
+      },
+    });
+
+    expect(receipt.textContent).toBe('Match complete · +100 XP · 400 XP to Level 2');
   });
 
   it('supersedes an open pause surface when a live network match ends', () => {

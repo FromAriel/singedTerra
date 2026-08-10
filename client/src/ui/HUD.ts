@@ -24,6 +24,10 @@ import {
 import { tankLoadoutAccessibleLabel } from './tankPartLabels';
 import type { FirstSalvoStep } from './firstSalvoCoach';
 import { QUICK_CHAT_MESSAGES, type QuickChatKey } from '../client/quickChat';
+import {
+  earnedHotSeatMatchXp,
+  type HotSeatProgressionSummary,
+} from '../client/hotSeatProgression';
 
 /**
  * What a store Buy click requests: exactly one of a weapon bundle or an accessory, mirroring the
@@ -2529,9 +2533,16 @@ export class HUD {
     }
   }
 
-  /** Acknowledge a completed server-side progression record without adding another action. */
-  setProgressionReceipt(): void {
-    this.overlayProgressionReceiptEl.textContent = 'Progression recorded';
+  /** Name the accepted XP and next server-derived level milestone without adding another action. */
+  setProgressionReceipt(receipt: {
+    won: boolean;
+    summary: HotSeatProgressionSummary;
+  }): void {
+    const earnedXp = earnedHotSeatMatchXp(receipt.won);
+    const remainingXp = receipt.summary.nextLevelXp - receipt.summary.levelXp;
+    const outcome = receipt.won ? 'Victory' : 'Match complete';
+    this.overlayProgressionReceiptEl.textContent =
+      `${outcome} · +${earnedXp} XP · ${remainingXp} XP to Level ${receipt.summary.level + 1}`;
     this.overlayProgressionReceiptEl.hidden = false;
   }
 
