@@ -63,6 +63,10 @@ import {
   selectImpactMonitorFocus,
   type ImpactMonitorOffset,
 } from './impactMonitor';
+import {
+  deriveImpactLearningCue,
+  type ImpactLearningCue,
+} from './impactLearning';
 
 /** Shared barrel geometry keeps muzzle FX at the visual tip. */
 /**
@@ -165,6 +169,8 @@ interface Burst {
   visual: ExplosionVisualProfile;
   /** Eligibility is snapshotted at admission so a live burst never swaps style. */
   authored: boolean;
+  /** Local-human correction language associated with this exact blast. */
+  cue?: ImpactLearningCue;
   /** Frames elapsed since spawn. */
   age: number;
 }
@@ -304,6 +310,8 @@ export class Renderer {
   private events: RenderEventSink | null = null;
   /** Tracks FIRING so a launch event fires once per shot, not once per frame. */
   private wasFiring = false;
+  /** Shooter ownership captured once at launch for presentation-only impact coaching. */
+  private impactLearningShot: { shooterId: string; local: boolean } | null = null;
   /** Local chassis kick for the most recent visible living shooter. */
   private tankRecoil: TankRecoil | null = null;
   /** One bounded sky transition for the most recently observed aiming turn. */
@@ -435,6 +443,7 @@ export class Renderer {
     this.impactHoldFrames = 0;
     this.effectsBusy = 0;
     this.wasFiring = false;
+    this.impactLearningShot = null;
     this.tankRecoil = null;
     this.windGust = null;
     this.windTurnKey = null;
@@ -458,17 +467,17 @@ export class Renderer {
     // so the OOB fizzle detector can tell whether a new explosion appeared this frame.
     const explosionIdBefore = this.lastSeenExplosionId;
 
+    const launched = this.observeShotLaunch(state);
+
     this.consumeExplosion(state);
     this.consumeWallImpacts(state);
 
     // Emit a launch event once per shot when a turn enters FIRING. Cluster shells
     // split mid-flight without re-entering FIRING, so this fires exactly once/shot.
-    const firing = state.phase === 'FIRING';
-    if (firing && !this.wasFiring) {
+    if (launched) {
       this.events?.onLaunch();
       this.spawnMuzzleFlash(state);
     }
-    this.wasFiring = firing;
     this.trackWindGust(state);
 
     // --- Per-frame audio signal pass -------------------------------------------
@@ -657,7 +666,23 @@ export class Renderer {
       : 1;
     const geometry = getImpactMonitorGeometry(focus, worldOffset, viewportScale);
     if (geometry === null) return;
-    this.impactMonitor?.draw(this.ctx, geometry, false);
+    this.impactMonitor?.draw(this.ctx, geometry, false, focus.cue ?? null);
+  }
+
+  /** Capture shooter ownership once per firing edge without touching engine state. */
+  private observeShotLaunch(
+    state: Pick<GameState, 'phase' | 'activePlayerId'>,
+  ): boolean {
+    const firing = state.phase === 'FIRING';
+    const launched = firing && !this.wasFiring;
+    if (launched) {
+      this.impactLearningShot = {
+        shooterId: state.activePlayerId,
+        local: this.showAimGuide,
+      };
+    }
+    this.wasFiring = firing;
+    return launched;
   }
 
   /**
@@ -856,6 +881,15 @@ export class Renderer {
         // many bursts on-screen simultaneously, each re-drawn every frame of its life.
         const rgb = parseColor(ex.color);
         const visual = getExplosionVisualProfile(ex);
+        const learningCue = deriveImpactLearningCue({
+          impactX: ex.cx,
+          impactY: ex.cy,
+          impactType: ex.impactType,
+          shooterId: this.impactLearningShot?.shooterId ?? null,
+          localShot: this.impactLearningShot?.local ?? false,
+          walls: state.walls ?? 'open',
+          tanks: state.tanks ?? [],
+        });
         this.bursts.push({
           cx: ex.cx,
           cy: ex.cy,
@@ -871,6 +905,7 @@ export class Renderer {
             && visual.family === 'conventional'
             && this.explosionArt?.state === 'ready'
           ),
+          ...(learningCue !== null ? { cue: learningCue } : {}),
           age: 0,
         });
         // Juice: bigger blast => bigger kick (capped). Reduced-motion = none.

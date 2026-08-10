@@ -5,6 +5,7 @@ import {
   type ImpactMonitorCanvasFactory,
 } from './ImpactMonitorPainter';
 import type { ImpactMonitorGeometry } from './impactMonitor';
+import type { ImpactLearningCue } from './impactLearning';
 
 const geometry: ImpactMonitorGeometry = {
   focus: { x: 607, y: 295 },
@@ -18,6 +19,11 @@ const compactGeometry: ImpactMonitorGeometry = {
   source: { x: 470.4, y: 220.8, width: 259.2, height: 158.4 },
   content: { x: 421.8, y: 45, width: 356.4, height: 217.8 },
   frame: { x: 402, y: 32.4, width: 396, height: 244.8 },
+};
+
+const cue: ImpactLearningCue = {
+  readout: '84 PX LEFT OF CPU 1',
+  correction: 'SHIFT IMPACT RIGHT',
 };
 
 interface PainterHarness {
@@ -216,6 +222,59 @@ describe('ImpactMonitorPainter', () => {
     expect(probe.styles.stroke).toContain(ACCENT.gold);
     expect(probe.targetFillRect).not.toHaveBeenCalled();
     expect(probe.targetStrokeRect).not.toHaveBeenCalled();
+  });
+
+  it('draws a bounded two-line learning cue inside the normal monitor frame', () => {
+    const probe = harness();
+    const monitor = new ImpactMonitorPainter(probe.factory);
+
+    expect(monitor.draw(probe.target, geometry, false, cue)).toBe(true);
+
+    expect(probe.scratchFillText).toHaveBeenNthCalledWith(
+      2,
+      '84 PX LEFT OF CPU 1',
+      18,
+      107,
+      184,
+    );
+    expect(probe.scratchFillText).toHaveBeenNthCalledWith(
+      3,
+      'SHIFT IMPACT RIGHT',
+      18,
+      122,
+      184,
+    );
+  });
+
+  it('scales the complete learning cue with the compact monitor frame', () => {
+    const probe = harness();
+    const monitor = new ImpactMonitorPainter(probe.factory);
+
+    expect(monitor.draw(probe.target, compactGeometry, false, cue)).toBe(true);
+
+    expect(probe.scratchFillText).toHaveBeenNthCalledWith(
+      2,
+      '84 PX LEFT OF CPU 1',
+      32.4,
+      192.6,
+      331.2,
+    );
+    expect(probe.scratchFillText).toHaveBeenNthCalledWith(
+      3,
+      'SHIFT IMPACT RIGHT',
+      32.4,
+      219.6,
+      331.2,
+    );
+  });
+
+  it('keeps the existing single label when no learning cue is available', () => {
+    const probe = harness();
+    const monitor = new ImpactMonitorPainter(probe.factory);
+
+    expect(monitor.draw(probe.target, geometry, false)).toBe(true);
+    expect(probe.scratchFillText).toHaveBeenCalledOnce();
+    expect(probe.scratchFillText).toHaveBeenCalledWith('IMPACT MONITOR', 18, 21);
   });
 
   it('fails soft and never touches the target when source copy fails', () => {

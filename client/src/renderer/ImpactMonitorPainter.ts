@@ -4,6 +4,7 @@ import {
   IMPACT_MONITOR_FRAME_WIDTH,
   type ImpactMonitorGeometry,
 } from './impactMonitor';
+import type { ImpactLearningCue } from './impactLearning';
 
 export type ImpactMonitorCanvasFactory = () => HTMLCanvasElement;
 
@@ -32,6 +33,7 @@ export class ImpactMonitorPainter {
     target: CanvasRenderingContext2D,
     geometry: ImpactMonitorGeometry | null,
     reduceMotion: boolean,
+    cue: ImpactLearningCue | null = null,
   ): boolean {
     const canvas = this.compositeCanvas;
     const ctx = this.compositeContext;
@@ -98,6 +100,27 @@ export class ImpactMonitorPainter {
       ctx.font = `700 ${11 * scale}px ${FONT.mono}`;
       ctx.textBaseline = 'middle';
       ctx.fillText('IMPACT MONITOR', 18 * scale, 21 * scale);
+
+      if (cue !== null) {
+        ctx.fillStyle = 'rgba(12, 7, 22, 0.88)';
+        ctx.fillRect(10 * scale, 96 * scale, 200 * scale, 34 * scale);
+        ctx.fillStyle = TEXT.body;
+        ctx.font = `700 ${10 * scale}px ${FONT.mono}`;
+        ctx.fillText(
+          cue.readout,
+          18 * scale,
+          107 * scale,
+          184 * scale,
+        );
+        ctx.fillStyle = ACCENT.solution;
+        ctx.font = `700 ${8 * scale}px ${FONT.mono}`;
+        ctx.fillText(
+          cue.correction,
+          18 * scale,
+          122 * scale,
+          184 * scale,
+        );
+      }
       composed = true;
     } catch {
       composed = false;

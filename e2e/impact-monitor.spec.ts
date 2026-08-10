@@ -10,6 +10,7 @@ interface ImpactComposite {
 interface ImpactObserver {
   copies: ImpactComposite[];
   composites: ImpactComposite[];
+  labels: string[];
 }
 
 test.describe('impact monitor', () => {
@@ -23,6 +24,7 @@ test.describe('impact monitor', () => {
       const observer = view.__singedTerraImpactObserver = {
         copies: [],
         composites: [],
+        labels: [],
       };
       const impactCanvases = new WeakSet<HTMLCanvasElement>();
       const prototype = CanvasRenderingContext2D.prototype;
@@ -56,6 +58,21 @@ test.describe('impact monitor', () => {
         }
         Reflect.apply(original, this, [image, ...args]);
       }) as typeof original;
+      const originalFillText = prototype.fillText;
+      prototype.fillText = (function (
+        this: CanvasRenderingContext2D,
+        text: string,
+        x: number,
+        y: number,
+        maxWidth?: number,
+      ): void {
+        if (impactCanvases.has(this.canvas)) observer.labels.push(text);
+        if (maxWidth === undefined) {
+          Reflect.apply(originalFillText, this, [text, x, y]);
+        } else {
+          Reflect.apply(originalFillText, this, [text, x, y, maxWidth]);
+        }
+      }) as typeof originalFillText;
     });
 
     await gotoRunningGame(page);
@@ -92,6 +109,22 @@ test.describe('impact monitor', () => {
     expect(copy.args[0]! + copy.args[2]!).toBeLessThanOrEqual(1200);
     expect(copy.args[1]).toBeGreaterThanOrEqual(0);
     const composite = observed!.monitor.composites[0]!;
+    expect(observed!.monitor.labels).toContain('IMPACT MONITOR');
+    expect(
+      observed!.monitor.labels.some((label) => (
+        label.includes(' PX LEFT OF ')
+        || label.includes(' PX RIGHT OF ')
+        || label.startsWith('ON LINE:')
+        || label.startsWith('DIRECT HIT:')
+      )),
+    ).toBe(true);
+    expect(
+      observed!.monitor.labels.some((label) => (
+        label === 'SHIFT IMPACT LEFT'
+        || label === 'SHIFT IMPACT RIGHT'
+        || label === 'HOLD COURSE'
+      )),
+    ).toBe(true);
     if (testInfo.project.name === 'desktop-fine') {
       expect(copy.args.slice(2, 4)).toEqual([144, 88]);
       expect(copy.args.slice(4)).toEqual([11, 7, 198, 121]);
