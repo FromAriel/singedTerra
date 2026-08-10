@@ -1,4 +1,5 @@
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/engine/Terrain';
+import type { ImpactLearningCue } from './impactLearning';
 
 export const IMPACT_MONITOR_SOURCE_WIDTH = 144;
 export const IMPACT_MONITOR_SOURCE_HEIGHT = 88;
@@ -19,6 +20,7 @@ export interface ImpactMonitorFocus {
   readonly reachRadius: number;
   readonly age: number;
   readonly lifeFrames: number;
+  readonly cue?: ImpactLearningCue | null;
 }
 
 export interface ImpactMonitorCandidate {
@@ -28,6 +30,7 @@ export interface ImpactMonitorCandidate {
   readonly lifeFrames: number;
   readonly reachRadius?: number;
   readonly visual?: { readonly reachRadius: number };
+  readonly cue?: ImpactLearningCue | null;
 }
 
 export interface ImpactMonitorOffset {
@@ -73,6 +76,7 @@ export function selectImpactMonitorFocus(
       reachRadius: burst.reachRadius ?? burst.visual?.reachRadius ?? Number.NaN,
       age: burst.age,
       lifeFrames: burst.lifeFrames,
+      ...(burst.cue !== undefined ? { cue: burst.cue } : {}),
     };
     if (!isLiveFocus(candidate)) continue;
     if (

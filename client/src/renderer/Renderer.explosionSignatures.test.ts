@@ -37,6 +37,7 @@ interface RendererExplosionSeam {
   prevFireLen: number;
   prevBounces: Map<number, number>;
   hadProjectileLastFrame: boolean;
+  impactLearningShot: { shooterId: string; local: boolean } | null;
   effects: {
     spawnExplosion: ReturnType<typeof vi.fn>;
     clear: ReturnType<typeof vi.fn>;
@@ -192,6 +193,7 @@ function drawEvents(
     prevFireLen: 0,
     prevBounces: new Map(),
     hadProjectileLastFrame: false,
+    impactLearningShot: { shooterId: 'old-shooter', local: true },
     effects: { spawnExplosion: vi.fn(), clear: vi.fn() },
     projectile: { clear: vi.fn() },
     terrain: { markDirty: vi.fn() },
@@ -413,6 +415,7 @@ describe('Renderer weapon-signature detonations', () => {
     expect(renderer.bursts).toHaveLength(0);
     expect(renderer.scorches).toHaveLength(0);
     expect(renderer.lastSeenExplosionId).toBe(0);
+    expect(renderer.impactLearningShot).toBeNull();
     renderer.consumeExplosion({ explosions: [source], lastExplosion: null });
     expect(renderer.bursts).toHaveLength(1);
   });

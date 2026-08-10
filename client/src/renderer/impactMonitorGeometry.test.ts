@@ -61,6 +61,22 @@ describe('impact monitor focus selection', () => {
       later,
     ])).toEqual(later);
   });
+
+  it('carries the selected burst learning cue into the monitor focus', () => {
+    const cue = {
+      readout: '84 PX LEFT OF CPU 1',
+      correction: 'SHIFT IMPACT RIGHT',
+    };
+
+    expect(selectImpactMonitorFocus([
+      { ...burst({ reachRadius: 28 }), cue: null },
+      { ...burst({ cx: 820, reachRadius: 72 }), cue },
+    ])).toMatchObject({
+      cx: 820,
+      reachRadius: 72,
+      cue,
+    });
+  });
 });
 
 describe('impact monitor geometry', () => {

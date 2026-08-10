@@ -71,6 +71,7 @@ describe('Renderer impact monitor', () => {
         frame: { x: 490, y: 18, width: 220, height: 136 },
       },
       false,
+      null,
     );
   });
 
@@ -118,6 +119,7 @@ describe('Renderer impact monitor', () => {
         frame: { x: 490, y: 18, width: 220, height: 136 },
       },
       false,
+      null,
     );
   });
 
