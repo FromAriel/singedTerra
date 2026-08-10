@@ -20,6 +20,7 @@ function options(overrides: Partial<LobbyShellViewOptions> = {}): LobbyShellView
     content: section('content'),
     controls: section('controls'),
     onTabChange: vi.fn(),
+    onQuickDuel: vi.fn(),
     onRejoin: vi.fn(),
     ...overrides,
   };
@@ -40,6 +41,9 @@ describe('buildLobbyShellView', () => {
     const masthead = root.querySelector<HTMLElement>('.lobby-deployment__masthead');
     const rail = root.querySelector<HTMLElement>('.lobby-deployment__mode-rail');
     const brief = root.querySelector<HTMLElement>('.lobby-deployment__mission-brief');
+    const quickDuel = root.querySelector<HTMLElement>('.lobby-quick-duel');
+    const quickDuelAction = button(root, 'Quick Duel vs CPU');
+    const tabs = root.querySelector<HTMLElement>('.lobby-tabs');
     const panel = root.querySelector<HTMLElement>('[role="tabpanel"]');
     const preview = root.querySelector<HTMLElement>('[data-section="vehicle-preview"]');
     const controls = root.querySelector<HTMLElement>('[data-section="controls"]');
@@ -49,6 +53,8 @@ describe('buildLobbyShellView', () => {
     expect(masthead?.querySelector('h1')?.textContent).toBe('singedTerra');
     expect(rail?.getAttribute('aria-label')).toBe('Choose deployment mode');
     expect(brief?.querySelector('h2')?.textContent).toBe('Hot Seat');
+    expect(quickDuel?.querySelector('.lobby-quick-duel__action')).toBe(quickDuelAction);
+    expect([...rail!.children]).toEqual([quickDuel, tabs]);
     expect([...deployment!.children]).toEqual([
       masthead,
       rail,
@@ -73,6 +79,7 @@ describe('buildLobbyShellView', () => {
     const deployment = root.querySelector<HTMLElement>('.lobby-deployment');
     const masthead = root.querySelector<HTMLElement>('.lobby-deployment__masthead');
     const rail = root.querySelector<HTMLElement>('.lobby-deployment__mode-rail');
+    const quickDuel = root.querySelector<HTMLElement>('.lobby-quick-duel');
     const tabs = root.querySelector('.lobby-tabs');
     const panel = root.querySelector('[role="tabpanel"]');
     const context = root.querySelector('.lobby-mode-context');
@@ -99,6 +106,7 @@ describe('buildLobbyShellView', () => {
       vehiclePreview,
       controls,
     ]);
+    expect([...rail!.children]).toEqual([quickDuel, tabs]);
     expect([...panel!.children]).toEqual([content]);
     expect(button(root, 'Rejoin your game').type).toBe('button');
   });
@@ -121,6 +129,30 @@ describe('buildLobbyShellView', () => {
     expect(onTabChange.mock.calls).toEqual([['hotseat'], ['online']]);
     expect(onRejoin).toHaveBeenCalledOnce();
     expect(onRejoin).toHaveBeenCalledWith();
+  });
+
+  it('renders one Quick Duel briefing before the mode tablist and activates it once', () => {
+    const onQuickDuel = vi.fn();
+    const root = buildLobbyShellView(options({ onQuickDuel }));
+    const quickDuel = root.querySelector<HTMLElement>('.lobby-quick-duel')!;
+    const quickDuelAction = button(root, 'Quick Duel vs CPU');
+    const rail = root.querySelector<HTMLElement>('.lobby-deployment__mode-rail')!;
+    const tabs = root.querySelector<HTMLElement>('.lobby-tabs')!;
+
+    expect(quickDuel.tagName).toBe('SECTION');
+    expect(quickDuel.querySelector('.lobby-quick-duel__title')?.textContent).toBe('Quick Duel');
+    expect(quickDuel.querySelector('.lobby-quick-duel__description')?.textContent)
+      .toBe('Deploy one player against a medium CPU.');
+    expect(quickDuel.querySelector('.lobby-quick-duel__action')).toBe(quickDuelAction);
+    expect(quickDuel.querySelectorAll('button')).toHaveLength(1);
+    expect([...rail.children]).toEqual([quickDuel, tabs]);
+    expect([...root.querySelectorAll('button')]
+      .filter((candidate) => candidate.textContent === 'Quick Duel vs CPU')).toHaveLength(1);
+
+    quickDuelAction.click();
+
+    expect(onQuickDuel).toHaveBeenCalledOnce();
+    expect(onQuickDuel).toHaveBeenCalledWith();
   });
 
   it('links the selected play mode tab to its setup panel', () => {

@@ -26,6 +26,7 @@ export interface LobbyShellViewOptions {
   content: HTMLElement;
   controls: HTMLElement;
   onTabChange: (tab: LobbyPrimaryTab) => void;
+  onQuickDuel: () => void;
   onRejoin: () => void;
 }
 
@@ -78,6 +79,23 @@ export function buildLobbyShellView(options: LobbyShellViewOptions): HTMLElement
   tabs.className = 'lobby-tabs';
   tabs.setAttribute('role', 'tablist');
   tabs.setAttribute('aria-label', 'Choose play mode');
+  const quickDuel = document.createElement('section');
+  quickDuel.className = 'lobby-quick-duel';
+  const quickDuelBriefing = document.createElement('div');
+  quickDuelBriefing.className = 'lobby-quick-duel__briefing';
+  const quickDuelTitle = document.createElement('h2');
+  quickDuelTitle.className = 'lobby-quick-duel__title';
+  quickDuelTitle.textContent = 'Quick Duel';
+  const quickDuelDescription = document.createElement('p');
+  quickDuelDescription.className = 'lobby-quick-duel__description';
+  quickDuelDescription.textContent = 'Deploy one player against a medium CPU.';
+  quickDuelBriefing.append(quickDuelTitle, quickDuelDescription);
+  const quickDuelAction = document.createElement('button');
+  quickDuelAction.type = 'button';
+  quickDuelAction.className = 'lobby-btn primary lobby-quick-duel__action';
+  quickDuelAction.textContent = 'Quick Duel vs CPU';
+  quickDuelAction.addEventListener('click', () => { options.onQuickDuel(); });
+  quickDuel.append(quickDuelBriefing, quickDuelAction);
   const rail = document.createElement('nav');
   rail.className = 'lobby-deployment__mode-rail';
   rail.setAttribute('aria-label', 'Choose deployment mode');
@@ -125,7 +143,7 @@ export function buildLobbyShellView(options: LobbyShellViewOptions): HTMLElement
   online.addEventListener('keydown', (event) => { handleTabKey(event, 'online'); });
 
   tabs.append(hotSeat, online);
-  rail.append(tabs);
+  rail.append(quickDuel, tabs);
   const context = document.createElement('section');
   context.className = 'lobby-mode-context lobby-deployment__mission-brief';
   const contextTitle = document.createElement('h2');

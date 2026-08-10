@@ -133,4 +133,109 @@ test.describe('Pre-game command shell', () => {
     await expect(hotSeatPrimary).toBeHidden();
   });
 
+  test('shares one contained command row between Quick Duel and the mode tabs', async ({
+    page,
+  }) => {
+    await page.getByRole('tab', { name: 'Play Online', exact: true }).click();
+    await expect(page.locator('#lobby .lobby-deployment__mission-brief'))
+      .toHaveText(/Play Online/);
+    const brief = page.locator('#lobby .lobby-quick-duel');
+    const action = brief.locator('.lobby-quick-duel__action');
+    await expect(brief.getByRole('heading', { name: 'Quick Duel', exact: true })).toBeVisible();
+    await expect(brief.locator('.lobby-quick-duel__description'))
+      .toHaveText('Deploy one player against a medium CPU.');
+    await expect(action).toHaveCount(1);
+    await expect(action).toHaveText('Quick Duel vs CPU');
+    await expect(action).toBeVisible();
+
+    const geometry = await page.locator('#lobby .lobby-deployment').evaluate((deployment) => {
+      const masthead = deployment.querySelector<HTMLElement>('.lobby-deployment__masthead');
+      const brief = deployment.querySelector<HTMLElement>('.lobby-quick-duel');
+      const action = deployment.querySelector<HTMLElement>('.lobby-quick-duel__action');
+      const rail = deployment.querySelector<HTMLElement>('.lobby-deployment__mode-rail');
+      const tabs = deployment.querySelector<HTMLElement>('.lobby-tabs');
+      const card = deployment.closest<HTMLElement>('.lobby-card');
+      const app = document.getElementById('app');
+      if (!masthead || !brief || !action || !rail || !tabs || !card || !app) {
+        throw new Error('Expected Quick Duel deployment grid');
+      }
+      const zoom = Number.parseFloat(getComputedStyle(app).zoom) || 1;
+      const actionRect = action.getBoundingClientRect();
+      const briefRect = brief.getBoundingClientRect();
+      const railRect = rail.getBoundingClientRect();
+      const tabsRect = tabs.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      return {
+        railArea: getComputedStyle(rail).gridArea,
+        briefCssHeight: briefRect.height / zoom,
+        actionRadius: getComputedStyle(action).borderRadius,
+        actionCssHeight: actionRect.height / zoom,
+        actionMinHeight: Number.parseFloat(getComputedStyle(action).minHeight),
+        mastheadBottom: masthead.getBoundingClientRect().bottom,
+        railRect: {
+          top: railRect.top,
+          bottom: railRect.bottom,
+        },
+        briefRect: {
+          top: briefRect.top,
+          right: briefRect.right,
+          bottom: briefRect.bottom,
+        },
+        tabsRect: {
+          left: tabsRect.left,
+          top: tabsRect.top,
+          bottom: tabsRect.bottom,
+        },
+        cardScrollTop: card.scrollTop,
+        actionRect: {
+          left: actionRect.left,
+          top: actionRect.top,
+          right: actionRect.right,
+          bottom: actionRect.bottom,
+        },
+        cardRect: {
+          left: cardRect.left,
+          top: cardRect.top,
+          right: cardRect.right,
+          bottom: cardRect.bottom,
+        },
+      };
+    });
+
+    expect(geometry.railArea).toBe('rail');
+    expect(Math.round(geometry.briefCssHeight)).toBe(46);
+    expect(geometry.actionRadius).toBe('0px');
+    expect(geometry.actionMinHeight).toBeGreaterThanOrEqual(46);
+    expect(Math.round(geometry.actionCssHeight)).toBeGreaterThanOrEqual(46);
+    expect(geometry.mastheadBottom).toBeLessThanOrEqual(geometry.railRect.top + 1);
+    expect(geometry.briefRect.top).toBeGreaterThanOrEqual(geometry.railRect.top - 1);
+    expect(geometry.briefRect.bottom).toBeLessThanOrEqual(geometry.railRect.bottom + 1);
+    expect(geometry.briefRect.right).toBeLessThanOrEqual(geometry.tabsRect.left + 1);
+    expect(geometry.briefRect.top).toBeLessThan(geometry.tabsRect.bottom);
+    expect(geometry.briefRect.bottom).toBeGreaterThan(geometry.tabsRect.top);
+    expect(geometry.cardScrollTop).toBe(0);
+    expect(geometry.actionRect.left).toBeGreaterThanOrEqual(geometry.cardRect.left - 1);
+    expect(geometry.actionRect.top).toBeGreaterThanOrEqual(geometry.cardRect.top - 1);
+    expect(geometry.actionRect.right).toBeLessThanOrEqual(geometry.cardRect.right + 1);
+    expect(geometry.actionRect.bottom).toBeLessThanOrEqual(geometry.cardRect.bottom + 1);
+    await assertLobbyFrame(page);
+    await assertLobbyControlReachable(page, '#lobby .lobby-quick-duel__action');
+  });
+
+  test('launches the ordinary CPU duel journey into a running HUD', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Play Online', exact: true }).click();
+    await expect(page.locator('#lobby .lobby-deployment__mission-brief'))
+      .toHaveText(/Play Online/);
+    const brief = page.locator('#lobby .lobby-quick-duel');
+    const action = brief.getByRole('button', { name: 'Quick Duel vs CPU', exact: true });
+    await expect(brief).toBeVisible();
+    await expect(action).toBeVisible();
+    await action.click();
+
+    await expect(page.locator('#lobby')).toBeHidden();
+    await expect(page.locator('#hud.st-hud')).toBeVisible();
+    await expect(page.locator('#hud .st-hud__name').filter({ hasText: 'CPU 1' }))
+      .toHaveText('🤖 CPU 1');
+  });
+
 });
