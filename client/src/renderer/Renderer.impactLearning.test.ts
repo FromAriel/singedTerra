@@ -156,6 +156,34 @@ describe('Renderer impact learning wiring', () => {
     expect(remote.bursts[0]?.cue ?? null).toBeNull();
   });
 
+  it('keeps each explosion cue attached through strongest-burst monitor selection', () => {
+    const renderer = rendererHarness();
+    renderer.impactLearningShot = { shooterId: 'shooter', local: true };
+    const near = explosion();
+    const strong: ExplosionEvent = {
+      ...explosion(),
+      id: 2,
+      cx: 854,
+      radius: 70,
+    };
+    const state = impactState(strong);
+    state.explosions = [near, strong];
+
+    renderer.consumeExplosion(state);
+    expect(renderer.bursts).toHaveLength(2);
+    expect(renderer.bursts[0]?.cue).toEqual(cue);
+    expect(renderer.bursts[1]?.cue).toEqual({
+      readout: '54 PX RIGHT OF CPU 1',
+      correction: 'SHIFT IMPACT LEFT',
+    });
+
+    renderer.drawImpactMonitor({ x: 0, y: 0 });
+    expect(renderer.impactMonitor.draw.mock.calls[0]?.[3]).toEqual({
+      readout: '54 PX RIGHT OF CPU 1',
+      correction: 'SHIFT IMPACT LEFT',
+    });
+  });
+
   it('forwards the selected burst cue into the compact monitor painter', () => {
     const renderer = rendererHarness();
     renderer.bursts.push({

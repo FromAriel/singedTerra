@@ -162,6 +162,103 @@ describe('deriveImpactLearningCue', () => {
     });
   });
 
+  it('preserves the opposite correction direction across wrapped sidewalls', () => {
+    expect(deriveImpactLearningCue({
+      impactX: 20,
+      impactType: 'ground',
+      shooterId: 'shooter',
+      localShot: true,
+      walls: 'wrap',
+      tanks: [tanks[0], { ...tanks[1], x: 1180 }],
+    })).toEqual({
+      readout: '40 PX RIGHT OF CPU 1',
+      correction: 'SHIFT IMPACT LEFT',
+    });
+  });
+
+  it('rounds fractional miss distances to the nearest logical pixel', () => {
+    expect(deriveImpactLearningCue({
+      impactX: 716.4,
+      impactType: 'ground',
+      shooterId: 'shooter',
+      localShot: true,
+      walls: 'open',
+      tanks,
+    })).toEqual({
+      readout: '84 PX LEFT OF CPU 1',
+      correction: 'SHIFT IMPACT RIGHT',
+    });
+  });
+
+  it.each([
+    { label: 'left edge', impactX: 790, impactY: 394 },
+    { label: 'right edge', impactX: 810, impactY: 394 },
+    { label: 'top edge', impactX: 800, impactY: 388 },
+    { label: 'bottom edge', impactX: 800, impactY: 400 },
+  ])('includes the collision box $label in direct-hit attribution', ({ impactX, impactY }) => {
+    expect(deriveImpactLearningCue({
+      impactX,
+      impactY,
+      impactType: 'tank',
+      shooterId: 'shooter',
+      localShot: true,
+      walls: 'open',
+      tanks,
+    })).toEqual({
+      readout: 'DIRECT HIT: CPU 1',
+      correction: 'HOLD COURSE',
+    });
+  });
+
+  it.each([
+    { label: 'left edge', impactX: 789.999, impactY: 394 },
+    { label: 'right edge', impactX: 810.001, impactY: 394 },
+    { label: 'top edge', impactX: 800, impactY: 387.999 },
+    { label: 'bottom edge', impactX: 800, impactY: 400.001 },
+  ])('rejects a direct hit immediately outside the collision box $label', ({ impactX, impactY }) => {
+    expect(deriveImpactLearningCue({
+      impactX,
+      impactY,
+      impactType: 'tank',
+      shooterId: 'shooter',
+      localShot: true,
+      walls: 'open',
+      tanks,
+    })).toBeNull();
+  });
+
+  it('attributes a direct hit from team 1 to the opposing team 2 tank', () => {
+    expect(deriveImpactLearningCue({
+      impactX: 800,
+      impactY: 394,
+      impactType: 'tank',
+      shooterId: 'shooter',
+      localShot: true,
+      walls: 'open',
+      tanks: [
+        { ...tanks[0], team: 1 },
+        { ...tanks[1], team: 2 },
+      ],
+    })).toEqual({
+      readout: 'DIRECT HIT: CPU 1',
+      correction: 'HOLD COURSE',
+    });
+  });
+
+  it.each([
+    { playerName: '  Rival  ', expectedName: 'Rival' },
+    { playerName: '   ', expectedName: 'OPPONENT' },
+  ])('normalizes the target label to $expectedName', ({ playerName, expectedName }) => {
+    expect(deriveImpactLearningCue({
+      impactX: 716,
+      impactType: 'ground',
+      shooterId: 'shooter',
+      localShot: true,
+      walls: 'open',
+      tanks: [tanks[0], { ...tanks[1], playerName }],
+    })?.readout).toBe(`84 PX LEFT OF ${expectedName}`);
+  });
+
   it('targets the nearest opponent and excludes the shooter team', () => {
     expect(deriveImpactLearningCue({
       impactX: 610,
