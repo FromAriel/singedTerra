@@ -57,7 +57,75 @@ describe('Lobby account composition', () => {
     expect(password.value).toBe('')
   })
 
-  it('re-renders authenticated state, signs out, and preserves ordinary lobby controls', () => {
+  it('opens account access above the lobby and restores the masthead trigger on close', async () => {
+    const root = document.createElement('div')
+    let account!: FakeAccountSession
+    const lobby = new Lobby(root, vi.fn(), (onChange) => {
+      account = new FakeAccountSession(onChange)
+      return account
+    })
+    document.body.append(root)
+    lobby.show()
+
+    const trigger = button(root, 'Account')
+    trigger.click()
+    await Promise.resolve()
+
+    const overlay = root.querySelector<HTMLElement>('.lobby-overlay')
+    const dialog = overlay?.querySelector<HTMLElement>('[role="dialog"]')
+    expect(overlay?.parentElement).toBe(root)
+    expect(dialog?.getAttribute('aria-label')).toBe('Player account')
+    expect(root.querySelector('.lobby-deployment__masthead .account-panel--open')).toBeNull()
+    expect(document.activeElement).toBe(overlay?.querySelector('.lobby-overlay__close'))
+
+    overlay?.querySelector<HTMLButtonElement>('.lobby-overlay__close')?.click()
+    expect(document.activeElement).toBe(button(root, 'Account'))
+    expect(account.initialize).toHaveBeenCalledOnce()
+    root.remove()
+  })
+
+  it('keeps focus inside account access when switching credential modes', () => {
+    const root = document.createElement('div')
+    const lobby = new Lobby(root, vi.fn(), (onChange) => new FakeAccountSession(onChange))
+    document.body.append(root)
+    lobby.show()
+
+    button(root, 'Account').click()
+    button(root, 'Create account').click()
+    expect(document.activeElement).toBe(root.querySelector('input[name="displayName"]'))
+
+    button(root, 'Sign in').click()
+    expect(document.activeElement).toBe(root.querySelector('input[type="email"]'))
+    root.remove()
+  })
+
+  it('keeps focus inside account access after a session-state render', () => {
+    const root = document.createElement('div')
+    let account!: FakeAccountSession
+    const lobby = new Lobby(root, vi.fn(), (onChange) => {
+      account = new FakeAccountSession(onChange)
+      return account
+    })
+    document.body.append(root)
+    lobby.show()
+
+    button(root, 'Account').click()
+    account.emit({ status: 'anonymous', busy: true, error: '' })
+
+    expect(document.activeElement).toBe(root.querySelector('input[type="email"]'))
+    account.emit({
+      status: 'authenticated',
+      busy: false,
+      error: '',
+      profile: { id: 'user-1', displayName: 'Ranger', summary: null },
+    })
+    expect(document.activeElement).toBe(button(root, 'Sign out'))
+    button(root, 'Close').click()
+    expect(root.querySelector<HTMLElement>('.lobby-card')?.hasAttribute('inert')).toBe(false)
+    root.remove()
+  })
+
+  it('re-renders authenticated state, signs out, and preserves ordinary lobby controls', async () => {
     const root = document.createElement('div')
     let account!: FakeAccountSession
     const lobby = new Lobby(root, vi.fn(), (onChange) => {
@@ -79,9 +147,10 @@ describe('Lobby account composition', () => {
     expect(button(root, 'Hot Seat')).toBeTruthy()
     expect(button(root, 'Play Online')).toBeTruthy()
     accountTrigger.click()
+    await Promise.resolve()
     const openTrigger = button(root, 'Commander Ranger')
     expect(openTrigger.getAttribute('aria-expanded')).toBe('true')
-    expect(document.activeElement).toBe(openTrigger)
+    expect(document.activeElement).toBe(root.querySelector('.lobby-overlay__close'))
     button(root, 'Close').click()
     const restoredTrigger = button(root, 'Commander Ranger')
     expect(restoredTrigger.getAttribute('aria-expanded')).toBe('false')

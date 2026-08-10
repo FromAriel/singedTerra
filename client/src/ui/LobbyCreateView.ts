@@ -12,7 +12,7 @@ export interface LobbyCreateViewOptions {
   busy: boolean;
   nameColor: HTMLElement;
   garage: HTMLElement;
-  advancedFields: readonly HTMLElement[];
+  advanced: HTMLElement;
   status: HTMLElement;
   onPlayerCountChange: (count: number) => void;
   onBotCountChange: (count: number) => void;
@@ -103,11 +103,6 @@ export function buildLobbyCreateView(options: LobbyCreateViewOptions): HTMLEleme
     options.onVisibilityChange(visibilitySelect.value as 'public' | 'private');
   });
   visibilityField.append(visibilityLabel, visibilitySelect);
-  const advanced = document.createElement('details');
-  advanced.className = 'lobby-advanced';
-  const summary = document.createElement('summary');
-  summary.textContent = 'Advanced settings';
-  advanced.append(summary, ...options.advancedFields);
   setup.append(
     buildLobbyPreparationSection({
       id: 'command-vehicle',
@@ -122,7 +117,7 @@ export function buildLobbyCreateView(options: LobbyCreateViewOptions): HTMLEleme
     buildLobbyPreparationSection({
       id: 'battlefield-protocol',
       title: 'Battlefield protocol',
-      children: [advanced, options.status],
+      children: [options.advanced, options.status],
     }),
   );
 

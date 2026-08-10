@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AccountState, AccountSummary } from '../client/AccountSession'
-import { buildAccountPanelView, type AccountPanelViewOptions } from './AccountPanelView'
+import {
+  buildAccountPanelOverlayContent,
+  buildAccountPanelView,
+  type AccountPanelViewOptions,
+} from './AccountPanelView'
 
 const validSummary: AccountSummary = {
   matchesPlayed: 8,
@@ -67,7 +71,7 @@ describe('buildAccountPanelView', () => {
 
   it('renders labelled sign-in controls with safe autocomplete and clears the password on submit', () => {
     const onSubmit = vi.fn()
-    const root = buildAccountPanelView(options({ open: true, onSubmit }))
+    const root = buildAccountPanelOverlayContent(options({ open: true, onSubmit }))
     if (!root) throw new Error('Expected account panel')
     const form = root.querySelector('form')
     const email = root.querySelector<HTMLInputElement>('input[type="email"]')
@@ -88,9 +92,23 @@ describe('buildAccountPanelView', () => {
     expect(password.value).toBe('')
   })
 
+  it('keeps overlay content free of the masthead trigger and duplicate close action', () => {
+    const state: AccountState = {
+      status: 'authenticated',
+      busy: false,
+      error: '',
+      profile: { id: 'user-1', displayName: 'Ranger', summary: validSummary },
+    }
+    const root = buildAccountPanelOverlayContent(options({ open: true, state }))
+    if (!root) throw new Error('Expected account panel')
+
+    expect(root.querySelector('.account-panel__account-trigger')).toBeNull()
+    expect([...root.querySelectorAll('button')].filter((candidate) => candidate.textContent === 'Close')).toHaveLength(0)
+  })
+
   it('renders create-account display name and routes mode changes', () => {
     const onModeChange = vi.fn()
-    const root = buildAccountPanelView(options({
+    const root = buildAccountPanelOverlayContent(options({
       open: true,
       mode: 'create',
       onModeChange,
@@ -112,7 +130,7 @@ describe('buildAccountPanelView', () => {
       busy: true,
       error: '<img src=x onerror=alert(1)>',
     }
-    const root = buildAccountPanelView(options({ open: true, state }))
+    const root = buildAccountPanelOverlayContent(options({ open: true, state }))
     if (!root) throw new Error('Expected account panel')
 
     expect(button(root, 'Working…').disabled).toBe(true)
@@ -150,7 +168,7 @@ describe('buildAccountPanelView', () => {
     expect(onOpen).toHaveBeenCalledOnce()
   })
 
-  it('renders semantic XP progress and exact remaining XP while preserving authenticated controls', () => {
+  it('renders semantic XP progress and exact remaining XP while preserving authenticated sign-out', () => {
     const onSignOut = vi.fn()
     const state: AccountState = {
       status: 'authenticated',
@@ -162,13 +180,12 @@ describe('buildAccountPanelView', () => {
         summary: validSummary,
       },
     }
-    const onClose = vi.fn()
-    const root = buildAccountPanelView(options({ state, onSignOut, onClose, open: true }))
+    const root = buildAccountPanelOverlayContent(options({ state, onSignOut, open: true }))
     if (!root) throw new Error('Expected authenticated account panel')
 
     expect(root.classList.contains('account-panel--authenticated')).toBe(true)
     expect(root.classList.contains('account-panel--open')).toBe(true)
-    expect(button(root, 'Commander Ranger - Level 3').getAttribute('aria-expanded')).toBe('true')
+    expect(root.querySelector('.account-panel__account-trigger')).toBeNull()
     expect(root.querySelector('dl.account-panel__progress')).not.toBeNull()
     expect(progressPairs(root)).toEqual([
       ['Matches', '8'],
@@ -184,8 +201,6 @@ describe('buildAccountPanelView', () => {
     expect(meter?.max).toBe(500)
     expect(meter?.getAttribute('aria-label')).toBe('Level 3 XP progress')
     expect(root.querySelector('form')).toBeNull()
-    button(root, 'Close').click()
-    expect(onClose).toHaveBeenCalledOnce()
     button(root, 'Sign out').click()
     expect(onSignOut).toHaveBeenCalledOnce()
   })
@@ -214,7 +229,7 @@ describe('buildAccountPanelView', () => {
       error: '',
       profile: { id: 'user-1', displayName: 'Ranger', summary },
     }
-    const root = buildAccountPanelView(options({ state, open: true }))
+    const root = buildAccountPanelOverlayContent(options({ state, open: true }))
     if (!root) throw new Error('Expected authenticated account panel')
 
     const meter = root.querySelector<HTMLProgressElement>('.account-panel__xp progress')
@@ -234,8 +249,8 @@ describe('buildAccountPanelView', () => {
         summary: validSummary,
       },
     }
-    const first = buildAccountPanelView(options({ state, open: true }))
-    const second = buildAccountPanelView(options({
+    const first = buildAccountPanelOverlayContent(options({ state, open: true }))
+    const second = buildAccountPanelOverlayContent(options({
       state: {
         ...state,
         profile: {
@@ -273,7 +288,7 @@ describe('buildAccountPanelView', () => {
       error: '',
       profile: { id: 'user-1', displayName: 'Ranger', summary: null },
     }
-    const root = buildAccountPanelView(options({ state, onSignOut, open: true }))
+    const root = buildAccountPanelOverlayContent(options({ state, onSignOut, open: true }))
     if (!root) throw new Error('Expected authenticated account panel')
 
     expect(root.querySelector('.account-panel__summary-unavailable')?.textContent)

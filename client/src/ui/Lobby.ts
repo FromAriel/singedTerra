@@ -19,7 +19,8 @@ import { buildLobbyCreateView } from './LobbyCreateView';
 import { buildLobbyJoinView } from './LobbyJoinView';
 import { buildLobbyOnlineView, buildLobbyShellView } from './LobbyShellView';
 import { buildLobbyWaitingView } from './LobbyWaitingView';
-import { buildAccountPanelView } from './AccountPanelView';
+import { buildAccountPanelOverlayContent, buildAccountPanelView } from './AccountPanelView';
+import { buildLobbyOverlayView } from './LobbyOverlayView';
 import { buildRoomInviteUrl, readRoomInviteCode } from './roomInvite';
 import {
   LobbyTransport,
@@ -264,7 +265,7 @@ export class Lobby {
   /** Raw working state for the advanced-settings inputs (blank = use default). */
   private settings: SettingsState = { maxWind: '', gravity: '', walls: '', battlefieldWorld: '', hazards: '', seed: '', rounds: '', interestRate: '', suddenDeathTurn: '', armsLevel: '', teamMode: '' };
 
-  /** Whether the advanced-settings <details> is open (persist across renders). */
+  /** Whether the Operations Settings overlay is open (persist across renders). */
   private settingsOpen = false;
 
   // ---- Tab / online sub-view state ----
@@ -338,13 +339,26 @@ export class Lobby {
     this.onReady = onReady;
     this.players = [defaultRow(0), defaultRow(1)];
     this.session = new LobbySession(this.transport, (event) => this.handleSessionEvent(event));
-    this.accountSession = createAccountSession(() => { this.render(); });
+    this.accountSession = createAccountSession(() => { this.renderForAccountChange(); });
     const inviteCode = readRoomInviteCode(window.location.href);
     if (inviteCode) {
       this.activeTab = 'online';
       this.onlineSubView = 'join';
       this.joinCode = inviteCode;
     }
+  }
+
+  private renderForAccountChange(): void {
+    const restoreFocus = this.accountPanelOpen;
+    this.render();
+    if (restoreFocus) this.focusAccountOverlay();
+  }
+
+  private focusAccountOverlay(): void {
+    const overlay = this.root.querySelector<HTMLElement>('.lobby-overlay');
+    (overlay?.querySelector<HTMLElement>('.account-panel__form input')
+      ?? overlay?.querySelector<HTMLElement>('.account-panel button')
+      ?? overlay?.querySelector<HTMLElement>('.lobby-overlay__close'))?.focus();
   }
 
   private handleSessionEvent(event: LobbySessionEvent): void {
@@ -1410,11 +1424,79 @@ export class Lobby {
       #lobby .account-panel__field { display: grid; gap: 4px; font-size: 11px; color: var(--text-dim); }
       #lobby .account-panel__field input { box-sizing: border-box; width: 100%; padding: 7px 9px; }
       #lobby .account-panel__error { color: #ff9c9c; font-size: 11px; line-height: 1.35; }
+      #lobby .lobby-overlay {
+        position: fixed; inset: 0; z-index: 40; pointer-events: auto;
+      }
+      #lobby .lobby-overlay__backdrop {
+        position: fixed; inset: 0; width: 100%; height: 100%; padding: 0;
+        border: 0; background: rgba(2, 4, 6, 0.76); cursor: default;
+      }
+      #lobby .lobby-overlay__surface {
+        position: fixed; z-index: 1; top: 50%; left: 50%;
+        width: min(760px, calc(100vw - 48px)); max-height: min(760px, calc(100vh - 48px));
+        box-sizing: border-box; overflow: auto; transform: translate(-50%, -50%);
+        border: 1px solid rgba(255, 188, 80, 0.78); border-left: 4px solid #ffbc50;
+        border-radius: 0; background:
+          repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 5px),
+          linear-gradient(145deg, rgba(18, 14, 9, 0.99), rgba(4, 7, 9, 0.99));
+        box-shadow: 16px 18px 0 rgba(0, 0, 0, 0.33), 0 24px 70px rgba(0, 0, 0, 0.70);
+      }
+      #lobby .lobby-overlay__header {
+        display: flex; align-items: start; justify-content: space-between; gap: 16px;
+        padding: 18px 20px 14px; border-bottom: 1px solid rgba(229, 161, 65, 0.36);
+      }
+      #lobby .lobby-overlay__kicker {
+        display: block; color: rgba(255, 224, 159, 0.72);
+        font: 700 10px/1 var(--font-mono); letter-spacing: 2px;
+      }
+      #lobby .lobby-overlay__title { margin: 7px 0 0; color: #ffe0a0; font-size: 24px; }
+      #lobby .lobby-overlay__close,
+      #lobby .lobby-advanced-trigger {
+        min-height: 36px; border: 1px solid rgba(255, 188, 80, 0.65); border-radius: 0;
+        background: rgba(7, 10, 12, 0.86); color: #ffe0a0; cursor: pointer;
+      }
+      #lobby .lobby-overlay__close { padding: 6px 12px; }
+      #lobby .lobby-overlay__body { padding: 18px 20px 22px; }
+      #lobby .lobby-overlay .account-panel {
+        position: static; width: auto; max-width: none; margin: 0; color: var(--text);
+      }
+      #lobby .lobby-overlay .account-panel--open {
+        width: auto; padding: 0; border: 0; background: transparent; box-shadow: none;
+      }
+      #lobby .lobby-overlay .account-panel--authenticated.account-panel--open {
+        width: auto; display: grid; grid-template-columns: minmax(0, 1fr);
+      }
+      #lobby .lobby-overlay .account-panel--authenticated > .account-panel__secondary:not(.account-panel__close) {
+        grid-column: 1 / -1; grid-row: auto; justify-self: end;
+      }
+      #lobby .lobby-advanced-fields { display: grid; gap: 8px; }
+      #lobby .lobby-overlay .lobby-advanced-fields .lobby-field {
+        display: grid; grid-template-columns: minmax(128px, 0.65fr) minmax(210px, 1fr) minmax(200px, 1.6fr);
+        align-items: center; gap: 8px 14px; margin: 0;
+      }
+      #lobby .lobby-overlay .lobby-advanced-fields .lobby-field > label { width: auto; margin: 0; }
+      #lobby .lobby-overlay .lobby-advanced-fields input[type="number"],
+      #lobby .lobby-overlay .lobby-advanced-fields select {
+        box-sizing: border-box; width: 100%; min-height: 38px; margin: 0; padding: 7px 10px;
+        border-radius: 0; font-family: var(--font-mono);
+      }
+      #lobby .lobby-overlay .lobby-advanced-fields .lobby-hint {
+        margin: 0; color: rgba(225, 214, 191, 0.68); font-size: 12px; line-height: 1.35;
+      }
       @media (max-width: 700px) {
         #lobby .account-panel { top: 10px; right: 10px; }
         #lobby .account-panel--open { width: calc(100% - 20px); box-sizing: border-box; }
         #lobby .account-panel--authenticated.account-panel--open { width: calc(100% - 20px); }
         #lobby .account-panel__account-trigger { max-width: calc(100vw - 20px); }
+        #lobby .lobby-overlay__surface {
+          width: calc(100vw - 24px); max-height: calc(100vh - 24px);
+        }
+        #lobby .lobby-overlay__header { padding: 12px 14px 10px; }
+        #lobby .lobby-overlay__title { font-size: 18px; }
+        #lobby .lobby-overlay__body { padding: 13px 14px 16px; }
+        #lobby .lobby-overlay .lobby-advanced-fields .lobby-field {
+          grid-template-columns: minmax(0, 1fr); gap: 4px;
+        }
       }
 
       /* Command preparation system: pre-game surfaces inherit the same
@@ -1801,19 +1883,50 @@ export class Lobby {
       #lobby .lobby-preparation-section .lobby-field { margin: 0; }
       #lobby .lobby-route-brief--online .lobby-route-brief__setup {
         display: grid;
-        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-        column-gap: 8px;
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 5px;
         align-items: start;
       }
       #lobby .lobby-route-brief--online .lobby-preparation-section[data-preparation-section="command-vehicle"] {
-        grid-column: 1;
+        grid-column: 1 / -1;
       }
       #lobby .lobby-route-brief--online .lobby-preparation-section[data-preparation-section="operation-profile"] {
-        grid-column: 2;
+        grid-column: 1 / -1;
       }
       #lobby .lobby-route-brief--online .lobby-preparation-section[data-preparation-section="battlefield-protocol"],
       #lobby .lobby-route-brief--online .lobby-error {
         grid-column: 1 / -1;
+      }
+      @media (min-width: 701px) {
+        #lobby .lobby-advanced-trigger {
+          min-height: 0; height: 32px; padding: 0 10px; line-height: 1;
+        }
+        #lobby .lobby-route-brief--online .lobby-preparation-section[data-preparation-section="command-vehicle"] .lobby-name {
+          flex: 1 1 140px; min-width: 0; width: auto;
+        }
+        #lobby .lobby-route-brief--online .lobby-garage {
+          grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; padding: 3px;
+        }
+        #lobby .lobby-route-brief--online .lobby-garage__heading { display: none; }
+        #lobby .lobby-route-brief--online .lobby-garage__presets,
+        #lobby .lobby-route-brief--online .lobby-garage__slots { display: contents; }
+        #lobby .lobby-route-brief--online .lobby-garage button {
+          min-height: 24px; padding: 2px; font-size: 0; text-align: center;
+        }
+        #lobby .lobby-route-brief--online .lobby-garage button::after {
+          content: attr(data-short); font-size: 9px; font-weight: 700;
+        }
+        #lobby .lobby-route-brief--online .lobby-garage__slot > * { display: none; }
+        #lobby .lobby-route-brief--online .lobby-preparation-section[data-preparation-section="operation-profile"] .lobby-preparation-section__body {
+          grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; row-gap: 4px;
+        }
+        #lobby .lobby-route-brief--online .lobby-preparation-section[data-preparation-section="operation-profile"] .lobby-field {
+          min-width: 0;
+        }
+        #lobby .lobby-route-brief--online .lobby-preparation-section[data-preparation-section="operation-profile"] .lobby-field > select {
+          flex: 1; min-width: 0;
+        }
+        #lobby .lobby-route-brief--online .online-status:empty { display: none; }
       }
       #app.is-compact #lobby .lobby-route-brief {
         padding-left: 5px;
@@ -2020,32 +2133,36 @@ export class Lobby {
       content = buildLobbyOnlineView(onlineContent);
     }
 
+    const accountOptions = (open: boolean, triggerOnly = false) => ({
+      state: this.accountSession.state,
+      open,
+      triggerOnly,
+      mode: this.accountMode,
+      onOpen: () => {
+        this.settingsOpen = false;
+        this.accountPanelOpen = true;
+        this.render();
+      },
+      onClose: () => {
+        this.accountPanelOpen = false;
+        this.render();
+        this.root.querySelector<HTMLButtonElement>('.account-panel button')?.focus();
+      },
+      onModeChange: (mode: AccountMode) => {
+        this.accountMode = mode;
+        this.render();
+        this.focusAccountOverlay();
+      },
+      onSubmit: (mode: AccountMode, credentials: AccountCredentials) => {
+        void this.accountSession.submit(mode, credentials);
+      },
+      onSignOut: () => { void this.accountSession.signOut(); },
+    });
+
     const card = buildLobbyShellView({
       activeTab: this.activeTab,
       rejoinAvailable: this.rejoinCandidate !== null,
-      account: buildAccountPanelView({
-        state: this.accountSession.state,
-        open: this.accountPanelOpen,
-        mode: this.accountMode,
-        onOpen: () => {
-          this.accountPanelOpen = true;
-          this.render();
-          this.root.querySelector<HTMLButtonElement>('.account-panel__account-trigger')?.focus();
-        },
-        onClose: () => {
-          this.accountPanelOpen = false;
-          this.render();
-          this.root.querySelector<HTMLButtonElement>('.account-panel__account-trigger')?.focus();
-        },
-        onModeChange: (mode) => {
-          this.accountMode = mode;
-          this.render();
-        },
-        onSubmit: (mode, credentials) => {
-          void this.accountSession.submit(mode, credentials);
-        },
-        onSignOut: () => { void this.accountSession.signOut(); },
-      }),
+      account: buildAccountPanelView(accountOptions(this.accountPanelOpen, true)),
       vehiclePreview,
       content,
       controls: this.renderControlsLegend(),
@@ -2057,6 +2174,32 @@ export class Lobby {
     });
 
     this.root.append(card);
+    if (this.accountPanelOpen) {
+      const accountContent = buildAccountPanelOverlayContent(accountOptions(true));
+      if (accountContent) {
+        this.root.append(buildLobbyOverlayView({
+          label: 'Player account',
+          kicker: 'PLAYER RECORD',
+          body: accountContent,
+          onClose: accountOptions(true).onClose,
+        }));
+      }
+    }
+    if (this.settingsOpen) {
+      const advanced = this.renderAdvancedOverlay();
+      if (advanced) {
+        this.root.append(buildLobbyOverlayView({
+          label: 'Operations Settings',
+          kicker: 'BATTLEFIELD PROTOCOL',
+          body: advanced,
+          onClose: () => {
+            this.settingsOpen = false;
+            this.render();
+            this.root.querySelector<HTMLButtonElement>('.lobby-advanced-trigger')?.focus();
+          },
+        }));
+      }
+    }
     const activeGarage = this.root.querySelector<HTMLElement>(
       '.lobby-garage.editing',
     );
@@ -2561,76 +2704,7 @@ export class Lobby {
           this.render();
         },
       ),
-      advancedFields: [
-        this.onlineNumberField('Wind cap', this.onlineMaxWind, (value) => { this.onlineMaxWind = value; }, {
-          min: WIND_MIN, max: WIND_MAX, step: 1, placeholder: String(WIND_DEFAULT),
-          hint: `${WIND_MIN}–${WIND_MAX}`,
-        }),
-        this.onlineNumberField('Gravity', this.onlineGravity, (value) => { this.onlineGravity = value; }, {
-          min: GRAVITY_MIN, max: GRAVITY_MAX, step: GRAVITY_STEP, placeholder: String(GRAVITY_DEFAULT),
-          hint: `${GRAVITY_MIN}–${GRAVITY_MAX}`,
-        }),
-        this.onlineChoiceField(
-          'Side walls',
-          this.onlineWalls,
-          (value) => { this.onlineWalls = value; },
-          [
-            { value: '', label: 'Open — shots exit' },
-            { value: 'reflective', label: 'Reflective — bank shots' },
-            { value: 'wrap', label: 'Wrap — cross the arena' },
-            { value: 'concrete', label: 'Concrete — impact at edge' },
-          ],
-          'shots exit, rebound, or cross through paired arena edges',
-        ),
-        this.onlineChoiceField(
-          'Battlefield',
-          this.onlineBattlefieldWorld,
-          (value) => { this.onlineBattlefieldWorld = value; },
-          [
-            { value: '', label: 'Automatic — terrain decides' },
-            { value: 'ember-dusk', label: 'Ember Dusk — post-apocalypse' },
-            { value: 'obsidian-caldera', label: 'Obsidian Caldera — volcanic night' },
-            { value: 'glassstorm-expanse', label: 'Glassstorm Expanse — ice' },
-          ],
-          'visual world only; terrain and physics stay unchanged',
-        ),
-        this.onlineChoiceField(
-          'Terrain hazards',
-          this.onlineHazards,
-          (value) => { this.onlineHazards = value; },
-          [
-            { value: '', label: 'None — classic terrain' },
-            { value: 'lava', label: 'Lava — lethal pools' },
-          ],
-          'deterministic lava pools are solid to shells but lethal to tanks',
-        ),
-        this.onlineChoiceField(
-          'Teams',
-          this.onlineTeamMode ? '2v2' : '',
-          (value) => { this.onlineTeamMode = value === '2v2'; },
-          [
-            { value: '', label: 'Free-for-all' },
-            { value: '2v2', label: '2v2 — alternating seats' },
-          ],
-          'four seats only; teammates cannot damage each other',
-        ),
-        this.onlineNumberField('Rounds', this.onlineRounds, (value) => { this.onlineRounds = value; }, {
-          min: ROUNDS_MIN, max: ROUNDS_MAX, step: 2, placeholder: String(ROUNDS_DEFAULT),
-          hint: 'best-of-N, odd',
-        }),
-        this.onlineNumberField('Interest', this.onlineInterestRate, (value) => { this.onlineInterestRate = value; }, {
-          min: INTEREST_MIN, max: INTEREST_MAX, step: INTEREST_STEP, placeholder: String(INTEREST_DEFAULT),
-          hint: 'per-round credit interest (0–0.5)',
-        }),
-        this.onlineNumberField('Sudden death', this.onlineSuddenDeath, (value) => { this.onlineSuddenDeath = value; }, {
-          min: SUDDEN_DEATH_MIN, max: SUDDEN_DEATH_MAX, step: 1, placeholder: String(SUDDEN_DEATH_DEFAULT),
-          hint: 'gravity ramps past this turn (0 = off)',
-        }),
-        this.onlineNumberField('Arms level', this.onlineArmsLevel, (value) => { this.onlineArmsLevel = value; }, {
-          min: ARMS_MIN, max: ARMS_MAX, step: 1, placeholder: String(ARMS_DEFAULT),
-          hint: '0 = basic … 4 = full arsenal',
-        }),
-      ],
+      advanced: this.renderAdvanced(),
       status: this.renderOnlineStatus(),
       onPlayerCountChange: (count) => {
         this.onlineMaxPlayers = count;
@@ -2648,6 +2722,54 @@ export class Lobby {
       },
       onBrowse: () => { this.enterBrowse(); },
     });
+  }
+
+  private renderOnlineAdvancedFields(): HTMLElement {
+    const fields = document.createElement('div');
+    fields.className = 'lobby-advanced-fields';
+    fields.append(
+      this.onlineNumberField('Wind cap', this.onlineMaxWind, (value) => { this.onlineMaxWind = value; }, {
+        min: WIND_MIN, max: WIND_MAX, step: 1, placeholder: String(WIND_DEFAULT),
+        hint: `${WIND_MIN}–${WIND_MAX}`,
+      }),
+      this.onlineNumberField('Gravity', this.onlineGravity, (value) => { this.onlineGravity = value; }, {
+        min: GRAVITY_MIN, max: GRAVITY_MAX, step: GRAVITY_STEP, placeholder: String(GRAVITY_DEFAULT),
+        hint: `${GRAVITY_MIN}–${GRAVITY_MAX}`,
+      }),
+      this.onlineChoiceField('Side walls', this.onlineWalls, (value) => { this.onlineWalls = value; }, [
+        { value: '', label: 'Open — shots exit' },
+        { value: 'reflective', label: 'Reflective — bank shots' },
+        { value: 'wrap', label: 'Wrap — cross the arena' },
+        { value: 'concrete', label: 'Concrete — impact at edge' },
+      ], 'shots exit, rebound, or cross through paired arena edges'),
+      this.onlineChoiceField('Battlefield', this.onlineBattlefieldWorld, (value) => { this.onlineBattlefieldWorld = value; }, [
+        { value: '', label: 'Automatic — terrain decides' },
+        { value: 'ember-dusk', label: 'Ember Dusk — post-apocalypse' },
+        { value: 'obsidian-caldera', label: 'Obsidian Caldera — volcanic night' },
+        { value: 'glassstorm-expanse', label: 'Glassstorm Expanse — ice' },
+      ], 'visual world only; terrain and physics stay unchanged'),
+      this.onlineChoiceField('Terrain hazards', this.onlineHazards, (value) => { this.onlineHazards = value; }, [
+        { value: '', label: 'None — classic terrain' },
+        { value: 'lava', label: 'Lava — lethal pools' },
+      ], 'deterministic lava pools are solid to shells but lethal to tanks'),
+      this.onlineChoiceField('Teams', this.onlineTeamMode ? '2v2' : '', (value) => { this.onlineTeamMode = value === '2v2'; }, [
+        { value: '', label: 'Free-for-all' },
+        { value: '2v2', label: '2v2 — alternating seats' },
+      ], 'four seats only; teammates cannot damage each other'),
+      this.onlineNumberField('Rounds', this.onlineRounds, (value) => { this.onlineRounds = value; }, {
+        min: ROUNDS_MIN, max: ROUNDS_MAX, step: 2, placeholder: String(ROUNDS_DEFAULT), hint: 'best-of-N, odd',
+      }),
+      this.onlineNumberField('Interest', this.onlineInterestRate, (value) => { this.onlineInterestRate = value; }, {
+        min: INTEREST_MIN, max: INTEREST_MAX, step: INTEREST_STEP, placeholder: String(INTEREST_DEFAULT), hint: 'per-round credit interest (0–0.5)',
+      }),
+      this.onlineNumberField('Sudden death', this.onlineSuddenDeath, (value) => { this.onlineSuddenDeath = value; }, {
+        min: SUDDEN_DEATH_MIN, max: SUDDEN_DEATH_MAX, step: 1, placeholder: String(SUDDEN_DEATH_DEFAULT), hint: 'gravity ramps past this turn (0 = off)',
+      }),
+      this.onlineNumberField('Arms level', this.onlineArmsLevel, (value) => { this.onlineArmsLevel = value; }, {
+        min: ARMS_MIN, max: ARMS_MAX, step: 1, placeholder: String(ARMS_DEFAULT), hint: '0 = basic … 4 = full arsenal',
+      }),
+    );
+    return fields;
   }
 
   private async handleCreateRoom(): Promise<void> {
@@ -3505,18 +3627,29 @@ export class Lobby {
    * the engine default applies.
    */
   private renderAdvanced(): HTMLElement {
-    const details = document.createElement('details');
-    details.className = 'lobby-advanced';
-    details.open = this.settingsOpen;
-    details.addEventListener('toggle', () => {
-      this.settingsOpen = details.open;
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'lobby-advanced-trigger lobby-btn secondary';
+    trigger.textContent = 'Advanced settings';
+    trigger.setAttribute('aria-haspopup', 'dialog');
+    trigger.addEventListener('click', () => {
+      this.accountPanelOpen = false;
+      this.settingsOpen = true;
+      this.render();
     });
+    return trigger;
+  }
 
-    const summary = document.createElement('summary');
-    summary.textContent = 'Advanced settings';
-    details.append(summary);
+  private renderAdvancedOverlay(): HTMLElement | null {
+    if (this.activeTab === 'hotseat') return this.renderAdvancedFields();
+    if (this.onlineSubView === 'create') return this.renderOnlineAdvancedFields();
+    return null;
+  }
 
-    details.append(
+  private renderAdvancedFields(): HTMLElement {
+    const fields = document.createElement('div');
+    fields.className = 'lobby-advanced-fields';
+    fields.append(
       this.numberField('Wind cap', 'maxWind', {
         min: WIND_MIN,
         max: WIND_MAX,
@@ -3606,7 +3739,7 @@ export class Lobby {
       }),
     );
 
-    return details;
+    return fields;
   }
 
   /** Build one labelled number input bound to a SettingsState key. */

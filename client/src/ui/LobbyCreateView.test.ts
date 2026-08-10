@@ -7,6 +7,14 @@ function section(name: string): HTMLElement {
   return element;
 }
 
+function advancedButton(): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'lobby-advanced-trigger';
+  button.textContent = 'Advanced settings';
+  return button;
+}
+
 function options(overrides: Partial<LobbyCreateViewOptions> = {}): LobbyCreateViewOptions {
   return {
     minPlayers: 2,
@@ -18,7 +26,7 @@ function options(overrides: Partial<LobbyCreateViewOptions> = {}): LobbyCreateVi
     busy: false,
     nameColor: section('name-color'),
     garage: section('garage'),
-    advancedFields: [section('wind'), section('gravity')],
+    advanced: advancedButton(),
     status: section('status'),
     onPlayerCountChange: vi.fn(),
     onBotCountChange: vi.fn(),
@@ -46,12 +54,12 @@ function button(root: HTMLElement, text: string): HTMLButtonElement {
 }
 
 describe('buildLobbyCreateView', () => {
-  it('renders dynamic selectors, shared-node order, and Advanced fields', () => {
+  it('renders dynamic selectors, shared-node order, and the Advanced Settings entry', () => {
     const nameColor = section('name-color');
     const garage = section('garage');
-    const advancedFields = [section('wind'), section('gravity')];
+    const advanced = advancedButton();
     const status = section('status');
-    const root = buildLobbyCreateView(options({ nameColor, garage, advancedFields, status }));
+    const root = buildLobbyCreateView(options({ nameColor, garage, advanced, status }));
 
     expect(root.className).toBe('lobby-route-brief lobby-route-brief--online');
     expect(root.querySelector('.lobby-route-brief__title')?.textContent).toBe('Open operation');
@@ -89,9 +97,8 @@ describe('buildLobbyCreateView', () => {
     expect(operationProfile?.querySelector('.lobby-preparation-section__title')?.textContent)
       .toBe('Operation profile');
     expect(operationProfile?.querySelector('.lobby-field label')?.textContent).toBe('Players');
-    const advanced = protocol?.querySelector('details.lobby-advanced')!;
-    expect(advanced.querySelector('summary')?.textContent).toBe('Advanced settings');
-    expect([...advanced.children].slice(1)).toEqual(advancedFields);
+    expect(protocol?.querySelector('.lobby-advanced-trigger')).toBe(advanced);
+    expect(protocol?.querySelector('details.lobby-advanced')).toBeNull();
     expect([...operationProfile!.querySelector('.lobby-preparation-section__body')!.children])
       .toEqual([players, bots, visibility]);
     expect(protocol?.querySelector('[data-section="status"]')).toBe(status);

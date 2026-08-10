@@ -129,6 +129,49 @@ async function assertMissionPreparation(
   expect(geometry.primary.height, 'deployment action must remain visible').toBeGreaterThan(4);
 }
 
+async function assertOnlineSetupControlsStayWithinTheirSections(page: Page): Promise<void> {
+  const geometry = await page.locator('#lobby .lobby-route-brief--online .lobby-route-brief__setup').evaluate((setup) => {
+    const serialize = (rect: DOMRect) => ({
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+    });
+    return Array.from(setup.querySelectorAll<HTMLElement>('.lobby-preparation-section')).map((section) => ({
+      title: section.querySelector('.lobby-preparation-section__title')?.textContent ?? 'unnamed section',
+      rect: serialize(section.getBoundingClientRect()),
+      controls: Array.from(section.querySelectorAll<HTMLElement>('input, select, button')).map((control) => ({
+        name: control.getAttribute('aria-label') ?? control.textContent?.trim() ?? control.tagName,
+        rect: serialize(control.getBoundingClientRect()),
+      })).filter(({ rect }) => rect.width > 0 && rect.height > 0),
+    }));
+  });
+
+  for (const section of geometry) {
+    for (const control of section.controls) {
+      expect(control.rect.width, `${section.title}: ${control.name} must remain visible`).toBeGreaterThan(4);
+      expect(control.rect.height, `${section.title}: ${control.name} must remain visible`).toBeGreaterThan(4);
+      expect(control.rect.left, `${section.title}: ${control.name} must not escape left`).toBeGreaterThanOrEqual(section.rect.left - 1);
+      expect(control.rect.right, `${section.title}: ${control.name} must not escape right`).toBeLessThanOrEqual(section.rect.right + 1);
+      expect(control.rect.top, `${section.title}: ${control.name} must not escape above`).toBeGreaterThanOrEqual(section.rect.top - 1);
+      expect(control.rect.bottom, `${section.title}: ${control.name} must not escape below`).toBeLessThanOrEqual(section.rect.bottom + 1);
+    }
+  }
+  for (let index = 0; index < geometry.length - 1; index += 1) {
+    for (let nextIndex = index + 1; nextIndex < geometry.length; nextIndex += 1) {
+      const current = geometry[index]!;
+      const next = geometry[nextIndex]!;
+      const overlap = current.rect.left < next.rect.right - 1
+        && current.rect.right > next.rect.left + 1
+        && current.rect.top < next.rect.bottom - 1
+        && current.rect.bottom > next.rect.top + 1;
+      expect(overlap, `${current.title} must not overlap ${next.title}`).toBe(false);
+    }
+  }
+}
+
 async function fulfillFunction(
   page: Page,
   name: string,
@@ -190,7 +233,46 @@ test.describe('Lobby layout guardrails', () => {
       ['Command vehicle', 'Operation profile', 'Battlefield protocol'],
       '#lobby .lobby-online-primary',
     );
+    await assertOnlineSetupControlsStayWithinTheirSections(page);
     await assertLobbyControlReachable(page, '#lobby .lobby-online-primary');
+  });
+
+  test('Operations Settings is a fixed aligned layer that leaves Local Battery in place', async ({ page }) => {
+    const masthead = page.locator('#lobby .lobby-deployment__masthead');
+    const route = page.locator('#lobby .lobby-hotseat');
+    const preview = page.locator('#lobby .lobby-preview');
+    const before = await Promise.all([masthead.boundingBox(), route.boundingBox(), preview.boundingBox()]);
+    for (const box of before) expect(box).not.toBeNull();
+
+    await page.getByRole('button', { name: 'Advanced settings', exact: true }).click();
+    const overlay = page.locator('#lobby .lobby-overlay');
+    const surface = overlay.locator('.lobby-overlay__surface');
+    await expect(surface).toHaveAttribute('role', 'dialog');
+    await expect(surface).toHaveAttribute('aria-label', 'Operations Settings');
+    expect(await surface.evaluate((node) => getComputedStyle(node).position)).toBe('fixed');
+
+    const after = await Promise.all([masthead.boundingBox(), route.boundingBox(), preview.boundingBox()]);
+    for (let index = 0; index < before.length; index += 1) {
+      expect(after[index]!.x).toBeCloseTo(before[index]!.x, 1);
+      expect(after[index]!.y).toBeCloseTo(before[index]!.y, 1);
+      expect(after[index]!.height).toBeCloseTo(before[index]!.height, 1);
+    }
+
+    const field = surface.locator('.lobby-advanced-fields .lobby-field').first();
+    const [label, input, hint] = await Promise.all([
+      field.locator('label').boundingBox(),
+      field.locator('input, select').boundingBox(),
+      field.locator('.lobby-hint').boundingBox(),
+    ]);
+    expect(label).not.toBeNull();
+    expect(input).not.toBeNull();
+    expect(hint).not.toBeNull();
+    expect(input!.x).toBeGreaterThan(label!.x + label!.width);
+    expect(hint!.x).toBeGreaterThan(input!.x + input!.width);
+
+    await page.keyboard.press('Escape');
+    await expect(overlay).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Advanced settings', exact: true })).toBeFocused();
   });
 
   test('play mode tabs identify their selected setup and support predictable keyboard switching', async ({ page }) => {

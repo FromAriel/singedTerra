@@ -7,9 +7,10 @@ async function openRoom(
   await page.goto('.');
   await page.evaluate(() => document.getElementById('st-splash')?.remove());
   if (walls !== 'open') {
-    await page.getByText('Advanced settings', { exact: true }).click();
+    await page.getByRole('button', { name: 'Advanced settings', exact: true }).click();
     await page.getByLabel('Side walls').selectOption(walls);
     await expect(page.getByLabel('Side walls')).toHaveValue(walls);
+    await page.keyboard.press('Escape');
   }
   await page.getByRole('button', { name: 'Deploy local battle' }).click();
   await expect(page.locator('#hud.st-hud')).toBeVisible();

@@ -172,15 +172,18 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       const playOnline = Array.from(root.querySelectorAll('button'))
         .find((button) => button.textContent === 'Play Online')!;
       playOnline.click();
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Advanced settings')!.click();
 
-      const label = Array.from(root.querySelectorAll('label'))
+      const overlay = root.querySelector('.lobby-overlay')!;
+      const label = Array.from(overlay.querySelectorAll('label'))
         .find((candidate) => candidate.textContent === 'Side walls')!;
       expect(label.htmlFor).not.toBe('');
       const select = root.querySelector<HTMLSelectElement>(`#${label.htmlFor}`)!;
       expect(select).not.toBeNull();
       const hintId = select.getAttribute('aria-describedby');
       expect(hintId).not.toBeNull();
-      expect(root.querySelector(`#${hintId}`)?.textContent)
+      expect(overlay.querySelector(`#${hintId}`)?.textContent)
         .toContain('shots exit, rebound, or cross');
       expect(Array.from(select.options, (option) => option.value))
         .toEqual(['', 'reflective', 'wrap', 'concrete']);
@@ -190,8 +193,11 @@ describe('Lobby network layer (characterization of the 7 Edge-Function actions)'
       lobby.show();
       Array.from(root.querySelectorAll('button'))
         .find((button) => button.textContent === 'Play Online')!.click();
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Advanced settings')!.click();
 
-      const label = Array.from(root.querySelectorAll('label'))
+      const overlay = root.querySelector('.lobby-overlay')!;
+      const label = Array.from(overlay.querySelectorAll('label'))
         .find((candidate) => candidate.textContent === 'Battlefield')!;
       const select = root.querySelector<HTMLSelectElement>(`#${label.htmlFor}`)!;
       expect(Array.from(select.options, (option) => option.value)).toEqual([

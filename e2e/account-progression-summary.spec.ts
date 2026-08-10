@@ -284,31 +284,24 @@ test.describe('Account progression summary compact readability', () => {
   });
 });
 
-test('opened account panel reflows within the deployment masthead', async ({ page }) => {
+test('opened Player Account is a fixed layer and leaves the deployment stage in place', async ({ page }) => {
   await gotoLobby(page);
-  await installSummaryFixture(page, true, true);
-
-  const panel = page.locator('[data-summary-fixture="available"]');
   const masthead = page.locator('.lobby-deployment__masthead');
   const brief = page.locator('.lobby-deployment__mission-brief');
   const preview = page.locator('.lobby-preview');
-  await expect(panel).toBeVisible();
+  const before = await Promise.all([masthead.boundingBox(), brief.boundingBox(), preview.boundingBox()]);
+  for (const box of before) expect(box).not.toBeNull();
 
-  const [panelBox, mastheadBox, briefBox, previewBox] = await Promise.all([
-    panel.boundingBox(),
-    masthead.boundingBox(),
-    brief.boundingBox(),
-    preview.boundingBox(),
-  ]);
-  expect(panelBox).not.toBeNull();
-  expect(mastheadBox).not.toBeNull();
-  expect(briefBox).not.toBeNull();
-  expect(boxesOverlap(panelBox!, mastheadBox!)).toBe(true);
-  expect(boxesOverlap(panelBox!, briefBox!)).toBe(false);
-  if (await isCompact(page)) {
-    await expect(preview).toBeHidden();
-  } else {
-    expect(previewBox).not.toBeNull();
-    expect(boxesOverlap(panelBox!, previewBox!)).toBe(false);
+  await page.getByRole('button', { name: 'Account' }).click();
+  const panel = page.locator('#lobby .lobby-overlay .account-panel');
+  const surface = page.locator('#lobby .lobby-overlay__surface');
+  await expect(panel).toBeVisible();
+  await expect(page.locator('#lobby .lobby-overlay__close')).toBeFocused();
+  expect(await surface.evaluate((node) => getComputedStyle(node).position)).toBe('fixed');
+  const after = await Promise.all([masthead.boundingBox(), brief.boundingBox(), preview.boundingBox()]);
+  for (let index = 0; index < before.length; index += 1) {
+    expect(after[index]!.x).toBeCloseTo(before[index]!.x, 1);
+    expect(after[index]!.y).toBeCloseTo(before[index]!.y, 1);
+    expect(after[index]!.height).toBeCloseTo(before[index]!.height, 1);
   }
 });
