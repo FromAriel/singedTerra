@@ -67,16 +67,19 @@ describe('buildLobbyOverlayView', () => {
   it('takes focus from its opener and recaptures Tab sent from outside the dialog', async () => {
     const opener = document.createElement('button')
     opener.textContent = 'Open account'
+    const alreadyInert = document.createElement('div')
+    alreadyInert.inert = true
     const body = document.createElement('div')
     const field = document.createElement('input')
     body.append(field)
-    document.body.append(opener)
+    document.body.append(opener, alreadyInert)
     opener.focus()
 
+    const onClose = vi.fn()
     const overlay = buildLobbyOverlayView({
       label: 'Player Record',
       body,
-      onClose: vi.fn(),
+      onClose,
     })
     document.body.append(overlay)
     const dialog = overlay.querySelector<HTMLElement>('[role="dialog"]')!
@@ -84,11 +87,18 @@ describe('buildLobbyOverlayView', () => {
 
     await Promise.resolve()
     expect(document.activeElement).toBe(close)
+    expect(opener.inert).toBe(true)
+    expect(alreadyInert.inert).toBe(true)
 
     opener.focus()
     dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
     expect(document.activeElement).toBe(close)
+    close.click()
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(opener.inert).not.toBe(true)
+    expect(alreadyInert.inert).toBe(true)
     overlay.remove()
     opener.remove()
+    alreadyInert.remove()
   })
 })

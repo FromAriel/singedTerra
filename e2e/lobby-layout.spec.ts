@@ -144,13 +144,21 @@ async function assertOnlineSetupControlsStayWithinTheirSections(page: Page): Pro
       rect: serialize(section.getBoundingClientRect()),
       controls: Array.from(section.querySelectorAll<HTMLElement>('input, select, button')).map((control) => ({
         name: control.getAttribute('aria-label') ?? control.textContent?.trim() ?? control.tagName,
+        mayHideWithGarage: control.closest('.lobby-garage') !== null,
         rect: serialize(control.getBoundingClientRect()),
-      })).filter(({ rect }) => rect.width > 0 && rect.height > 0),
+      })),
     }));
   });
 
   for (const section of geometry) {
     for (const control of section.controls) {
+      if (control.rect.width <= 4 || control.rect.height <= 4) {
+        expect(
+          control.mayHideWithGarage,
+          `${section.title}: ${control.name} must not disappear`,
+        ).toBe(true);
+        continue;
+      }
       expect(control.rect.width, `${section.title}: ${control.name} must remain visible`).toBeGreaterThan(4);
       expect(control.rect.height, `${section.title}: ${control.name} must remain visible`).toBeGreaterThan(4);
       expect(control.rect.left, `${section.title}: ${control.name} must not escape left`).toBeGreaterThanOrEqual(section.rect.left - 1);
@@ -249,6 +257,7 @@ test.describe('Lobby layout guardrails', () => {
     const surface = overlay.locator('.lobby-overlay__surface');
     await expect(surface).toHaveAttribute('role', 'dialog');
     await expect(surface).toHaveAttribute('aria-label', 'Operations Settings');
+    expect(await overlay.evaluate((node) => getComputedStyle(node).position)).toBe('fixed');
     expect(await surface.evaluate((node) => getComputedStyle(node).position)).toBe('fixed');
 
     const after = await Promise.all([masthead.boundingBox(), route.boundingBox(), preview.boundingBox()]);
