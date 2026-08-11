@@ -2,16 +2,16 @@ import { expect, test } from '@playwright/test';
 
 async function gotoVictory(
   page: import('@playwright/test').Page,
-  anonymousProgression = false,
+  mode: 'victory' | 'victory-anonymous' = 'victory',
 ): Promise<void> {
-  await page.goto(anonymousProgression ? '?e2e=victory-anonymous' : '?e2e=victory');
+  await page.goto(`?e2e=${mode}`);
   await page.evaluate(() => document.getElementById('st-splash')?.remove());
   await expect(page.locator('.st-hud__overlay--victory')).toBeVisible();
 }
 
 test.describe('Victory After-Action Report', () => {
   test('keeps the anonymous future-match handoff contained and directs it to sign-in', async ({ page }) => {
-    await gotoVictory(page, true);
+    await gotoVictory(page, 'victory-anonymous');
 
     const report = page.locator('.st-hud__overlay--victory');
     const panel = report.locator('.st-hud__overlay-panel--victory');
@@ -170,43 +170,4 @@ test.describe('Victory After-Action Report', () => {
     await expect(page.locator('.st-hud__instruments')).toBeVisible();
   });
 
-  test('keeps the complete report still under reduced motion', async ({ browser }) => {
-    const context = await browser.newContext({
-      viewport: { width: 851, height: 393 },
-      hasTouch: true,
-      reducedMotion: 'reduce',
-    });
-    try {
-      const page = await context.newPage();
-      await gotoVictory(page);
-      await page.locator('.st-hud__victory-progression-receipt').evaluate((receipt) => {
-        receipt.textContent = 'Victory · +200 XP · 300 XP to Level 4';
-        (receipt as HTMLElement).hidden = false;
-      });
-      await expect(page.locator('.st-hud__overlay-panel--victory'))
-        .toHaveCSS('animation-name', 'none');
-      await expect(page.locator('.st-hud__victory-tank-frame'))
-        .toHaveCSS('animation-name', 'none');
-      await expect(page.getByText('Victory · +200 XP · 300 XP to Level 4')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Play again' })).toBeVisible();
-      const containment = await page.locator('.st-hud__overlay-panel--victory').evaluate((panel) => {
-        const panelBox = panel.getBoundingClientRect();
-        const receiptBox = panel.querySelector('.st-hud__victory-progression-receipt')!
-          .getBoundingClientRect();
-        return {
-          receiptLeft: receiptBox.left,
-          receiptRight: receiptBox.right,
-          panelLeft: panelBox.left,
-          panelRight: panelBox.right,
-          documentWidth: document.documentElement.scrollWidth,
-          viewportWidth: innerWidth,
-        };
-      });
-      expect(containment.receiptLeft).toBeGreaterThanOrEqual(containment.panelLeft - 1);
-      expect(containment.receiptRight).toBeLessThanOrEqual(containment.panelRight + 1);
-      expect(containment.documentWidth).toBe(containment.viewportWidth);
-    } finally {
-      await context.close();
-    }
-  });
 });

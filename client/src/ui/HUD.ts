@@ -27,7 +27,7 @@ import type { FirstSalvoStep } from './firstSalvoCoach';
 import { QUICK_CHAT_MESSAGES, type QuickChatKey } from '../client/quickChat';
 import {
   earnedHotSeatMatchXp,
-  type HotSeatProgressionSummary,
+  type HotSeatProgressionReceipt,
 } from '../client/hotSeatProgression';
 
 /**
@@ -2760,13 +2760,17 @@ export class HUD {
   /** Name the accepted XP and next server-derived level milestone without adding another action. */
   setProgressionReceipt(receipt: {
     won: boolean;
-    summary: HotSeatProgressionSummary;
+    receipt: HotSeatProgressionReceipt;
   }): void {
     const earnedXp = earnedHotSeatMatchXp(receipt.won);
-    const remainingXp = receipt.summary.nextLevelXp - receipt.summary.levelXp;
+    const summary = receipt.receipt.current;
+    const remainingXp = summary.nextLevelXp - summary.levelXp;
     const outcome = receipt.won ? 'Victory' : 'Match complete';
-    this.overlayProgressionReceiptEl.textContent =
-      `${outcome} · +${earnedXp} XP · ${remainingXp} XP to Level ${receipt.summary.level + 1}`;
+    const summaryLine = document.createElement('span');
+    summaryLine.className = 'st-hud__victory-progression-summary';
+    summaryLine.textContent =
+      `${outcome} · +${earnedXp} XP · ${remainingXp} XP to Level ${summary.level + 1}`;
+    this.overlayProgressionReceiptEl.replaceChildren(summaryLine);
     this.overlayProgressionReceiptEl.hidden = false;
     this.clearAnonymousProgressionHandoff();
   }
@@ -4002,7 +4006,12 @@ export class HUD {
   font-weight: 700;
 }
 .st-hud__victory-progression-receipt {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px 10px;
   align-self: flex-start;
+  width: min(100%, 430px);
+  box-sizing: border-box;
   margin-top: 12px;
   padding: 5px 8px;
   color: #c5f0c4;
@@ -4014,6 +4023,12 @@ export class HUD {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+.st-hud__victory-progression-summary {
+  grid-column: 1 / -1;
+}
+#app.is-compact .st-hud__victory-progression-summary {
+  font-size: calc(var(--st-store-buy-target) * 0.2);
 }
 .st-hud__victory-progression-handoff {
   display: grid;
