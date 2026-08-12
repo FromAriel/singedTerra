@@ -7,12 +7,17 @@ export const TANK_CHASSIS_DRAW_WIDTH = 36;
 export const TANK_CHASSIS_DRAW_HEIGHT = 24;
 export const TANK_CHASSIS_LOAD_TIMEOUT_MS = 5_000;
 
-export type TankChassisArtState = 'loading' | 'ready' | 'failed';
+export type TankChassisArtState =
+  | 'loading'
+  | 'timed_out'
+  | 'ready'
+  | 'failed';
 export type TankChassisImageFactory = () => HTMLImageElement;
 export type TankChassisCanvasFactory = () => HTMLCanvasElement;
 
 export interface TankChassisPainter {
   readonly isSettled: boolean;
+  onReady(listener: () => void): () => void;
   draw(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -41,6 +46,7 @@ function assetUrl(baseUrl: string): string {
 export class TankChassisArt implements TankChassisPainter {
   private readonly image: HTMLImageElement;
   private readonly variants = new Map<string, HTMLCanvasElement>();
+  private readonly readyListeners = new Set<() => void>();
   private currentState: TankChassisArtState = 'loading';
   private pendingFirstPaint = false;
   private loadTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -53,7 +59,10 @@ export class TankChassisArt implements TankChassisPainter {
   ) {
     this.image = createImage();
     this.image.onload = () => {
-      if (this.currentState !== 'loading') return;
+      if (
+        this.currentState !== 'loading'
+        && this.currentState !== 'timed_out'
+      ) return;
       if (
         this.image.naturalWidth !== TANK_CHASSIS_SOURCE_WIDTH
         || this.image.naturalHeight !== TANK_CHASSIS_SOURCE_HEIGHT
@@ -64,10 +73,11 @@ export class TankChassisArt implements TankChassisPainter {
       this.clearLoadTimeout();
       this.currentState = 'ready';
       this.pendingFirstPaint = true;
+      this.notifyReady();
     };
     this.image.onerror = () => this.fail();
     this.loadTimeout = globalThis.setTimeout(
-      () => this.fail(),
+      () => this.timeout(),
       TANK_CHASSIS_LOAD_TIMEOUT_MS,
     );
     this.image.src = assetUrl(baseUrl);
@@ -80,8 +90,19 @@ export class TankChassisArt implements TankChassisPainter {
   get isSettled(): boolean {
     return (
       this.currentState === 'failed'
+      || this.currentState === 'timed_out'
       || (this.currentState === 'ready' && !this.pendingFirstPaint)
     );
+  }
+
+  onReady(listener: () => void): () => void {
+    if (this.currentState === 'ready') {
+      listener();
+      return () => undefined;
+    }
+    if (this.currentState === 'failed') return () => undefined;
+    this.readyListeners.add(listener);
+    return () => this.readyListeners.delete(listener);
   }
 
   /**
@@ -177,6 +198,21 @@ export class TankChassisArt implements TankChassisPainter {
     this.variants.clear();
     this.pendingFirstPaint = false;
     this.currentState = 'failed';
+    this.readyListeners.clear();
+  }
+
+  private timeout(): void {
+    if (this.currentState !== 'loading') return;
+    this.clearLoadTimeout();
+    this.variants.clear();
+    this.pendingFirstPaint = false;
+    this.currentState = 'timed_out';
+  }
+
+  private notifyReady(): void {
+    const listeners = [...this.readyListeners];
+    this.readyListeners.clear();
+    for (const listener of listeners) listener();
   }
 
   private clearLoadTimeout(): void {

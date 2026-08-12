@@ -18,13 +18,14 @@ import {
 
 export const TANK_PART_LOAD_TIMEOUT_MS = 5_000;
 
-export type TankPartArtState = 'loading' | 'ready' | 'failed';
+export type TankPartArtState = 'loading' | 'timed_out' | 'ready' | 'failed';
 export type TankPartImageFactory = () => HTMLImageElement;
 export type TankPartCanvasFactory = () => HTMLCanvasElement;
 
 export interface TankPartPainter {
   readonly state: TankPartArtState;
   readonly isSettled: boolean;
+  onReady(listener: () => void): () => void;
   drawStatic(
     ctx: CanvasRenderingContext2D,
     tank: Readonly<TankState>,
@@ -65,6 +66,7 @@ export class TankPartArt implements TankPartPainter {
   private readonly image: HTMLImageElement;
   private readonly variants = new Map<string, HTMLCanvasElement>();
   private readonly paintedSlots = new Set<TankPartSlot>();
+  private readonly readyListeners = new Set<() => void>();
   private currentState: TankPartArtState = 'loading';
   private loadTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -76,7 +78,10 @@ export class TankPartArt implements TankPartPainter {
   ) {
     this.image = createImage();
     this.image.onload = () => {
-      if (this.currentState !== 'loading') return;
+      if (
+        this.currentState !== 'loading'
+        && this.currentState !== 'timed_out'
+      ) return;
       if (
         this.image.naturalWidth !== TANK_PART_ATLAS_WIDTH
         || this.image.naturalHeight !== TANK_PART_ATLAS_HEIGHT
@@ -86,10 +91,11 @@ export class TankPartArt implements TankPartPainter {
       }
       this.clearLoadTimeout();
       this.currentState = 'ready';
+      this.notifyReady();
     };
     this.image.onerror = () => this.fail();
     this.loadTimeout = globalThis.setTimeout(
-      () => this.fail(),
+      () => this.timeout(),
       TANK_PART_LOAD_TIMEOUT_MS,
     );
     this.image.src = assetUrl(baseUrl);
@@ -102,11 +108,22 @@ export class TankPartArt implements TankPartPainter {
   get isSettled(): boolean {
     return (
       this.currentState === 'failed'
+      || this.currentState === 'timed_out'
       || (
         this.currentState === 'ready'
         && this.paintedSlots.size === TANK_PART_SLOTS.length
       )
     );
+  }
+
+  onReady(listener: () => void): () => void {
+    if (this.currentState === 'ready') {
+      listener();
+      return () => undefined;
+    }
+    if (this.currentState === 'failed') return () => undefined;
+    this.readyListeners.add(listener);
+    return () => this.readyListeners.delete(listener);
   }
 
   /** Test/debug seam: which independently cached slots exist for one color. */
@@ -290,6 +307,21 @@ export class TankPartArt implements TankPartPainter {
     this.currentState = 'failed';
     this.variants.clear();
     this.paintedSlots.clear();
+    this.readyListeners.clear();
+  }
+
+  private timeout(): void {
+    if (this.currentState !== 'loading') return;
+    this.clearLoadTimeout();
+    this.currentState = 'timed_out';
+    this.variants.clear();
+    this.paintedSlots.clear();
+  }
+
+  private notifyReady(): void {
+    const listeners = [...this.readyListeners];
+    this.readyListeners.clear();
+    for (const listener of listeners) listener();
   }
 
   private clearLoadTimeout(): void {

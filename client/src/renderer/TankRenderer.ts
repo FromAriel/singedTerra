@@ -40,7 +40,11 @@ export class TankRenderer {
   constructor(
     private readonly chassisArt: TankChassisPainter = new TankChassisArt(),
     private readonly partArt: TankPartPainter = new TankPartArt(),
-  ) {}
+    onArtReady: () => void = () => undefined,
+  ) {
+    this.chassisArt.onReady(onArtReady);
+    this.partArt.onReady(onArtReady);
+  }
 
   get isChassisArtSettled(): boolean {
     if (this.partArt.state === 'ready') return this.partArt.isSettled;

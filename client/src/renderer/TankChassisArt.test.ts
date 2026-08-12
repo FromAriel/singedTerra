@@ -242,11 +242,24 @@ describe('TankChassisArt', () => {
       harness.factory,
       '/',
     );
+    const ready = vi.fn();
+    art.onReady(ready);
 
     settle(image);
 
     expect(art.state).toBe('failed');
     expect(art.isSettled).toBe(true);
+    expect(art.draw(
+      { drawImage: vi.fn() } as unknown as CanvasRenderingContext2D,
+      120,
+      300,
+      '#e53935',
+    )).toBe(false);
+    expect(harness.canvases).toHaveLength(0);
+
+    settleValid(image);
+    expect(art.state).toBe('failed');
+    expect(ready).not.toHaveBeenCalled();
     expect(art.draw(
       { drawImage: vi.fn() } as unknown as CanvasRenderingContext2D,
       120,
@@ -277,9 +290,21 @@ describe('TankChassisArt', () => {
     )).toBe(false);
     expect(art.state).toBe('failed');
     expect(art.isSettled).toBe(true);
+
+    const ready = vi.fn();
+    art.onReady(ready);
+    settleValid(image);
+    expect(art.state).toBe('failed');
+    expect(ready).not.toHaveBeenCalled();
+    expect(art.draw(
+      { drawImage: vi.fn() } as unknown as CanvasRenderingContext2D,
+      120,
+      300,
+      '#e53935',
+    )).toBe(false);
   });
 
-  it('times out a pending load and ignores a late decode', () => {
+  it('settles fallback at timeout but accepts a valid late chassis decode', () => {
     vi.useFakeTimers();
     try {
       const image = controlledImage();
@@ -292,14 +317,66 @@ describe('TankChassisArt', () => {
 
       vi.advanceTimersByTime(TANK_CHASSIS_LOAD_TIMEOUT_MS);
 
-      expect(art.state).toBe('failed');
+      expect(art.state).toBe('timed_out');
       expect(art.isSettled).toBe(true);
 
       settleValid(image);
 
-      expect(art.state).toBe('failed');
-      expect(art.isSettled).toBe(true);
-      expect(harness.canvases).toHaveLength(0);
+      expect(art.state).toBe('ready');
+      expect(art.isSettled).toBe(false);
+      expect(art.draw(
+        { drawImage: vi.fn() } as unknown as CanvasRenderingContext2D,
+        120,
+        300,
+        '#e53935',
+      )).toBe(true);
+      expect(harness.canvases).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('notifies a waiting consumer exactly once after a valid late decode', () => {
+    vi.useFakeTimers();
+    try {
+      const image = controlledImage();
+      const art = new TankChassisArt(
+        () => image as unknown as HTMLImageElement,
+        tintCanvasHarness().factory,
+        '/',
+      );
+      const ready = vi.fn();
+      art.onReady(ready);
+
+      vi.advanceTimersByTime(TANK_CHASSIS_LOAD_TIMEOUT_MS);
+      expect(ready).not.toHaveBeenCalled();
+
+      settleValid(image);
+      image.onload?.();
+      expect(ready).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not notify a consumer that unsubscribed before a valid late decode', () => {
+    vi.useFakeTimers();
+    try {
+      const image = controlledImage();
+      const art = new TankChassisArt(
+        () => image as unknown as HTMLImageElement,
+        tintCanvasHarness().factory,
+        '/',
+      );
+      const ready = vi.fn();
+      const unsubscribe = art.onReady(ready);
+
+      unsubscribe();
+      vi.advanceTimersByTime(TANK_CHASSIS_LOAD_TIMEOUT_MS);
+      settleValid(image);
+
+      expect(art.state).toBe('ready');
+      expect(ready).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }

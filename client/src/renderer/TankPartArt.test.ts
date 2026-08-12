@@ -396,20 +396,32 @@ describe('TankPartArt', () => {
     },
   ])('fails closed for $name', ({ settle }) => {
     const image = controlledImage();
+    const harness = canvasFactory();
     const art = new TankPartArt(
       () => image as unknown as HTMLImageElement,
-      canvasFactory().factory,
+      harness.factory,
       '/',
     );
+    const ready = vi.fn();
+    art.onReady(ready);
     settle(image);
 
     expect(art.state).toBe('failed');
     expect(art.isSettled).toBe(true);
     expect(art.cachedSlots('#fff')).toEqual([]);
     expect(TANK_PART_SLOTS).toHaveLength(4);
+
+    settleValid(image);
+    expect(art.state).toBe('failed');
+    expect(ready).not.toHaveBeenCalled();
+    expect(art.drawStatic(
+      { drawImage: vi.fn() } as unknown as CanvasRenderingContext2D,
+      tank(),
+    )).toBe(false);
+    expect(harness.canvases).toHaveLength(0);
   });
 
-  it('times out a pending atlas and ignores a late decode', () => {
+  it('settles fallback at timeout but accepts a valid late atlas decode', () => {
     vi.useFakeTimers();
     try {
       const image = controlledImage();
@@ -420,9 +432,62 @@ describe('TankPartArt', () => {
       );
 
       vi.advanceTimersByTime(TANK_PART_LOAD_TIMEOUT_MS);
-      expect(art.state).toBe('failed');
+      expect(art.state).toBe('timed_out');
+      expect(art.isSettled).toBe(true);
+
       settleValid(image);
-      expect(art.state).toBe('failed');
+      expect(art.state).toBe('ready');
+      expect(art.isSettled).toBe(false);
+      expect(art.drawStatic(
+        { drawImage: vi.fn() } as unknown as CanvasRenderingContext2D,
+        tank(),
+      )).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('notifies a waiting consumer exactly once after a valid late decode', () => {
+    vi.useFakeTimers();
+    try {
+      const image = controlledImage();
+      const art = new TankPartArt(
+        () => image as unknown as HTMLImageElement,
+        canvasFactory().factory,
+        '/',
+      );
+      const ready = vi.fn();
+      art.onReady(ready);
+
+      vi.advanceTimersByTime(TANK_PART_LOAD_TIMEOUT_MS);
+      expect(ready).not.toHaveBeenCalled();
+
+      settleValid(image);
+      image.onload?.();
+      expect(ready).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not notify a consumer that unsubscribed before a valid late decode', () => {
+    vi.useFakeTimers();
+    try {
+      const image = controlledImage();
+      const art = new TankPartArt(
+        () => image as unknown as HTMLImageElement,
+        canvasFactory().factory,
+        '/',
+      );
+      const ready = vi.fn();
+      const unsubscribe = art.onReady(ready);
+
+      unsubscribe();
+      vi.advanceTimersByTime(TANK_PART_LOAD_TIMEOUT_MS);
+      settleValid(image);
+
+      expect(art.state).toBe('ready');
+      expect(ready).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
@@ -453,6 +518,16 @@ describe('TankPartArt', () => {
         : art.drawBarrel(throwingContext, tank())).toBe(false);
       expect(art.state).toBe('failed');
       expect(art.isSettled).toBe(true);
+
+      const ready = vi.fn();
+      art.onReady(ready);
+      settleValid(image);
+      expect(art.state).toBe('failed');
+      expect(ready).not.toHaveBeenCalled();
+      expect(art.drawStatic(
+        { drawImage: vi.fn() } as unknown as CanvasRenderingContext2D,
+        tank(),
+      )).toBe(false);
     },
   );
 });

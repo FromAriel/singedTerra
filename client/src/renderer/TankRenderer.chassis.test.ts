@@ -85,6 +85,7 @@ function chassis(drawResult = true): {
   return {
     painter: {
       isSettled: false,
+      onReady: vi.fn(() => vi.fn()),
       draw,
     },
     draw,
