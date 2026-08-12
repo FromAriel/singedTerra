@@ -2,9 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_TANK_LOADOUT } from '@shared/types/TankLoadout';
 
 const art = vi.hoisted(() => ({
-  state: 'loading' as 'loading' | 'ready' | 'failed',
+  state: 'loading' as 'loading' | 'timed_out' | 'ready' | 'failed',
   drawStatic: vi.fn((..._args: unknown[]) => false),
   drawBarrel: vi.fn((..._args: unknown[]) => false),
+  readyListeners: new Set<() => void>(),
 }));
 
 vi.mock('./TankPartArt', () => ({
@@ -14,6 +15,10 @@ vi.mock('./TankPartArt', () => ({
     }
     readonly drawStatic = art.drawStatic;
     readonly drawBarrel = art.drawBarrel;
+    onReady(listener: () => void) {
+      art.readyListeners.add(listener);
+      return () => art.readyListeners.delete(listener);
+    }
   },
 }));
 
@@ -46,6 +51,7 @@ afterEach(() => {
   art.drawStatic.mockReturnValue(false);
   art.drawBarrel.mockReturnValue(false);
   art.state = 'loading';
+  art.readyListeners.clear();
   document.body.innerHTML = '';
 });
 
@@ -121,8 +127,7 @@ describe('tank loadout preview lifecycle', () => {
     expect(ctx.scale).not.toHaveBeenCalled();
   });
 
-  it('keeps queued retries bound to the presentation mode', () => {
-    vi.useFakeTimers();
+  it('repaints only the current presentation when late art becomes ready', () => {
     vi.stubGlobal('navigator', { userAgent: 'Chrome' });
     const ctx = fakeContext();
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx);
@@ -136,7 +141,11 @@ describe('tank loadout preview lifecycle', () => {
       DEFAULT_TANK_LOADOUT,
       'spotlight',
     );
-    vi.advanceTimersByTime(50);
+    expect(art.readyListeners.size).toBe(1);
+    art.state = 'ready';
+    art.drawStatic.mockReturnValue(true);
+    art.drawBarrel.mockReturnValue(true);
+    for (const listener of [...art.readyListeners]) listener();
 
     expect(art.drawStatic.mock.calls.map((call) => call[2])).toEqual([
       undefined,
@@ -168,8 +177,7 @@ describe('tank loadout preview lifecycle', () => {
     expect(ctx.stroke).toHaveBeenCalledOnce();
   });
 
-  it('invalidates a queued atlas retry when the portrait is cleared', () => {
-    vi.useFakeTimers();
+  it('invalidates a late-art repaint when the portrait is cleared', () => {
     vi.stubGlobal('navigator', { userAgent: 'Chrome' });
     const ctx = fakeContext();
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx);
@@ -178,13 +186,67 @@ describe('tank loadout preview lifecycle', () => {
 
     paintTankLoadoutPreview(canvas, '#e84d4d', DEFAULT_TANK_LOADOUT);
     expect(art.drawStatic).toHaveBeenCalledOnce();
+    expect(art.readyListeners.size).toBe(1);
     expect(canvas.dataset['tankPreviewSignature']).toBeDefined();
 
     clearTankLoadoutPreview(canvas);
+    expect(art.readyListeners.size).toBe(0);
     expect(canvas.dataset['tankPreviewSignature']).toBeUndefined();
     expect(ctx.clearRect).toHaveBeenLastCalledWith(0, 0, 84, 48);
 
-    vi.advanceTimersByTime(50);
+    art.state = 'ready';
+    for (const listener of [...art.readyListeners]) listener();
     expect(art.drawStatic).toHaveBeenCalledOnce();
+  });
+
+  it('prunes detached timed-out previews across repeated lobby replacement', () => {
+    vi.stubGlobal('navigator', { userAgent: 'Chrome' });
+    art.state = 'timed_out';
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(fakeContext());
+
+    let current = document.createElement('canvas');
+    document.body.append(current);
+    paintTankLoadoutPreview(current, '#e84d4d', DEFAULT_TANK_LOADOUT);
+    expect(art.readyListeners.size).toBe(1);
+
+    for (let index = 0; index < 5; index++) {
+      const replacement = document.createElement('canvas');
+      current.replaceWith(replacement);
+      current = replacement;
+      paintTankLoadoutPreview(current, '#e84d4d', DEFAULT_TANK_LOADOUT);
+      expect(art.readyListeners.size).toBe(1);
+    }
+
+    art.state = 'ready';
+    art.drawStatic.mockReturnValue(true);
+    art.drawBarrel.mockReturnValue(true);
+    for (const listener of [...art.readyListeners]) listener();
+    expect(art.drawStatic).toHaveBeenCalledTimes(7);
+  });
+
+  it('keeps every preview painted while a lobby subtree is being assembled', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Chrome' });
+    art.state = 'timed_out';
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(fakeContext());
+    const subtree = document.createElement('section');
+    const canvases = Array.from({ length: 3 }, () => {
+      const canvas = document.createElement('canvas');
+      subtree.append(canvas);
+      paintTankLoadoutPreview(canvas, '#e84d4d', DEFAULT_TANK_LOADOUT);
+      return canvas;
+    });
+
+    expect(art.readyListeners.size).toBe(3);
+    document.body.append(subtree);
+    await Promise.resolve();
+    art.state = 'ready';
+    art.drawStatic.mockReturnValue(true);
+    art.drawBarrel.mockReturnValue(true);
+    for (const listener of [...art.readyListeners]) listener();
+
+    expect(art.drawStatic).toHaveBeenCalledTimes(6);
+    expect(canvases.every((canvas) => canvas.isConnected)).toBe(true);
   });
 });

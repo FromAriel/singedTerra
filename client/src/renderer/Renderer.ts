@@ -255,7 +255,10 @@ function lighten([r, g, b]: [number, number, number], t: number): [number, numbe
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly terrain = new TerrainRenderer();
-  private readonly tanks = new TankRenderer();
+  private tankArtInvalidated = false;
+  private readonly tanks = new TankRenderer(undefined, undefined, () => {
+    this.tankArtInvalidated = true;
+  });
   private readonly projectile: ProjectileRenderer;
   private readonly hud = new HUDRenderer();
   /** One project-bound panorama; procedural sky art remains its full fallback. */
@@ -714,6 +717,13 @@ export class Renderer {
     if (this.terrain?.isMaterialSettled === false) return true;
     // Living tanks follow the same first-painted-frame contract. Wreck-only
     // scenes never spin solely for an asset that has no eligible consumer.
+    if (
+      this.tankArtInvalidated
+      && state.tanks.some((tank) => tank.alive)
+    ) {
+      this.tankArtInvalidated = false;
+      return true;
+    }
     if (
       this.tanks?.isChassisArtSettled === false
       && state.tanks.some((tank) => tank.alive)

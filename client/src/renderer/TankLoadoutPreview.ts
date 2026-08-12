@@ -3,7 +3,38 @@ import type { TankLoadout } from '@shared/types/TankLoadout';
 import { TankPartArt } from './TankPartArt';
 
 const previewArt = new TankPartArt();
-const RETRY_MS = 50;
+interface PreviewSubscription {
+  readonly canvas: WeakRef<HTMLCanvasElement>;
+  readonly unsubscribe: () => void;
+  wasConnected: boolean;
+}
+const previewSubscriptions = new WeakMap<
+  HTMLCanvasElement,
+  PreviewSubscription
+>();
+const activePreviewSubscriptions = new Set<PreviewSubscription>();
+
+function removePreviewSubscription(subscription: PreviewSubscription): void {
+  subscription.unsubscribe();
+  activePreviewSubscriptions.delete(subscription);
+  const canvas = subscription.canvas.deref();
+  if (canvas && previewSubscriptions.get(canvas) === subscription) {
+    previewSubscriptions.delete(canvas);
+  }
+}
+
+function pruneDetachedPreviewSubscriptions(): void {
+  for (const subscription of activePreviewSubscriptions) {
+    const canvas = subscription.canvas.deref();
+    if (!canvas) {
+      removePreviewSubscription(subscription);
+    } else if (canvas.isConnected) {
+      subscription.wasConnected = true;
+    } else if (subscription.wasConnected) {
+      removePreviewSubscription(subscription);
+    }
+  }
+}
 
 export type TankLoadoutPreviewMode = 'thumbnail' | 'spotlight' | 'tactical';
 
@@ -46,6 +77,8 @@ const PREVIEW_PROFILES: Readonly<
 
 /** Invalidate queued atlas retries and remove any stale assembled vehicle. */
 export function clearTankLoadoutPreview(canvas: HTMLCanvasElement): void {
+  const subscription = previewSubscriptions.get(canvas);
+  if (subscription) removePreviewSubscription(subscription);
   delete canvas.dataset['tankPreviewSignature'];
   if (
     typeof navigator !== 'undefined'
@@ -65,6 +98,7 @@ function drawFallback(
   color: string,
   profile: TankLoadoutPreviewProfile,
 ): void {
+  pruneDetachedPreviewSubscriptions();
   const fallbackScale = profile.artScale ?? 1;
   if (fallbackScale !== 1) {
     ctx.translate(
@@ -106,6 +140,8 @@ export function paintTankLoadoutPreview(
     loadout.barrel,
   ].join('|');
   canvas.dataset['tankPreviewSignature'] = signature;
+  const currentSubscription = previewSubscriptions.get(canvas);
+  if (currentSubscription) removePreviewSubscription(currentSubscription);
   canvas.width = profile.width;
   canvas.height = profile.height;
   if (
@@ -144,14 +180,38 @@ export function paintTankLoadoutPreview(
   if (!staticReady || !barrelReady) drawFallback(ctx, color, profile);
   ctx.restore();
 
-  if (previewArt.state === 'loading') {
-    globalThis.setTimeout(() => {
-      if (
-        canvas.isConnected
-        && canvas.dataset['tankPreviewSignature'] === signature
-      ) {
-        paintTankLoadoutPreview(canvas, color, loadout, mode);
+  if (previewArt.state === 'loading' || previewArt.state === 'timed_out') {
+    const canvasRef = new WeakRef(canvas);
+    let subscription: PreviewSubscription;
+    const unsubscribe = previewArt.onReady(() => {
+      activePreviewSubscriptions.delete(subscription);
+      const currentCanvas = canvasRef.deref();
+      if (!currentCanvas) return;
+      if (previewSubscriptions.get(currentCanvas) === subscription) {
+        previewSubscriptions.delete(currentCanvas);
       }
-    }, RETRY_MS);
+      if (
+        currentCanvas.isConnected
+        && currentCanvas.dataset['tankPreviewSignature'] === signature
+      ) {
+        paintTankLoadoutPreview(currentCanvas, color, loadout, mode);
+      }
+    });
+    subscription = {
+      canvas: canvasRef,
+      unsubscribe,
+      wasConnected: canvas.isConnected,
+    };
+    activePreviewSubscriptions.add(subscription);
+    previewSubscriptions.set(canvas, subscription);
+    queueMicrotask(() => {
+      if (!activePreviewSubscriptions.has(subscription)) return;
+      const currentCanvas = canvasRef.deref();
+      if (currentCanvas?.isConnected) {
+        subscription.wasConnected = true;
+      } else {
+        removePreviewSubscription(subscription);
+      }
+    });
   }
 }

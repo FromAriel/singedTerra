@@ -409,7 +409,7 @@ describe('TankPartArt', () => {
     expect(TANK_PART_SLOTS).toHaveLength(4);
   });
 
-  it('times out a pending atlas and ignores a late decode', () => {
+  it('settles fallback at timeout but accepts a valid late atlas decode', () => {
     vi.useFakeTimers();
     try {
       const image = controlledImage();
@@ -420,9 +420,39 @@ describe('TankPartArt', () => {
       );
 
       vi.advanceTimersByTime(TANK_PART_LOAD_TIMEOUT_MS);
-      expect(art.state).toBe('failed');
+      expect(art.state).toBe('timed_out');
+      expect(art.isSettled).toBe(true);
+
       settleValid(image);
-      expect(art.state).toBe('failed');
+      expect(art.state).toBe('ready');
+      expect(art.isSettled).toBe(false);
+      expect(art.drawStatic(
+        { drawImage: vi.fn() } as unknown as CanvasRenderingContext2D,
+        tank(),
+      )).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('notifies a waiting consumer exactly once after a valid late decode', () => {
+    vi.useFakeTimers();
+    try {
+      const image = controlledImage();
+      const art = new TankPartArt(
+        () => image as unknown as HTMLImageElement,
+        canvasFactory().factory,
+        '/',
+      );
+      const ready = vi.fn();
+      art.onReady(ready);
+
+      vi.advanceTimersByTime(TANK_PART_LOAD_TIMEOUT_MS);
+      expect(ready).not.toHaveBeenCalled();
+
+      settleValid(image);
+      image.onload?.();
+      expect(ready).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }

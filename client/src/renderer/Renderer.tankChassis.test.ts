@@ -6,6 +6,7 @@ interface AnimationSeam {
   battlefieldBackdrop: { readonly isSettled: boolean };
   terrain: { readonly isMaterialSettled: boolean };
   tanks: { readonly isChassisArtSettled: boolean };
+  tankArtInvalidated: boolean;
   bursts: unknown[];
   scorches: unknown[];
   wallContacts: unknown[];
@@ -25,6 +26,7 @@ function rendererWithChassisState(isChassisArtSettled: boolean): AnimationSeam {
     battlefieldBackdrop: { isSettled: true },
     terrain: { isMaterialSettled: true },
     tanks: { isChassisArtSettled },
+    tankArtInvalidated: false,
     bursts: [],
     scorches: [],
     wallContacts: [],
@@ -76,5 +78,16 @@ describe('Renderer tank chassis eligibility', () => {
 
     expect(renderer.isAnimating(idleState([tank(false)]))).toBe(false);
     expect(rendererWithChassisState(false).isAnimating(idleState([]))).toBe(false);
+  });
+
+  it('wakes one settled living-tank scene when late authored art arrives', () => {
+    const renderer = rendererWithChassisState(true);
+    const state = idleState([tank(true)]);
+    renderer.prevMobilityPoses.set('alive', { tankId: 'alive' });
+
+    expect(renderer.isAnimating(state)).toBe(false);
+    renderer.tankArtInvalidated = true;
+    expect(renderer.isAnimating(state)).toBe(true);
+    expect(renderer.isAnimating(state)).toBe(false);
   });
 });

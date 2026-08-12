@@ -25,7 +25,7 @@ function chassis(settled = true): {
 } {
   const draw = vi.fn(() => true);
   return {
-    painter: { isSettled: settled, draw },
+    painter: { isSettled: settled, draw, onReady: vi.fn(() => vi.fn()) },
     draw,
   };
 }
@@ -45,6 +45,7 @@ function parts(
     painter: {
       state,
       isSettled: settled,
+      onReady: vi.fn(() => vi.fn()),
       drawStatic,
       drawBarrel,
     },
@@ -121,5 +122,27 @@ describe('TankRenderer modular authored assembly', () => {
       chassis(true).painter,
       parts(false, 'failed', true).painter,
     ).isChassisArtSettled).toBe(true);
+  });
+
+  it('forwards either authored painter readiness as one render invalidation', () => {
+    let chassisReady: (() => void) | undefined;
+    let partsReady: (() => void) | undefined;
+    const legacy = chassis(false).painter;
+    const modular = parts(false, 'timed_out', true).painter;
+    legacy.onReady = vi.fn((listener) => {
+      chassisReady = listener;
+      return vi.fn();
+    });
+    modular.onReady = vi.fn((listener) => {
+      partsReady = listener;
+      return vi.fn();
+    });
+    const invalidate = vi.fn();
+
+    new TankRenderer(legacy, modular, invalidate);
+    chassisReady?.();
+    partsReady?.();
+
+    expect(invalidate).toHaveBeenCalledTimes(2);
   });
 });
