@@ -43,4 +43,9 @@ Selected: recoverable timeout plus event-driven repaint. It is Specific and Meas
 - Final full production-bundle browser matrix after the lifecycle correction: 293 passed and 31 intentional skips.
 - Final repository `npm run check`: passed. The unchanged migration-016 working copy was temporarily normalized to its indexed LF content for the mutation fixture, restored immediately afterward, and remains absent from the slice diff.
 - Final adversarial re-review: PASS on staged digest `2c3a3f74085b2e9c6fa8373d73a05fdb37ec2a5702163a0551a382dabd90b5a9`; no Critical, High, or merge-blocking findings remained.
+- The PR-path coverage audit subsequently returned BLOCK on two material proof gaps: real painter unsubscription was trusted through a preview mock, and terminal hard failures were not challenged with a later valid decode.
+- Coverage gaps resolved without production changes: both real painters now prove an unsubscribed listener remains silent through timeout and valid late decode. Network/decode error, invalid dimensions, missing canvas context, and persistent target draw failures now receive a valid late `onload` and prove state remains `failed`, listeners remain silent, and authored drawing remains unavailable.
+- Mutation proof: replacing both real unsubscribe functions with no-ops caused exactly the two new unsubscribe tests to fail. Allowing `failed` to pass the image-load guard caused eight terminality assertions to fail. Both mutations were restored; focused painter tests passed 28/28.
+- Post-coverage full client run: 158 files and 1,486 tests passed; 92.95% statements, 84.73% branches, 89.94% functions, and 95.23% lines.
+- Final coverage re-review: PASS on full PR digest `379effba76a743e81876720d9d25fe3a51732e243229a3fcc4db32b73435d874`; no merge-blocking coverage gap remained.
 - Hosted CI, deployment, and production entries pending.
