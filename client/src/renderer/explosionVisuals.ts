@@ -1,6 +1,7 @@
 import { blastReachRadius } from '@shared/engine/BlastGeometry';
-import { WEAPONS } from '@shared/engine/WeaponSystem';
 import type { WeaponType } from '@shared/engine/WeaponSystem';
+import { getComposableContent, type ComposableContentProfile } from '@shared/content/ComposableCatalog';
+import { weaponRegistry } from '@shared/weapons/registry';
 import type { ExplosionEvent } from '@shared/types/GameState';
 
 export type ExplosionVisualFamily =
@@ -93,15 +94,42 @@ const BASE_PROFILES = {
   },
 } satisfies Record<WeaponType, BaseProfile>;
 
-function isWeaponType(value: unknown): value is WeaponType {
-  return typeof value === 'string' && Object.hasOwn(WEAPONS, value);
+const FALLBACK_PROFILE: BaseProfile = Object.freeze({
+  family: 'conventional',
+  coreScale: 0.24,
+  detailScale: 0.68,
+  verticalScale: 1,
+  detailCount: 4,
+});
+
+function composedProfileFor(weaponId: string): ComposableContentProfile | undefined {
+  const registered = weaponRegistry.get(weaponId);
+  if (registered?.execution.kind !== 'composed') return undefined;
+  const profileId = registered.execution.modifiers?.[0];
+  return profileId ? getComposableContent(profileId) : undefined;
+}
+
+function composedImpactBase(profile: ComposableContentProfile | undefined): BaseProfile | undefined {
+  if (!profile) return undefined;
+  const fanLike = profile.style === 'fan' || profile.style === 'wall';
+  // Kinetic direct-fire impacts are contact sparks, not artillery fireballs.
+  // The authoritative event radius still bounds damage/contact; these scales
+  // deliberately keep the visual response compact inside that envelope.
+  return {
+    family: 'conventional',
+    coreScale: fanLike ? 0.08 : 0.12,
+    detailScale: fanLike ? 0.26 : 0.34,
+    verticalScale: 1,
+    detailCount: fanLike ? 2 : 3,
+  };
 }
 
 export function getExplosionVisualProfile(
   event: Readonly<ExplosionEvent>,
 ): ExplosionVisualProfile {
-  const type = isWeaponType(event.weaponType) ? event.weaponType : 'baby_missile';
-  const base = BASE_PROFILES[type];
+  const weaponId = event.weaponType as unknown as string;
+  const legacyBase = (BASE_PROFILES as unknown as Readonly<Record<string, BaseProfile | undefined>>)[weaponId];
+  const base = legacyBase ?? composedImpactBase(composedProfileFor(weaponId)) ?? FALLBACK_PROFILE;
   const rawReach = blastReachRadius(event.radius, event.style);
   const reachRadius = Number.isFinite(rawReach) && rawReach > 0 ? rawReach : 0;
 
