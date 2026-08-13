@@ -2,7 +2,8 @@ import '@shared/content/PlayableDirectBridge';
 import { getComposableContent, type ComposableContentProfile } from '@shared/content/ComposableCatalog';
 import type { GameEngine } from '@shared/engine/GameEngine';
 import { PROJECTILE_DRAG, WIND_FACTOR } from '@shared/engine/Physics';
-import type { ProjectileState, TankState } from '@shared/types/GameState';
+import { CANVAS_WIDTH } from '@shared/engine/Terrain';
+import type { ProjectileState, TankState, WallImpactEvent } from '@shared/types/GameState';
 import type { WeaponType } from '@shared/engine/WeaponSystem';
 import { setUnlimitedAmmo } from '@shared/weapons/SparseInventory';
 import { weaponRegistry } from '@shared/weapons/registry';
@@ -22,21 +23,38 @@ export interface ComposedFxSnapshot {
   color: string;
   style: ComposableContentProfile['style'] | null;
   flash: number;
+  emitted: number;
+  total: number;
   streaks: readonly ComposedStreak[];
 }
 
+interface ScheduledEmission {
+  releaseTick: number;
+  projectile: ProjectileState;
+}
+
+const KEEPALIVE_Y = -1000;
+const PACKET_GROUPS = 3;
+
 function centeredOffsets(count: number, width: number): number[] {
-  if (count <= 1) return [0];
-  const result: number[] = [];
-  for (let i = 0; i < count; i++) {
-    result.push(-width / 2 + (width * i) / (count - 1));
-  }
-  return result;
+  if (count <= 1 || width === 0) return Array.from({ length: Math.max(1, count) }, () => 0);
+  return Array.from({ length: count }, (_, index) => (
+    -width / 2 + (width * index) / (count - 1)
+  ));
 }
 
 function emissionSpeed(profile: ComposableContentProfile, tank: TankState): number {
   const dial = tank.powerCap > 0 ? Math.max(0, Math.min(1, tank.power / tank.powerCap)) : 0;
   return profile.pace * (0.52 + dial * 0.62);
+}
+
+function emissionTick(profile: ComposableContentProfile, index: number): number {
+  if (profile.copies <= 1 || profile.style === 'tap') return 0;
+  const spacing = Math.max(1, profile.spacingTicks || 1);
+  if (profile.style === 'pulse') return index * spacing;
+  const groups = Math.min(PACKET_GROUPS, profile.copies);
+  const groupSize = Math.ceil(profile.copies / groups);
+  return Math.floor(index / groupSize) * spacing;
 }
 
 function makeProjectile(
@@ -58,10 +76,35 @@ function makeProjectile(
   };
 }
 
+function nearestProjectile(
+  projectiles: readonly ProjectileState[],
+  event: WallImpactEvent,
+  weaponId: string,
+): ProjectileState | undefined {
+  let best: ProjectileState | undefined;
+  let bestDistance = Infinity;
+  for (const projectile of projectiles) {
+    if ((projectile.weaponType as unknown as string) !== weaponId) continue;
+    const distance = Math.hypot(projectile.x - event.x, projectile.y - event.y);
+    if (distance < bestDistance) {
+      best = projectile;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
 export class ComposedEngine {
   private activeWeaponId: WeaponId | null = null;
   private activeProfile: ComposableContentProfile | null = null;
+  private scheduled: ScheduledEmission[] = [];
+  private sequenceTick = 0;
+  private emitted = 0;
+  private total = 0;
   private flash = 0;
+  private keepalive: ProjectileState | null = null;
+  private lastWallImpactId = 0;
+  private readonly wallBounces = new WeakMap<ProjectileState, number>();
 
   constructor(
     private readonly core: GameEngine,
@@ -75,23 +118,33 @@ export class ComposedEngine {
     return phase === 'FIRING' || phase === 'RESOLVING';
   }
 
-  /** Keep composed direct-fire motion linear while the shared engine owns collisions. */
   prepareTick(): void {
     const weaponId = this.activeWeaponId;
     if (weaponId === null) return;
     const state = this.core.getState();
     if (state.phase !== 'FIRING') return;
 
-    const retain = 1 - PROJECTILE_DRAG;
-    if (!(retain > 0)) return;
-    const gravity = this.core.getEffectiveGravity();
-    const windKick = state.wind * WIND_FACTOR;
+    this.releaseDue();
+    this.removeSecondWallCrossings();
 
-    for (const projectile of state.projectiles) {
-      if ((projectile.weaponType as unknown as string) !== weaponId) continue;
-      projectile.vx = projectile.vx / retain - windKick;
-      projectile.vy = projectile.vy / retain - gravity;
+    if (this.scheduled.length > 0) this.ensureKeepalive();
+    if (state.projectiles.length === 0 && this.scheduled.length === 0) {
+      this.addResolver();
     }
+
+    const retain = 1 - PROJECTILE_DRAG;
+    if (retain > 0) {
+      const gravity = this.core.getEffectiveGravity();
+      const windKick = state.wind * WIND_FACTOR;
+      for (const projectile of state.projectiles) {
+        if ((projectile.weaponType as unknown as string) !== weaponId) continue;
+        projectile.vx = projectile.vx / retain - windKick;
+        projectile.vy = projectile.vy / retain - gravity;
+      }
+    }
+
+    state.projectile = state.projectiles[0] ?? null;
+    this.sequenceTick += 1;
   }
 
   fire(weaponId: WeaponId): boolean {
@@ -116,37 +169,62 @@ export class ComposedEngine {
       weapon: weaponId as WeaponType,
     });
     if (!selected) return false;
-
-    const committed = this.apocalypse.applyAction({ type: 'fire' });
-    if (!committed) return false;
+    if (!this.apocalypse.applyAction({ type: 'fire' })) return false;
 
     const base = state.projectiles[0];
     if (!base) return false;
+    const speed = emissionSpeed(profile, tank);
+    const offsets = profile.style === 'pulse' || profile.style === 'tap'
+      ? Array.from({ length: profile.copies }, () => 0)
+      : centeredOffsets(profile.copies, profile.arcWidth);
 
-    const offsets = centeredOffsets(profile.copies, profile.arcWidth);
-    const baseSpeed = emissionSpeed(profile, tank);
-    const projectiles: ProjectileState[] = offsets.map((offset, index) => {
-      const stagger = profile.style === 'pulse'
-        ? Math.max(0.72, 1 - index * profile.spacingTicks * 0.012)
-        : 1;
-      return makeProjectile(base, weaponId, tank.angle + offset, baseSpeed * stagger);
-    });
+    this.scheduled = offsets.map((offset, index) => ({
+      releaseTick: emissionTick(profile, index),
+      projectile: makeProjectile(base, weaponId, tank.angle + offset, speed),
+    }));
 
-    state.projectiles = projectiles;
-    state.projectile = projectiles[0] ?? null;
+    state.projectiles = [];
+    state.projectile = null;
     this.activeWeaponId = weaponId;
     this.activeProfile = profile;
+    this.sequenceTick = 0;
+    this.emitted = 0;
+    this.total = this.scheduled.length;
+    this.keepalive = null;
+    this.lastWallImpactId = state.wallImpacts.reduce((max, event) => Math.max(max, event.id), 0);
     this.flash = 1;
     return true;
   }
 
   observe(): void {
-    this.flash *= 0.86;
-    if (this.activeWeaponId === null) return;
-    const phase = this.core.getState().phase;
+    this.flash *= 0.76;
+    const weaponId = this.activeWeaponId;
+    if (weaponId === null) return;
+    const state = this.core.getState();
+
+    if (this.keepalive !== null) {
+      state.projectiles = state.projectiles.filter((projectile) => projectile !== this.keepalive);
+      state.projectile = state.projectiles[0] ?? null;
+      this.keepalive = null;
+    }
+
+    for (const event of state.wallImpacts) {
+      if (event.id <= this.lastWallImpactId) continue;
+      const projectile = nearestProjectile(state.projectiles, event, weaponId);
+      if (projectile) this.wallBounces.set(projectile, (this.wallBounces.get(projectile) ?? 0) + 1);
+      this.lastWallImpactId = Math.max(this.lastWallImpactId, event.id);
+    }
+
+    const typedId = weaponId as WeaponType;
+    state.explosions = state.explosions.filter((event) => event.weaponType !== typedId);
+    if (state.lastExplosion?.weaponType === typedId) state.lastExplosion = null;
+
+    const phase = state.phase;
     if (phase !== 'FIRING' && phase !== 'RESOLVING') {
       this.activeWeaponId = null;
       this.activeProfile = null;
+      this.scheduled = [];
+      this.keepalive = null;
     }
   }
 
@@ -160,8 +238,12 @@ export class ComposedEngine {
       color: profile?.color ?? '#ffffff',
       style: profile?.style ?? null,
       flash: this.flash,
+      emitted: this.emitted,
+      total: this.total,
       streaks: active
-        ? state.projectiles.map((projectile) => ({
+        ? state.projectiles
+          .filter((projectile) => projectile !== this.keepalive)
+          .map((projectile) => ({
             x: projectile.x,
             y: projectile.y,
             vx: projectile.vx,
@@ -169,5 +251,62 @@ export class ComposedEngine {
           }))
         : [],
     };
+  }
+
+  private releaseDue(): void {
+    const state = this.core.getState();
+    let released = 0;
+    while (this.scheduled.length > 0 && (this.scheduled[0]?.releaseTick ?? Infinity) <= this.sequenceTick) {
+      const next = this.scheduled.shift();
+      if (!next) break;
+      state.projectiles.push(next.projectile);
+      this.emitted += 1;
+      released += 1;
+    }
+    if (released > 0) this.flash = 1;
+  }
+
+  private ensureKeepalive(): void {
+    const weaponId = this.activeWeaponId;
+    if (weaponId === null || this.keepalive !== null) return;
+    const state = this.core.getState();
+    const keeper: ProjectileState = {
+      x: CANVAS_WIDTH / 2,
+      y: KEEPALIVE_Y,
+      vx: 0,
+      vy: 0,
+      weaponType: weaponId as WeaponType,
+      age: 0,
+      hasSplit: true,
+      bounces: 0,
+    };
+    this.keepalive = keeper;
+    state.projectiles.push(keeper);
+  }
+
+  private removeSecondWallCrossings(): void {
+    const state = this.core.getState();
+    state.projectiles = state.projectiles.filter((projectile) => {
+      if (projectile === this.keepalive) return true;
+      if ((this.wallBounces.get(projectile) ?? 0) < 1) return true;
+      const nextX = projectile.x + projectile.vx;
+      return nextX >= 0 && nextX < CANVAS_WIDTH;
+    });
+  }
+
+  private addResolver(): void {
+    const weaponId = this.activeWeaponId;
+    if (weaponId === null) return;
+    const state = this.core.getState();
+    state.projectiles.push({
+      x: -2,
+      y: -2,
+      vx: -1,
+      vy: 0,
+      weaponType: weaponId as WeaponType,
+      age: 0,
+      hasSplit: true,
+      bounces: 0,
+    });
   }
 }
