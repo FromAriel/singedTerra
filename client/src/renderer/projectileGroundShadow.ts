@@ -3,6 +3,7 @@ import {
   CANVAS_WIDTH,
   surfaceAt,
 } from '@shared/engine/Terrain';
+import { weaponRegistry } from '@shared/weapons/registry';
 
 /** Compact contact cue for a shell just above the ground. */
 export const GROUND_SHADOW_MIN_RADIUS_X = 9;
@@ -19,6 +20,8 @@ export const GROUND_SHADOW_SCALE_ALTITUDE = 320;
 export interface ProjectileGroundPoint {
   x: number;
   y: number;
+  /** Optional runtime content id. Plain x/y callers remain supported. */
+  weaponType?: string;
 }
 
 export interface ProjectileGroundShadow {
@@ -30,12 +33,25 @@ export interface ProjectileGroundShadow {
   alpha: number;
 }
 
+function usesTracerDepthCue(projectile: Readonly<ProjectileGroundPoint>): boolean {
+  if (typeof projectile.weaponType !== 'string') return false;
+  const registered = weaponRegistry.get(projectile.weaponType);
+  return registered?.execution.kind === 'composed'
+    && registered.execution.delivery === 'direct_fire';
+}
+
 /**
  * Project a live shell's current x-position onto the first solid terrain pixel.
  *
  * This is a present-position visual cue, not a future impact prediction. It reads
  * the live bitmap and returns finite bounded geometry without retaining or mutating
  * any state.
+ *
+ * Composed direct-fire entries deliberately return null: a bullet/pellet stream
+ * already has a luminous motion streak and should not inherit the large, soft
+ * artillery-shell shadow. Besides being visually wrong, many copies share the
+ * muzzle position on their launch frame, causing those dark shadows to stack into
+ * an opaque blot beneath the firing tank.
  */
 export function getProjectileGroundShadow(
   projectile: Readonly<ProjectileGroundPoint>,
@@ -52,6 +68,8 @@ export function getProjectileGroundShadow(
   ) {
     return null;
   }
+
+  if (usesTracerDepthCue(projectile)) return null;
 
   const groundY = surfaceAt(terrain, x);
   if (groundY >= CANVAS_HEIGHT) return null;
