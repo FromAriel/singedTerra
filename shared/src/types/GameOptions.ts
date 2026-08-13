@@ -9,6 +9,15 @@ export type WallMode = 'open' | 'reflective' | 'wrap' | 'concrete';
 /** Starter-weapon damage curve selected by an execution context. */
 export type StarterWeaponFalloff = 'linear' | 'decisive';
 
+/** Economy behavior. Sandbox purchases are authoritative but never spend credits. */
+export type EconomyMode = 'standard' | 'sandbox';
+
+/**
+ * Store discovery behavior. `seeded` is the future normal scalable market;
+ * `full_catalog` is the developer/test bench that exposes every eligible weapon.
+ */
+export type StoreMode = 'seeded' | 'full_catalog';
+
 /** Deterministic network-room contract understood by the current client. */
 export type NetworkRulesetVersion = 1 | 2 | 3;
 
@@ -128,4 +137,16 @@ export interface GameOptions {
    * the store only; the opening loadout is unaffected.
    */
   armsLevel?: number;
+  /**
+   * Standard spends credits exactly as before. Sandbox keeps purchase validation and
+   * action logging but makes every otherwise-valid purchase free. Defaults to standard.
+   * This is a deterministic ruleset flag, never a client-only balance hack.
+   */
+  economyMode?: EconomyMode;
+  /**
+   * Seeded is the normal small-market mode intended for the scalable arsenal.
+   * Full catalog is the developer/test bench. Slice 1 carries the option through
+   * the match configuration; the new StoreCatalog module owns deterministic selection.
+   */
+  storeMode?: StoreMode;
 }
