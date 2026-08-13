@@ -12,7 +12,7 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; base-uri 'self'; frame-ancestors 'none'"
     />
-    <title>singedTerra</title>
+    <title>singedTerra // Apocalypse Engine</title>
   </head>
   <body>
     <div id="app">
@@ -52,7 +52,9 @@
         </p>
       </section>
     </div>
-    <!-- Title / splash screen: self-contained overlay shown on load (src/ui/Splash.ts) -->
+    <!-- Slice 3 mode selection is intentionally above the legacy splash. -->
+    <script type="module" src="/src/ui/ModeLauncher.ts"></script>
+    <!-- Title / splash screen: preserved for the Classic path. -->
     <script type="module" src="/src/ui/Splash.ts"></script>
     <script type="module" src="/src/main.ts"></script>
   </body>
