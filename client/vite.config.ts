@@ -20,21 +20,17 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    // Multi-page build: preserve the canonical game at index.html and ship the
-    // opt-in Apocalypse ruleset as a separate first-class entry. This keeps the
-    // production deterministic/network contract isolated while allowing the
-    // experimental sidecar to evolve behind its own URL and action-log version.
+    // Slice 3 makes all user-facing modes first-class build entries. The default
+    // page presents the mode launcher; Classic remains underneath it, Apocalypse
+    // is the live sandbox, and Arsenal Lab is the registry/content inspector.
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
         apocalypse: resolve(__dirname, 'apocalypse.html'),
+        arsenal: resolve(__dirname, 'arsenal.html'),
       },
     },
   },
-  // Vitest config (client unit tests). jsdom gives Lobby/HUD DOM code + fetch-using
-  // network code a test seam the tsx `.mjs` harnesses can't reach (those cover the
-  // pure engine + pure client helpers). Coverage is v8; thresholds are enforced
-  // per-refactor-surface by /ca:refactor, not globally here.
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.ts'],
@@ -42,23 +38,16 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'text-summary'],
       include: ['src/**/*.ts'],
-      // The coverage DENOMINATOR is testable logic only. The excludes below are code a
-      // unit test cannot assert on without turning into draw-call theater (asserting on a
-      // mocked CanvasRenderingContext2D / AudioContext) or that carries no logic at all:
-      //   - Canvas rendering (renderer/*Renderer.ts, renderer/*Fx.ts): pure 2D drawing,
-      //     verified by eye + Playwright, not by unit tests.
-      //   - audio/AudioEngine.ts: WebAudio side-effects; jsdom has no AudioContext.
-      //   - main.ts: DOM bootstrap / wiring (integration glue, not a unit).
-      //   - lib/SupabaseTypes.ts, client/GameClient.ts: type-only (interfaces, no runtime).
-      // Pure logic that happens to live under renderer/ (strata, ringBuffer, audioEdges)
-      // and theme.ts's color math STAY in the denominator — they are genuinely testable.
-      // Rationale/decision: .codearbiter/CONTEXT.md (stage-1 coverage note, 2026-07-03).
       exclude: [
         'src/**/*.test.ts',
         'src/**/*.d.ts',
         'src/main.ts',
+        'src/ui/ModeLauncher.ts',
+        'src/lab/main.ts',
         'src/apocalypse/main.ts',
+        'src/apocalypse/main-slice3.ts',
         'src/apocalypse/ApocalypseOverlay.ts',
+        'src/apocalypse/ComposedOverlay.ts',
         'src/lib/SupabaseTypes.ts',
         'src/client/GameClient.ts',
         'src/audio/AudioEngine.ts',
