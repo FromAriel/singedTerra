@@ -9,6 +9,19 @@ export type WallMode = 'open' | 'reflective' | 'wrap' | 'concrete';
 /** Starter-weapon damage curve selected by an execution context. */
 export type StarterWeaponFalloff = 'linear' | 'decisive';
 
+/**
+ * Economy intent carried by a match configuration. Slice 1 consumes `sandbox`
+ * in the Apocalypse test-bench bootstrap; engine-native free purchasing is a
+ * later migration once store/inventory identity moves to WeaponId.
+ */
+export type EconomyMode = 'standard' | 'sandbox';
+
+/**
+ * Store discovery behavior. `seeded` is the future normal scalable market;
+ * `full_catalog` is the developer/test bench that exposes every eligible weapon.
+ */
+export type StoreMode = 'seeded' | 'full_catalog';
+
 /** Deterministic network-room contract understood by the current client. */
 export type NetworkRulesetVersion = 1 | 2 | 3;
 
@@ -128,4 +141,16 @@ export interface GameOptions {
    * the store only; the opening loadout is unaffected.
    */
   armsLevel?: number;
+  /**
+   * Intent for economy execution contexts. The Apocalypse page currently consumes
+   * `sandbox` by seeding a JSON-safe effectively-infinite wallet and unlimited test
+   * ammo. The legacy GameEngine purchase path remains standard until WeaponId migration.
+   */
+  economyMode?: EconomyMode;
+  /**
+   * Seeded is the normal small-market mode intended for the scalable arsenal.
+   * Full catalog is the developer/test bench. `StoreCatalog.ts` owns deterministic
+   * selection; Slice 1 uses full_catalog for Apocalypse content discovery/testing.
+   */
+  storeMode?: StoreMode;
 }

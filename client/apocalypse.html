@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#05070b" />
+    <meta name="description" content="singedTerra Apocalypse Mode — deterministic artillery pushed far beyond sensible limits." />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; base-uri 'self'; frame-ancestors 'none'"
+    />
+    <title>singedTerra // APOCALYPSE MODE</title>
+  </head>
+  <body class="apocalypse-page">
+    <main class="apoc-shell">
+      <section class="apoc-main" aria-label="Apocalypse battlefield">
+        <header class="apoc-topbar">
+          <div class="brand-lockup">
+            <div class="brand-mark">Σ</div>
+            <div>
+              <div class="brand-title">singedTerra // Apocalypse Mode</div>
+              <div class="brand-subtitle">DETERMINISTIC ARTILLERY · UNREASONABLE SYSTEMS AUTHORITY</div>
+            </div>
+          </div>
+          <div class="top-stats" aria-label="Match state">
+            <div class="stat"><label>TURN</label><strong id="turn">1</strong></div>
+            <div class="stat"><label>ACTIVE</label><strong id="turn-name">—</strong></div>
+            <div class="stat"><label>WIND</label><strong id="wind">0.00</strong></div>
+            <div class="stat"><label>PHASE</label><strong id="phase">READY</strong></div>
+          </div>
+        </header>
+
+        <div class="stage-shell">
+          <canvas id="battlefield" width="1200" height="600" aria-label="Destructible artillery battlefield"></canvas>
+          <canvas id="apocalypse-fx" width="1200" height="600" aria-hidden="true"></canvas>
+          <div id="announcement" class="announcement" role="status">APOCALYPSE SYSTEMS ARMED</div>
+
+          <div id="gameover" class="gameover" hidden>
+            <div class="gameover-card">
+              <div class="eyebrow">AFTER ACTION REPORT</div>
+              <h1 id="gameover-text">SOMEONE OWNS THE ASHES</h1>
+              <button id="next-round" type="button" hidden>CONTINUE TO NEXT ROUND</button>
+            </div>
+          </div>
+        </div>
+
+        <section class="command-deck" aria-label="Firing controls">
+          <div class="control">
+            <label for="angle">ANGLE <output id="angle-value">45°</output></label>
+            <input id="angle" type="range" min="0" max="180" step="1" value="45" />
+          </div>
+          <div class="control">
+            <label for="power">POWER <output id="power-value">72</output></label>
+            <input id="power" type="range" min="0" max="140" step="1" value="72" />
+          </div>
+          <div class="control">
+            <label for="weapon-select">PAYLOAD <span>Q / SELECT</span></label>
+            <select id="weapon-select" aria-label="Weapon"></select>
+          </div>
+          <div class="button-bank" aria-label="Mobility and defense">
+            <button id="move-left" type="button" title="Move left (A)">A ◀</button>
+            <button id="move-right" type="button" title="Move right (D)">▶ D</button>
+            <button id="shield" type="button" title="Activate Heavy Shield">SH</button>
+            <button id="guidance" type="button" title="Toggle trajectory guide (G)">G</button>
+          </div>
+          <button id="fire" class="fire" type="button">FIRE</button>
+        </section>
+      </section>
+
+      <aside class="apoc-rail" aria-label="Tactical rail">
+        <section class="panel">
+          <h2>Combatants</h2>
+          <div id="roster" class="roster"></div>
+        </section>
+
+        <section class="weapon-card">
+          <div class="weapon-kicker">CURRENT AUTHORIZATION</div>
+          <h3 id="weapon-name">Rift Lance</h3>
+          <p id="weapon-description">A coherent tear through the world.</p>
+          <div class="weapon-meta">
+            <span id="weapon-ammo">2 CHARGES</span>
+            <span id="weapon-danger" class="danger" data-level="EXOTIC">EXOTIC</span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Forbidden Systems // Rearm</h2>
+          <div id="god-arsenal" class="arsenal-list"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Operations</h2>
+          <div class="utility-grid">
+            <button id="restart" type="button">RESTART</button>
+            <button id="reseed" type="button">NEW WORLD</button>
+            <button id="export-replay" type="button">EXPORT LOG</button>
+            <a class="utility-link" href="./">CLASSIC MODE</a>
+            <div class="seed-wrap">
+              <label for="seed">SEED</label>
+              <input id="seed" type="number" min="0" step="1" value="9001" />
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <footer class="apoc-footer">
+        <span><strong>CORE:</strong> singedTerra GameEngine · 1200×600 per-pixel terrain · fixed-step ballistics</span>
+        <span><strong>SIDE-CAR:</strong> exotic field physics · deterministic special-action log · client-only spectacle overlay</span>
+      </footer>
+    </main>
+    <script type="module" src="/src/apocalypse/main.ts"></script>
+  </body>
+</html>

@@ -20,6 +20,16 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    // Multi-page build: preserve the canonical game at index.html and ship the
+    // opt-in Apocalypse ruleset as a separate first-class entry. This keeps the
+    // production deterministic/network contract isolated while allowing the
+    // experimental sidecar to evolve behind its own URL and action-log version.
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        apocalypse: resolve(__dirname, 'apocalypse.html'),
+      },
+    },
   },
   // Vitest config (client unit tests). jsdom gives Lobby/HUD DOM code + fetch-using
   // network code a test seam the tsx `.mjs` harnesses can't reach (those cover the
@@ -47,6 +57,8 @@ export default defineConfig({
         'src/**/*.test.ts',
         'src/**/*.d.ts',
         'src/main.ts',
+        'src/apocalypse/main.ts',
+        'src/apocalypse/ApocalypseOverlay.ts',
         'src/lib/SupabaseTypes.ts',
         'src/client/GameClient.ts',
         'src/audio/AudioEngine.ts',
