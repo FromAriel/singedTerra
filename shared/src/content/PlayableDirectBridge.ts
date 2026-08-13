@@ -38,12 +38,13 @@ export function installPlayableDirectBridge(): readonly string[] {
         bundleSize: registered.store.bundleSize,
         armsLevel: registered.store.armsLevel,
         detonation: Object.freeze({
-          // blastReachRadius applies the engine's 1.8 conventional reach factor.
-          // 7.25px therefore yields ~13px effective reach: just beyond the 20x12
-          // tank box half-diagonal (~11.7px), with a steep contact-like falloff.
-          radius: 7.25,
+          // Conventional reach multiplies this by 1.8. 6.52px therefore gives
+          // ~11.736px effective reach: essentially the 20x12 tank box half-diagonal
+          // (~11.662px). The very steep edge makes this behave like contact damage,
+          // not useful splash damage around a near miss.
+          radius: 6.52,
           maxDamage: profile.impactScore,
-          falloffExponent: 32,
+          falloffExponent: 512,
           preservesTerrain: true,
           style: 'blast',
           color: profile.color,
