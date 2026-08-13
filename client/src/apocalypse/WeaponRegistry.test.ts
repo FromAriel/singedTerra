@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WEAPONS } from '@shared/engine/WeaponSystem';
+import { COMPOSABLE_CONTENT, getComposableContent } from '@shared/content/ComposableCatalog';
+import { DIRECT_001_PACK } from '@shared/content/packs/direct-001';
 import {
   WeaponRegistry,
   defineWeapon,
@@ -13,10 +15,12 @@ import {
 import { weaponRegistry } from '@shared/weapons/registry';
 
 describe('scalable weapon registry', () => {
-  it('adapts every current WeaponSystem entry without changing legacy execution', () => {
+  it('preserves every legacy adapter while allowing independently registered packs', () => {
     const legacyIds = Object.keys(WEAPONS).sort();
-    expect(weaponRegistry.size).toBe(legacyIds.length);
-    expect([...weaponRegistry.ids()].sort()).toEqual(legacyIds);
+    const directIds = DIRECT_001_PACK.weapons.map((weapon) => weapon.id).sort();
+
+    expect(weaponRegistry.size).toBe(legacyIds.length + directIds.length);
+    expect([...weaponRegistry.ids()].sort()).toEqual([...legacyIds, ...directIds].sort());
 
     for (const id of legacyIds) {
       const registered = weaponRegistry.require(id);
@@ -28,42 +32,55 @@ describe('scalable weapon registry', () => {
     }
   });
 
-  it('accepts a future composed weapon without editing the legacy WeaponType union', () => {
+  it('registers the first ten composed direct-content definitions without touching WeaponType', () => {
+    expect(DIRECT_001_PACK.weapons).toHaveLength(10);
+    expect(new Set(DIRECT_001_PACK.weapons.map((weapon) => weapon.id)).size).toBe(10);
+
+    for (const definition of DIRECT_001_PACK.weapons) {
+      const registered = weaponRegistry.require(definition.id);
+      expect(registered).toBe(definition);
+      expect(registered.execution.kind).toBe('composed');
+      if (registered.execution.kind !== 'composed') continue;
+      expect(registered.execution.delivery).toBe('direct_fire');
+      expect(registered.execution.payload).toBe('kinetic');
+      const profileId = registered.execution.modifiers?.[0];
+      expect(profileId).toBeTypeOf('string');
+      expect(getComposableContent(profileId!)).toBeDefined();
+    }
+
+    expect(COMPOSABLE_CONTENT.size).toBeGreaterThanOrEqual(10);
+  });
+
+  it('accepts an arbitrary composed item without editing the legacy union', () => {
     const registry = new WeaponRegistry();
     registry.registerPack(defineWeaponPack({
-      id: 'firearms-001',
+      id: 'fixture-pack',
       version: 1,
-      name: 'Conventional Firearms I',
+      name: 'Fixture Pack',
       weapons: [defineWeapon({
-        id: 'gun.service_pistol',
+        id: 'fixture.composed_item',
         schemaVersion: 1,
-        name: 'Service Pistol',
-        description: 'Low-power direct-fire kinetic weapon.',
-        family: 'firearm',
-        subfamily: 'pistol',
-        tags: ['kinetic', 'direct-fire'],
+        name: 'Composed Fixture',
+        description: 'Test-only composed content.',
+        family: 'other',
+        tags: ['test', 'composed'],
         rarity: 'common',
         danger: 'conventional',
-        store: {
-          price: 350,
-          bundleSize: 24,
-          armsLevel: 0,
-          weight: 100,
-        },
+        store: { price: 1, bundleSize: 1, armsLevel: 0, weight: 1 },
         execution: {
           kind: 'composed',
-          delivery: 'direct_fire',
-          payload: 'kinetic',
-          modifiers: ['light_recoil'],
+          delivery: 'fixture_delivery',
+          payload: 'fixture_payload',
+          modifiers: ['fixture.profile'],
         },
       })],
     }));
 
-    expect(registry.require('gun.service_pistol').execution).toEqual({
+    expect(registry.require('fixture.composed_item').execution).toEqual({
       kind: 'composed',
-      delivery: 'direct_fire',
-      payload: 'kinetic',
-      modifiers: ['light_recoil'],
+      delivery: 'fixture_delivery',
+      payload: 'fixture_payload',
+      modifiers: ['fixture.profile'],
     });
   });
 
@@ -74,9 +91,9 @@ describe('scalable weapon registry', () => {
       version: 1,
       name: id,
       weapons: [defineWeapon({
-        id: 'test.same_weapon',
+        id: 'test.same_item',
         schemaVersion: 1,
-        name: 'Same Weapon',
+        name: 'Same Item',
         description: 'Duplicate-ID guard fixture.',
         family: 'other',
         tags: ['test'],
