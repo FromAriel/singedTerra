@@ -1,12 +1,11 @@
+import { DIRECT_001_PACK } from '../content/packs/direct-001.ts';
 import { WeaponRegistry } from './WeaponRegistry.ts';
 import { LEGACY_CORE_PACK } from './packs/legacy-core.ts';
 
 /**
- * Process-wide immutable-content registry.
- *
- * Add future packs here (or through a generated pack index once the catalog is
- * large). Nothing in the engine/store should need a new switch simply because a
- * pack contains ten more definitions.
+ * Process-wide immutable-content registry. New packs register here; engine/store
+ * consumers discover them without growing a hand-maintained central item union.
  */
 export const weaponRegistry = new WeaponRegistry()
-  .registerPack(LEGACY_CORE_PACK);
+  .registerPack(LEGACY_CORE_PACK)
+  .registerPack(DIRECT_001_PACK);
