@@ -12,6 +12,11 @@ import {
   generateRunCatalog,
   generateShelf,
 } from '@shared/weapons/StoreCatalog';
+import {
+  isComposedWeaponId,
+  isRegisteredWeaponId,
+  requireRegisteredWeapon,
+} from '@shared/weapons/WeaponLookup';
 import { weaponRegistry } from '@shared/weapons/registry';
 
 describe('scalable weapon registry', () => {
@@ -49,6 +54,16 @@ describe('scalable weapon registry', () => {
     }
 
     expect(COMPOSABLE_CONTENT.size).toBeGreaterThanOrEqual(10);
+  });
+
+  it('validates untyped IDs against the assembled registry and fails closed', () => {
+    expect(isRegisteredWeaponId('missile')).toBe(true);
+    expect(isRegisteredWeaponId('direct.service_sidearm')).toBe(true);
+    expect(isRegisteredWeaponId('not.registered')).toBe(false);
+    expect(isComposedWeaponId('direct.service_sidearm')).toBe(true);
+    expect(isComposedWeaponId('missile')).toBe(false);
+    expect(requireRegisteredWeapon('direct.service_sidearm').id).toBe('direct.service_sidearm');
+    expect(() => requireRegisteredWeapon('not.registered')).toThrow(/unknown registered content id/i);
   });
 
   it('accepts an arbitrary composed item without editing the legacy union', () => {
