@@ -10,7 +10,6 @@ import {
 } from '@shared/engine/Terrain';
 import { BARREL_LENGTH, TANK_HEIGHT, TANK_WIDTH, barrelTip } from '@shared/engine/Tank';
 import {
-  GRAVITY,
   MAX_WIND,
   PROJECTILE_DRAG,
   WIND_FACTOR,
@@ -715,7 +714,7 @@ export class ApocalypseEngine {
   private stepArc(shot: ArcShot, shooterId: string): Vec2 | null {
     if (shot.done) return null;
     const prev = { x: shot.x, y: shot.y };
-    shot.vy += GRAVITY;
+    shot.vy += this.core.getEffectiveGravity();
     shot.vx += this.getState().wind * WIND_FACTOR;
     shot.vx *= 1 - PROJECTILE_DRAG;
     shot.vy *= 1 - PROJECTILE_DRAG;
@@ -777,7 +776,7 @@ export class ApocalypseEngine {
 
   private stepArcPrediction(shot: ArcShot): Vec2 | null {
     const prev = { x: shot.x, y: shot.y };
-    shot.vy += GRAVITY;
+    shot.vy += this.core.getEffectiveGravity();
     shot.vx += this.getState().wind * WIND_FACTOR;
     shot.vx *= 1 - PROJECTILE_DRAG;
     shot.vy *= 1 - PROJECTILE_DRAG;
