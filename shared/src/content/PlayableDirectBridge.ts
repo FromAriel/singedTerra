@@ -14,8 +14,8 @@ import {
  * install a deterministic WeaponDefinition adapter for every composed direct-fire
  * entry. The adapter owns only generic impact metadata; emission shape is handled
  * by the composed runtime before the first engine tick. After that, the production
- * GameEngine owns collision, damage, shields, terrain, scoring, walls, and turn
- * resolution exactly like the legacy arsenal.
+ * GameEngine owns collision, damage, shields, scoring, walls, and turn resolution
+ * exactly like the legacy arsenal.
  *
  * This is intentionally data-driven: adding another direct-fire definition that
  * references a valid composition profile requires no new engine branch.
@@ -43,11 +43,13 @@ export function installPlayableDirectBridge(): readonly string[] {
         bundleSize: registered.store.bundleSize,
         armsLevel: registered.store.armsLevel,
         detonation: Object.freeze({
-          // Game-space impact footprint. A direct projectile only chips a tiny
-          // terrain disc; repeated projectiles create the visible stitched scar.
-          radius: Math.max(1, profile.terrainPixels * 2),
+          // Game-space contact envelope. The engine's damage primitive measures
+          // from impact to tank center; a direct AABB hit therefore needs a small
+          // contact radius rather than a 1px point. Preserve terrain so this reads
+          // as direct kinetic contact, not as a chain of miniature craters.
+          radius: 18 + Math.max(0, profile.terrainPixels - 1) * 2,
           maxDamage: profile.impactScore,
-          preservesTerrain: profile.terrainPixels <= 0,
+          preservesTerrain: true,
           style: profile.style === 'fan' || profile.style === 'wall' ? 'cluster' : 'blast',
           color: profile.color,
           durationFrames: profile.style === 'tap' ? 20 : 28,
