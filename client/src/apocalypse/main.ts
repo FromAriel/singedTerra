@@ -3,6 +3,8 @@ import { GameEngine } from '@shared/engine/GameEngine';
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/engine/Terrain';
 import { WEAPONS, type WeaponType } from '@shared/engine/WeaponSystem';
 import type { PlayerAction } from '@shared/types/PlayerAction';
+import { generateFullCatalog } from '@shared/weapons/StoreCatalog';
+import { weaponRegistry } from '@shared/weapons/registry';
 import { Renderer } from '../renderer/Renderer';
 import {
   ApocalypseEngine,
@@ -14,6 +16,9 @@ import { ApocalypseOverlay } from './ApocalypseOverlay';
 const TICK_MS = 16;
 const STANDARD_PREFIX = 'core:';
 const GOD_PREFIX = 'god:';
+const SANDBOX_MODE = true;
+/** Finite + JSON-safe, but for playtesting effectively inexhaustible. */
+const SANDBOX_CREDITS = Number.MAX_SAFE_INTEGER;
 
 type WeaponChoice = `${typeof STANDARD_PREFIX}${WeaponType}` | `${typeof GOD_PREFIX}${GodWeapon}`;
 
@@ -73,8 +78,22 @@ let runtime: Runtime;
 let accumulator = 0;
 let previousTime = performance.now();
 
-const offensiveCoreWeapons = (Object.values(WEAPONS) as Array<(typeof WEAPONS)[WeaponType]>)
-  .filter((def) => def.implemented && !def.behavior?.shield);
+/**
+ * Apocalypse discovers legacy engine weapons THROUGH the scalable registry now.
+ * Slice 1 still executes those entries through their legacy-core adapter, which
+ * keeps behavior byte-for-byte on the existing GameEngine path while proving
+ * that content discovery no longer needs a hand-maintained UI list.
+ */
+const offensiveCoreWeapons = generateFullCatalog(weaponRegistry, {
+  seed: 0,
+  armsLevel: 4,
+  round: 1,
+  includeHidden: true,
+})
+  .map((id) => weaponRegistry.require(id))
+  .filter((entry) => entry.execution.kind === 'legacy-core')
+  .map((entry) => entry.execution.kind === 'legacy-core' ? entry.execution.definition : null)
+  .filter((def): def is (typeof WEAPONS)[WeaponType] => def !== null && def.implemented && !def.behavior?.shield);
 
 function makeSeed(): number {
   const query = new URLSearchParams(location.search).get('seed');
@@ -87,7 +106,7 @@ function populateWeaponSelect(): void {
   weaponSelect.replaceChildren();
 
   const coreGroup = document.createElement('optgroup');
-  coreGroup.label = 'singedTerra arsenal';
+  coreGroup.label = `singedTerra registry · ${weaponRegistry.size} registered`;
   for (const def of offensiveCoreWeapons) {
     const option = document.createElement('option');
     option.value = `${STANDARD_PREFIX}${def.type}` satisfies WeaponChoice;
@@ -122,16 +141,23 @@ function createGame(seed: number): Runtime {
     suddenDeathTurn: 18,
     armsLevel: 4,
     starterWeaponFalloff: 'decisive',
+    economyMode: 'sandbox',
+    storeMode: 'full_catalog',
   });
 
-  // Apocalypse Mode is intentionally a high-power sandbox. It still uses the
-  // real economy, but both tanks begin with enough capital and mobility to make
-  // strategic choices before the expensive exotic re-arms matter.
+  // Developer test bench: do not make weapon verification wait on progression.
+  // MAX_SAFE_INTEGER is intentionally used instead of Infinity so state remains
+  // JSON-safe. Legacy ammo is marked unlimited so EVERY currently-registered
+  // core weapon can be fired immediately. Normal game modes are untouched.
   for (const tank of core.getState().tanks) {
-    tank.credits += 42000;
+    tank.credits = SANDBOX_CREDITS;
     tank.powerCap = 140;
     tank.power = 72;
     tank.fuel = 220;
+    for (const slot of Object.values(tank.inventory)) {
+      slot.count = 0;
+      slot.unlimited = true;
+    }
   }
 
   const renderer = runtime?.renderer ?? new Renderer(baseCanvas);
@@ -190,7 +216,8 @@ function syncControlsToTank(force = false): void {
 function parseChoice(value: string): { kind: 'core'; weapon: WeaponType } | { kind: 'god'; weapon: GodWeapon } | null {
   if (value.startsWith(STANDARD_PREFIX)) {
     const weapon = value.slice(STANDARD_PREFIX.length) as WeaponType;
-    if (weapon in WEAPONS) return { kind: 'core', weapon };
+    const registered = weaponRegistry.get(weapon);
+    if (registered?.execution.kind === 'legacy-core') return { kind: 'core', weapon };
   }
   if (value.startsWith(GOD_PREFIX)) {
     const weapon = value.slice(GOD_PREFIX.length) as GodWeapon;
@@ -228,7 +255,7 @@ function updateWeaponCard(): void {
     weaponDescription.textContent = def.description;
     weaponDanger.textContent = def.danger;
     weaponDanger.dataset.level = def.danger;
-    weaponAmmo.textContent = `${charges} CHARGE${charges === 1 ? '' : 'S'} · REARM $${def.price.toLocaleString()}`;
+    weaponAmmo.textContent = `${charges} CHARGE${charges === 1 ? '' : 'S'} · ${SANDBOX_MODE ? 'REARM FREE' : `REARM $${def.price.toLocaleString()}`}`;
   } else {
     const def = WEAPONS[choice.weapon];
     const slot = tank.inventory[choice.weapon];
@@ -236,7 +263,7 @@ function updateWeaponCard(): void {
     weaponDescription.textContent = `Canonical singedTerra weapon. ${def.behavior?.airburst ? 'Airburst architecture. ' : ''}${def.behavior?.napalm ? 'Persistent surface fire. ' : ''}${def.behavior?.sandhog ? 'Terrain-burrowing payload. ' : ''}Radius ${def.detonation.radius}px · peak ${Math.round(def.detonation.maxDamage)} damage.`;
     weaponDanger.textContent = def.armsLevel >= 4 ? 'SEVERE' : def.armsLevel >= 2 ? 'HIGH' : 'CONVENTIONAL';
     weaponDanger.dataset.level = 'EXOTIC';
-    weaponAmmo.textContent = slot.unlimited ? 'UNLIMITED' : `${slot.count} ROUND${slot.count === 1 ? '' : 'S'}`;
+    weaponAmmo.textContent = slot.unlimited ? 'UNLIMITED · SANDBOX' : `${slot.count} ROUND${slot.count === 1 ? '' : 'S'}`;
   }
 }
 
@@ -249,12 +276,12 @@ function renderGodArsenal(): void {
     const row = document.createElement('button');
     row.type = 'button';
     row.className = 'arsenal-row';
-    row.disabled = tank.credits < def.price || runtime.apocalypse.isSpecialActive();
+    row.disabled = (!SANDBOX_MODE && tank.credits < def.price) || runtime.apocalypse.isSpecialActive();
     row.innerHTML = `
       <span class="arsenal-name">${def.name}</span>
       <span class="arsenal-sub">${def.subtitle}</span>
       <span class="arsenal-stock">×${charges[def.type]}</span>
-      <span class="arsenal-price">+$${def.price.toLocaleString()}</span>
+      <span class="arsenal-price">${SANDBOX_MODE ? 'FREE TEST' : `+$${def.price.toLocaleString()}`}</span>
     `;
     row.addEventListener('click', () => {
       runtime.apocalypse.buySpecial(def.type);
@@ -284,7 +311,7 @@ function renderRoster(): void {
         <span>HP ${Math.ceil(health)}</span>
         <span>SH ${Math.ceil(shield)}</span>
         <span>FUEL ${Math.floor(tank.fuel)}</span>
-        <span>$${Math.floor(tank.credits).toLocaleString()}</span>
+        <span>${SANDBOX_MODE ? '$∞' : `$${Math.floor(tank.credits).toLocaleString()}`}</span>
       </div>
     `;
     roster.append(card);
