@@ -11,8 +11,6 @@ The mode is intentionally a sidecar rather than a mutation of the canonical netw
 ```text
 apocalypse.html
     |
-    +-- scalable weaponRegistry ------> content discovery / future weapon packs
-    |
     +-- Renderer ----------------------> canonical singedTerra presentation
     |
     +-- ApocalypseOverlay ------------> exotic client-only visual layer
@@ -24,24 +22,23 @@ apocalypse.html
             +-- special weapon rules -> same live GameState bitmap and TankState rows
 ```
 
-Canonical weapons still call `GameEngine.applyAction()` and `GameEngine.tick()` exactly as the normal game does. Slice 1 now discovers that legacy arsenal through the scalable registry and executes each entry through its `legacy-core` adapter. While an Apocalypse weapon is active, the sidecar owns the fixed-step sequence, mutates the same authoritative terrain/tank snapshot through deterministic operations, then returns control to the normal engine at the next turn.
+Canonical weapons still call `GameEngine.applyAction()` and `GameEngine.tick()` exactly as the normal game does. While an Apocalypse weapon is active, the sidecar owns the fixed-step sequence, mutates the same authoritative terrain/tank snapshot through deterministic operations, then returns control to the normal engine at the next turn.
 
 This separation is deliberate. It means the existing online action contract is not silently changed by experimental weapon physics. Apocalypse Mode has its own explicit action-log format and can evolve behind a new ruleset boundary.
 
-The permanent scalable-arsenal design is documented in `docs/WEAPON_CONTENT_ARCHITECTURE.md`.
+## Scalable arsenal test bench
 
-## Developer arsenal sandbox
+Apocalypse is also the development test bench for the growing registry.
 
-Apocalypse Mode is currently also the weapon-development test bench. This is intentional, not balance tuning:
+The test bench uses:
 
-- every legacy weapon inventory slot is unlimited
-- the wallet is seeded to `Number.MAX_SAFE_INTEGER` and displayed as `$∞`
-- arms level is maxed
-- `economyMode` is set to `sandbox`
-- `storeMode` is set to `full_catalog`
-- the weapon selector discovers the canonical arsenal through `weaponRegistry`
+- sandbox economy
+- full-catalog mode
+- a finite JSON-safe wallet displayed as `$∞`
+- unlimited ammo for the currently executable legacy arsenal
+- max arms level
 
-`Number.MAX_SAFE_INTEGER` is used instead of JavaScript `Infinity` so state remains finite and JSON-safe. Normal game modes retain their existing economy and ammo rules.
+Slice 2 adds the first ten independent composed content definitions to the global registry plus reusable composition profiles, sparse inventory helpers, and runtime registered-ID validation. Those new definitions are deliberately **not advertised as fireable yet**: the production action/firing contract still accepts the legacy `WeaponType` execution path. See `docs/WEAPON_CONTENT_ARCHITECTURE.md` for the migration boundary.
 
 ## God-tier arsenal
 
@@ -94,8 +91,8 @@ Then serve the production output and open `/apocalypse.html`.
 
 - Left / Right: angle
 - Up / Down: power
-- A / D: movement (spends canonical fuel)
+- A / D: movement
 - Space / Enter: fire
 - G: trajectory guidance
 - Heavy Shield button: canonical finite shield action
-- Weapon selector: switches between the canonical singedTerra registry-backed arsenal and Apocalypse weapons
+- Weapon selector: switches between the executable canonical singedTerra arsenal and Apocalypse weapons
