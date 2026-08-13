@@ -80,10 +80,12 @@ function nearestProjectile(
   projectiles: readonly ProjectileState[],
   event: WallImpactEvent,
   weaponId: string,
+  used: ReadonlySet<ProjectileState>,
 ): ProjectileState | undefined {
   let best: ProjectileState | undefined;
   let bestDistance = Infinity;
   for (const projectile of projectiles) {
+    if (used.has(projectile)) continue;
     if ((projectile.weaponType as unknown as string) !== weaponId) continue;
     const distance = Math.hypot(projectile.x - event.x, projectile.y - event.y);
     if (distance < bestDistance) {
@@ -104,6 +106,7 @@ export class ComposedEngine {
   private flash = 0;
   private keepalive: ProjectileState | null = null;
   private lastWallImpactId = 0;
+  private resolverOpenedWalls = false;
   private readonly wallBounces = new WeakMap<ProjectileState, number>();
 
   constructor(
@@ -192,6 +195,7 @@ export class ComposedEngine {
     this.total = this.scheduled.length;
     this.keepalive = null;
     this.lastWallImpactId = state.wallImpacts.reduce((max, event) => Math.max(max, event.id), 0);
+    this.resolverOpenedWalls = false;
     this.flash = 1;
     return true;
   }
@@ -202,16 +206,25 @@ export class ComposedEngine {
     if (weaponId === null) return;
     const state = this.core.getState();
 
+    if (this.resolverOpenedWalls) {
+      state.walls = 'reflective';
+      this.resolverOpenedWalls = false;
+    }
+
     if (this.keepalive !== null) {
       state.projectiles = state.projectiles.filter((projectile) => projectile !== this.keepalive);
       state.projectile = state.projectiles[0] ?? null;
       this.keepalive = null;
     }
 
+    const used = new Set<ProjectileState>();
     for (const event of state.wallImpacts) {
       if (event.id <= this.lastWallImpactId) continue;
-      const projectile = nearestProjectile(state.projectiles, event, weaponId);
-      if (projectile) this.wallBounces.set(projectile, (this.wallBounces.get(projectile) ?? 0) + 1);
+      const projectile = nearestProjectile(state.projectiles, event, weaponId, used);
+      if (projectile) {
+        used.add(projectile);
+        this.wallBounces.set(projectile, (this.wallBounces.get(projectile) ?? 0) + 1);
+      }
       this.lastWallImpactId = Math.max(this.lastWallImpactId, event.id);
     }
 
@@ -225,6 +238,7 @@ export class ComposedEngine {
       this.activeProfile = null;
       this.scheduled = [];
       this.keepalive = null;
+      this.resolverOpenedWalls = false;
     }
   }
 
@@ -298,6 +312,10 @@ export class ComposedEngine {
     const weaponId = this.activeWeaponId;
     if (weaponId === null) return;
     const state = this.core.getState();
+    if (state.walls === 'reflective') {
+      state.walls = 'open';
+      this.resolverOpenedWalls = true;
+    }
     state.projectiles.push({
       x: -2,
       y: -2,
