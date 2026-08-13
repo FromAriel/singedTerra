@@ -1,6 +1,7 @@
 import '@shared/content/PlayableDirectBridge';
 import { getComposableContent, type ComposableContentProfile } from '@shared/content/ComposableCatalog';
 import type { GameEngine } from '@shared/engine/GameEngine';
+import { PROJECTILE_DRAG, WIND_FACTOR } from '@shared/engine/Physics';
 import type { ProjectileState, TankState } from '@shared/types/GameState';
 import type { WeaponType } from '@shared/engine/WeaponSystem';
 import { setUnlimitedAmmo } from '@shared/weapons/SparseInventory';
@@ -35,8 +36,6 @@ function centeredOffsets(count: number, width: number): number[] {
 
 function emissionSpeed(profile: ComposableContentProfile, tank: TankState): number {
   const dial = tank.powerCap > 0 ? Math.max(0, Math.min(1, tank.power / tank.powerCap)) : 0;
-  // `pace` is an authored GAME-SPACE value, not a physical unit. Keep even a
-  // low-power test shot legible while still making the power control matter.
   return profile.pace * (0.52 + dial * 0.62);
 }
 
@@ -59,16 +58,6 @@ function makeProjectile(
   };
 }
 
-/**
- * Slice-3 composed emission bridge.
- *
- * Selection/ammo/turn commitment still goes through ApocalypseEngine -> the
- * production GameEngine. Once the engine creates the one canonical projectile,
- * this class expands that committed shot into a deterministic authored emission
- * pattern. From the next fixed tick onward the ordinary GameEngine owns the
- * projectiles completely: swept collision, walls, terrain, shields, damage,
- * scoring, collapse, turn rotation, and state/replay determinism.
- */
 export class ComposedEngine {
   private activeWeaponId: WeaponId | null = null;
   private activeProfile: ComposableContentProfile | null = null;
@@ -84,6 +73,25 @@ export class ComposedEngine {
     if (this.activeWeaponId === null) return false;
     const phase = this.core.getState().phase;
     return phase === 'FIRING' || phase === 'RESOLVING';
+  }
+
+  /** Keep composed direct-fire motion linear while the shared engine owns collisions. */
+  prepareTick(): void {
+    const weaponId = this.activeWeaponId;
+    if (weaponId === null) return;
+    const state = this.core.getState();
+    if (state.phase !== 'FIRING') return;
+
+    const retain = 1 - PROJECTILE_DRAG;
+    if (!(retain > 0)) return;
+    const gravity = this.core.getEffectiveGravity();
+    const windKick = state.wind * WIND_FACTOR;
+
+    for (const projectile of state.projectiles) {
+      if ((projectile.weaponType as unknown as string) !== weaponId) continue;
+      projectile.vx = projectile.vx / retain - windKick;
+      projectile.vy = projectile.vy / retain - gravity;
+    }
   }
 
   fire(weaponId: WeaponId): boolean {
@@ -118,9 +126,6 @@ export class ComposedEngine {
     const offsets = centeredOffsets(profile.copies, profile.arcWidth);
     const baseSpeed = emissionSpeed(profile, tank);
     const projectiles: ProjectileState[] = offsets.map((offset, index) => {
-      // Pulse profiles become a visible stream without introducing a second
-      // scheduler into the authoritative turn machine: deterministic speed
-      // staggering spreads the copies longitudinally after the first tick.
       const stagger = profile.style === 'pulse'
         ? Math.max(0.72, 1 - index * profile.spacingTicks * 0.012)
         : 1;
