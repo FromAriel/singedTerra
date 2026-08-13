@@ -9,7 +9,11 @@ export type WallMode = 'open' | 'reflective' | 'wrap' | 'concrete';
 /** Starter-weapon damage curve selected by an execution context. */
 export type StarterWeaponFalloff = 'linear' | 'decisive';
 
-/** Economy behavior. Sandbox purchases are authoritative but never spend credits. */
+/**
+ * Economy intent carried by a match configuration. Slice 1 consumes `sandbox`
+ * in the Apocalypse test-bench bootstrap; engine-native free purchasing is a
+ * later migration once store/inventory identity moves to WeaponId.
+ */
 export type EconomyMode = 'standard' | 'sandbox';
 
 /**
@@ -138,15 +142,15 @@ export interface GameOptions {
    */
   armsLevel?: number;
   /**
-   * Standard spends credits exactly as before. Sandbox keeps purchase validation and
-   * action logging but makes every otherwise-valid purchase free. Defaults to standard.
-   * This is a deterministic ruleset flag, never a client-only balance hack.
+   * Intent for economy execution contexts. The Apocalypse page currently consumes
+   * `sandbox` by seeding a JSON-safe effectively-infinite wallet and unlimited test
+   * ammo. The legacy GameEngine purchase path remains standard until WeaponId migration.
    */
   economyMode?: EconomyMode;
   /**
    * Seeded is the normal small-market mode intended for the scalable arsenal.
-   * Full catalog is the developer/test bench. Slice 1 carries the option through
-   * the match configuration; the new StoreCatalog module owns deterministic selection.
+   * Full catalog is the developer/test bench. `StoreCatalog.ts` owns deterministic
+   * selection; Slice 1 uses full_catalog for Apocalypse content discovery/testing.
    */
   storeMode?: StoreMode;
 }
