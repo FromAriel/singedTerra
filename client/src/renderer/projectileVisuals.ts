@@ -1,7 +1,10 @@
 import {
-  getWeapon,
+  WEAPONS,
+  type WeaponDefinition,
   type WeaponType,
 } from '@shared/engine/WeaponSystem';
+import { getComposableContent, type ComposableContentProfile } from '@shared/content/ComposableCatalog';
+import { weaponRegistry } from '@shared/weapons/registry';
 import type { ProjectileState } from '@shared/types/GameState';
 
 export type ProjectileSilhouette =
@@ -13,7 +16,8 @@ export type ProjectileSilhouette =
   | 'napalm'
   | 'airburst'
   | 'drill'
-  | 'submunition';
+  | 'submunition'
+  | 'kinetic';
 
 export interface ProjectileVisualProfile {
   silhouette: ProjectileSilhouette;
@@ -196,6 +200,16 @@ const BASE_PROFILES: Record<WeaponType, BaseProfile> = {
   },
 };
 
+const FALLBACK_PROFILE: BaseProfile = Object.freeze({
+  silhouette: 'kinetic',
+  coreRadius: 1.55,
+  glowRadius: 6,
+  trailRadiusMin: 0.65,
+  trailRadiusMax: 2.4,
+  trailAlphaOld: 0.06,
+  trailAlphaNew: 0.46,
+});
+
 const SUBMUNITION_SCALE = 0.68;
 
 function finiteRotation(vx: number, vy: number): number {
@@ -205,18 +219,50 @@ function finiteRotation(vx: number, vy: number): number {
   return Math.atan2(vy, vx);
 }
 
+function composedProfileFor(weaponId: string): ComposableContentProfile | undefined {
+  const registered = weaponRegistry.get(weaponId);
+  if (registered?.execution.kind !== 'composed') return undefined;
+  const profileId = registered.execution.modifiers?.[0];
+  return profileId ? getComposableContent(profileId) : undefined;
+}
+
+function composedBase(profile: ComposableContentProfile | undefined): BaseProfile | undefined {
+  if (!profile) return undefined;
+
+  // Direct-fire composed content should read as bright tracer/kinetic fire rather
+  // than stacking the legacy projectile's dark shell core at the muzzle. Values
+  // stay intentionally compact because ComposedOverlay supplies the larger streak.
+  const fanLike = profile.style === 'fan' || profile.style === 'wall';
+  return {
+    silhouette: 'kinetic',
+    coreRadius: fanLike ? 1.15 : profile.style === 'tap' ? 1.75 : 1.35,
+    glowRadius: fanLike ? 4.6 : 6.4,
+    trailRadiusMin: fanLike ? 0.45 : 0.65,
+    trailRadiusMax: fanLike ? 1.65 : 2.35,
+    trailAlphaOld: 0.04,
+    trailAlphaNew: fanLike ? 0.38 : 0.5,
+  };
+}
+
+function weaponDefinitionFor(weaponId: string): WeaponDefinition | undefined {
+  return (WEAPONS as unknown as Readonly<Record<string, WeaponDefinition | undefined>>)[weaponId];
+}
+
 export function getProjectileVisualProfile(
   projectile: Readonly<ProjectileState>,
 ): ProjectileVisualProfile {
-  const base = BASE_PROFILES[projectile.weaponType];
-  const definition = getWeapon(projectile.weaponType);
-  const isSubmunition = definition.behavior?.airburst !== undefined && projectile.hasSplit;
+  const weaponId = projectile.weaponType as unknown as string;
+  const definition = weaponDefinitionFor(weaponId);
+  const composition = composedProfileFor(weaponId);
+  const legacyBase = (BASE_PROFILES as unknown as Readonly<Record<string, BaseProfile | undefined>>)[weaponId];
+  const base = legacyBase ?? composedBase(composition) ?? FALLBACK_PROFILE;
+  const isSubmunition = definition?.behavior?.airburst !== undefined && projectile.hasSplit;
   const scale = isSubmunition ? SUBMUNITION_SCALE : 1;
 
   return {
     ...base,
     silhouette: isSubmunition ? 'submunition' : base.silhouette,
-    accent: definition.detonation.color,
+    accent: definition?.detonation.color ?? composition?.color ?? '#d9f7ff',
     coreRadius: base.coreRadius * scale,
     glowRadius: base.glowRadius * scale,
     trailRadiusMin: base.trailRadiusMin * scale,

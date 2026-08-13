@@ -1,8 +1,10 @@
 import {
-  getWeapon,
   WEAPONS,
+  type WeaponDefinition,
   type WeaponType,
 } from '@shared/engine/WeaponSystem';
+import { getComposableContent, type ComposableContentProfile } from '@shared/content/ComposableCatalog';
+import { weaponRegistry } from '@shared/weapons/registry';
 
 export type MuzzleMotif =
   | 'needle'
@@ -48,14 +50,51 @@ const BASE_PROFILES: Record<WeaponType, BaseMuzzleProfile> = {
   heavy_shield: { motif: 'needle', scale: 1.05, sparkCount: 10, spread: 0.42, speedMin: 2.2, speedMax: 5.2, life: 8 },
 };
 
-function isWeaponType(value: unknown): value is WeaponType {
-  return typeof value === 'string' && Object.hasOwn(WEAPONS, value);
+const FALLBACK_MUZZLE: BaseMuzzleProfile = Object.freeze({
+  motif: 'needle',
+  scale: 0.72,
+  sparkCount: 5,
+  spread: 0.24,
+  speedMin: 2.4,
+  speedMax: 5.2,
+  life: 5,
+});
+
+function composedProfileFor(id: string): ComposableContentProfile | undefined {
+  const registered = weaponRegistry.get(id);
+  if (registered?.execution.kind !== 'composed') return undefined;
+  const profileId = registered.execution.modifiers?.[0];
+  return profileId ? getComposableContent(profileId) : undefined;
+}
+
+function composedMuzzle(profile: ComposableContentProfile | undefined): BaseMuzzleProfile | undefined {
+  if (!profile) return undefined;
+  const fanLike = profile.style === 'fan' || profile.style === 'wall';
+  const pulse = profile.style === 'pulse';
+  return {
+    motif: fanLike ? 'fan' : 'needle',
+    scale: fanLike ? 0.9 : pulse ? 0.82 : 0.76,
+    sparkCount: fanLike ? Math.min(12, Math.max(6, profile.copies)) : pulse ? 7 : 5,
+    spread: fanLike ? Math.min(0.95, 0.3 + profile.arcWidth * 0.025) : 0.22,
+    speedMin: 2.5,
+    speedMax: fanLike ? 6.2 : 5.4,
+    life: fanLike ? 7 : 5,
+  };
+}
+
+function definitionFor(id: string): WeaponDefinition | undefined {
+  return (WEAPONS as unknown as Readonly<Record<string, WeaponDefinition | undefined>>)[id];
 }
 
 export function getMuzzleVisualProfile(weaponType: unknown): MuzzleVisualProfile {
-  const type = isWeaponType(weaponType) ? weaponType : 'baby_missile';
+  const id = typeof weaponType === 'string' ? weaponType : 'baby_missile';
+  const legacy = (BASE_PROFILES as unknown as Readonly<Record<string, BaseMuzzleProfile | undefined>>)[id];
+  const composition = composedProfileFor(id);
+  const base = legacy ?? composedMuzzle(composition) ?? FALLBACK_MUZZLE;
+  const definition = definitionFor(id);
+
   return {
-    ...BASE_PROFILES[type],
-    accent: getWeapon(type).detonation.color,
+    ...base,
+    accent: definition?.detonation.color ?? composition?.color ?? '#d9f7ff',
   };
 }
