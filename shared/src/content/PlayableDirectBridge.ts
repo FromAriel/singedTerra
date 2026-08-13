@@ -12,13 +12,8 @@ import {
  * The authoritative GameEngine still asks WeaponSystem.getWeapon() for impact
  * semantics. Until the core dispatcher itself speaks WeaponRegistry natively,
  * install a deterministic WeaponDefinition adapter for every composed direct-fire
- * entry. The adapter owns only generic impact metadata; emission shape is handled
- * by the composed runtime before the first engine tick. After that, the production
- * GameEngine owns collision, damage, shields, scoring, walls, and turn resolution
- * exactly like the legacy arsenal.
- *
- * This is intentionally data-driven: adding another direct-fire definition that
- * references a valid composition profile requires no new engine branch.
+ * entry. The adapter owns only generic contact metadata; emission timing and
+ * presentation are handled by the composed runtime.
  */
 export function installPlayableDirectBridge(): readonly string[] {
   const table = WEAPONS as unknown as Record<string, WeaponDefinition>;
@@ -43,16 +38,16 @@ export function installPlayableDirectBridge(): readonly string[] {
         bundleSize: registered.store.bundleSize,
         armsLevel: registered.store.armsLevel,
         detonation: Object.freeze({
-          // Game-space contact envelope. The engine's damage primitive measures
-          // from impact to tank center; a direct AABB hit therefore needs a small
-          // contact radius rather than a 1px point. Preserve terrain so this reads
-          // as direct kinetic contact, not as a chain of miniature craters.
-          radius: 18 + Math.max(0, profile.terrainPixels - 1) * 2,
+          // Collision is against a 20x12 tank box whose center is at the body's
+          // midpoint. A 13px envelope covers every possible box-entry point while
+          // a steep falloff keeps the result contact-like rather than area-like.
+          radius: 13,
           maxDamage: profile.impactScore,
+          falloffExponent: 32,
           preservesTerrain: true,
-          style: profile.style === 'fan' || profile.style === 'wall' ? 'cluster' : 'blast',
+          style: 'blast',
           color: profile.color,
-          durationFrames: profile.style === 'tap' ? 20 : 28,
+          durationFrames: 1,
         }),
       });
     }
