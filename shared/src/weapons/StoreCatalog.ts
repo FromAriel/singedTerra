@@ -1,6 +1,7 @@
+import type { StoreMode } from '../types/GameOptions.ts';
 import type { RegisteredWeaponDefinition, WeaponId, WeaponRegistry } from './WeaponRegistry.ts';
 
-export type StoreMode = 'seeded' | 'full_catalog';
+export type { StoreMode };
 
 export interface RunCatalogOptions {
   readonly seed: number;
