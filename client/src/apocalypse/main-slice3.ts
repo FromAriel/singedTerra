@@ -541,6 +541,7 @@ function frame(now: number): void {
   previousTime = now;
   accumulator += elapsed;
   while (accumulator >= TICK_MS) {
+    runtime.composed.prepareTick();
     runtime.apocalypse.tick();
     runtime.composed.observe();
     accumulator -= TICK_MS;
