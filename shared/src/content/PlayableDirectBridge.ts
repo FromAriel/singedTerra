@@ -38,10 +38,10 @@ export function installPlayableDirectBridge(): readonly string[] {
         bundleSize: registered.store.bundleSize,
         armsLevel: registered.store.armsLevel,
         detonation: Object.freeze({
-          // Collision is against a 20x12 tank box whose center is at the body's
-          // midpoint. A 13px envelope covers every possible box-entry point while
-          // a steep falloff keeps the result contact-like rather than area-like.
-          radius: 13,
+          // blastReachRadius applies the engine's 1.8 conventional reach factor.
+          // 7.25px therefore yields ~13px effective reach: just beyond the 20x12
+          // tank box half-diagonal (~11.7px), with a steep contact-like falloff.
+          radius: 7.25,
           maxDamage: profile.impactScore,
           falloffExponent: 32,
           preservesTerrain: true,
